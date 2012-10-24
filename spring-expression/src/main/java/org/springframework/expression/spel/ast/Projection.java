@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2010 the original author or authors.
+ * Copyright 2002-2012 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ public class Projection extends SpelNodeImpl {
 	public TypedValue getValueInternal(ExpressionState state) throws EvaluationException {
 		return getValueRef(state).getValue();
 	}
-	
+
 	@Override
 	protected ValueRef getValueRef(ExpressionState state) throws EvaluationException {
 		TypedValue op = state.getActiveContextObject();
@@ -70,7 +70,7 @@ public class Projection extends SpelNodeImpl {
 		if (operand instanceof Map) {
 			Map<?, ?> mapData = (Map<?, ?>) operand;
 			List<Object> result = new ArrayList<Object>();
-			for (Map.Entry entry : mapData.entrySet()) {
+			for (Map.Entry<?,?> entry : mapData.entrySet()) {
 				try {
 					state.pushActiveContextObject(new TypedValue(entry));
 					result.add(this.children[0].getValueInternal(state).getValue());

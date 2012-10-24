@@ -36,7 +36,7 @@ import org.springframework.expression.spel.support.ReflectivePropertyAccessor;
  * An Indexer can index into some proceeding structure to access a particular
  * piece of it. Supported structures are: strings/collections
  * (lists/sets)/arrays
- * 
+ *
  * @author Andy Clement
  * @since 3.0
  */
@@ -44,22 +44,18 @@ import org.springframework.expression.spel.support.ReflectivePropertyAccessor;
 // TODO support correct syntax for multidimensional [][][] and not [,,,]
 public class Indexer extends SpelNodeImpl {
 
-	// These fields are used when the indexer is being used as a property read
-	// accessor. If the name and
-	// target type match these cached values then the cachedReadAccessor is used
-	// to read the property.
-	// If they do not match, the correct accessor is discovered and then cached
-	// for later use.
+	// These fields are used when the indexer is being used as a property read accessor.
+	// If the name and target type match these cached values then the cachedReadAccessor
+	// is used to read the property. If they do not match, the correct accessor is
+	// discovered and then cached for later use.
 	private String cachedReadName;
 	private Class<?> cachedReadTargetType;
 	private PropertyAccessor cachedReadAccessor;
 
-	// These fields are used when the indexer is being used as a property write
-	// accessor. If the name and
-	// target type match these cached values then the cachedWriteAccessor is
-	// used to write the property.
-	// If they do not match, the correct accessor is discovered and then cached
-	// for later use.
+	// These fields are used when the indexer is being used as a property write accessor.
+	// If the name and target type match these cached values then the cachedWriteAccessor
+	// is used to write the property. If they do not match, the correct accessor is
+	// discovered and then cached for later use.
 	private String cachedWriteName;
 	private Class<?> cachedWriteTargetType;
 	private PropertyAccessor cachedWriteAccessor;
@@ -293,7 +289,7 @@ public class Indexer extends SpelNodeImpl {
 		public void setValue(Object newValue) {
 			if (index >= collection.size()) {
 				if (growCollection) {
-					growCollection(collectionEntryTypeDescriptor, index, collection);					
+					growCollection(collectionEntryTypeDescriptor, index, collection);
 				} else {
 					throw new SpelEvaluationException(getStartPosition(),
 							SpelMessage.COLLECTION_INDEX_OUT_OF_BOUNDS,
@@ -436,15 +432,11 @@ public class Indexer extends SpelNodeImpl {
 	 * Attempt to grow the specified collection so that the specified index is
 	 * valid.
 	 *
-	 * @param elementType
-	 *            the type of the elements in the collection
-	 * @param index
-	 *            the index into the collection that needs to be valid
-	 * @param collection
-	 *            the collection to grow with elements
+	 * @param elementType the type of the elements in the collection
+	 * @param index the index into the collection that needs to be valid
+	 * @param collection the collection to grow with elements
 	 */
-	@SuppressWarnings("unchecked")
-	private void growCollection(TypeDescriptor targetType, int index, Collection collection) {
+	private void growCollection(TypeDescriptor targetType, int index, Collection<Object> collection) {
 		if (targetType.getElementTypeDescriptor() == null) {
 			throw new SpelEvaluationException(
 					getStartPosition(),
@@ -479,13 +471,8 @@ public class Indexer extends SpelNodeImpl {
 		return sb.toString();
 	}
 
-	// public Object convertValue(Object value, TypeDescriptor
-	// targetTypeDescriptor) throws EvaluationException {
-	// return this.relatedContext.getTypeConverter().convertValue(value,
-	// TypeDescriptor.forObject(value), targetTypeDescriptor);
-
 	private void setArrayElement(TypeConverter converter, Object ctx, int idx,
-			Object newValue, Class clazz) throws EvaluationException {
+			Object newValue, Class<?> clazz) throws EvaluationException {
 		Class<?> arrayComponentType = clazz;
 		if (arrayComponentType == Integer.TYPE) {
 			int[] array = (int[]) ctx;
@@ -499,69 +486,52 @@ public class Indexer extends SpelNodeImpl {
 			array[idx] = (Boolean) converter.convertValue(newValue,
 					TypeDescriptor.forObject(newValue),
 					TypeDescriptor.valueOf(Boolean.class));
-			// array[idx] = (Boolean)state.convertValue(newValue,
-			// TypeDescriptor.valueOf(Boolean.class));
 		} else if (arrayComponentType == Character.TYPE) {
 			char[] array = (char[]) ctx;
 			checkAccess(array.length, idx);
 			array[idx] = (Character) converter.convertValue(newValue,
 					TypeDescriptor.forObject(newValue),
 					TypeDescriptor.valueOf(Character.class));
-			// array[idx] = (Character)state.convertValue(newValue,
-			// TypeDescriptor.valueOf(Character.class));
 		} else if (arrayComponentType == Long.TYPE) {
 			long[] array = (long[]) ctx;
 			checkAccess(array.length, idx);
 			array[idx] = (Long) converter.convertValue(newValue,
 					TypeDescriptor.forObject(newValue),
 					TypeDescriptor.valueOf(Long.class));
-			// array[idx] = (Long)state.convertValue(newValue,
-			// TypeDescriptor.valueOf(Long.class));
 		} else if (arrayComponentType == Short.TYPE) {
 			short[] array = (short[]) ctx;
 			checkAccess(array.length, idx);
 			array[idx] = (Short) converter.convertValue(newValue,
 					TypeDescriptor.forObject(newValue),
 					TypeDescriptor.valueOf(Short.class));
-			// array[idx] = (Short)state.convertValue(newValue,
-			// TypeDescriptor.valueOf(Short.class));
 		} else if (arrayComponentType == Double.TYPE) {
 			double[] array = (double[]) ctx;
 			checkAccess(array.length, idx);
 			array[idx] = (Double) converter.convertValue(newValue,
 					TypeDescriptor.forObject(newValue),
 					TypeDescriptor.valueOf(Double.class));
-			// array[idx] = (Double)state.convertValue(newValue,
-			// TypeDescriptor.valueOf(Double.class));
 		} else if (arrayComponentType == Float.TYPE) {
 			float[] array = (float[]) ctx;
 			checkAccess(array.length, idx);
 			array[idx] = (Float) converter.convertValue(newValue,
 					TypeDescriptor.forObject(newValue),
 					TypeDescriptor.valueOf(Float.class));
-			// array[idx] = (Float)state.convertValue(newValue,
-			// TypeDescriptor.valueOf(Float.class));
 		} else if (arrayComponentType == Byte.TYPE) {
 			byte[] array = (byte[]) ctx;
 			checkAccess(array.length, idx);
 			array[idx] = (Byte) converter.convertValue(newValue,
 					TypeDescriptor.forObject(newValue),
 					TypeDescriptor.valueOf(Byte.class));
-			// array[idx] = (Byte)state.convertValue(newValue,
-			// TypeDescriptor.valueOf(Byte.class));
 		} else {
 			Object[] array = (Object[]) ctx;
 			checkAccess(array.length, idx);
 			array[idx] = converter.convertValue(newValue,
 					TypeDescriptor.forObject(newValue),
 					TypeDescriptor.valueOf(clazz));
-			// array[idx] = state.convertValue(newValue,
-			// TypeDescriptor.valueOf(clazz));
 		}
 	}
 
-	private Object accessArrayElement(Object ctx, int idx)
-			throws SpelEvaluationException {
+	private Object accessArrayElement(Object ctx, int idx) throws SpelEvaluationException {
 		Class<?> arrayComponentType = ctx.getClass().getComponentType();
 		if (arrayComponentType == Integer.TYPE) {
 			int[] array = (int[]) ctx;
@@ -602,8 +572,7 @@ public class Indexer extends SpelNodeImpl {
 		}
 	}
 
-	private void checkAccess(int arrayLength, int index)
-			throws SpelEvaluationException {
+	private void checkAccess(int arrayLength, int index) throws SpelEvaluationException {
 		if (index > arrayLength) {
 			throw new SpelEvaluationException(getStartPosition(),
 					SpelMessage.ARRAY_INDEX_OUT_OF_BOUNDS, arrayLength, index);

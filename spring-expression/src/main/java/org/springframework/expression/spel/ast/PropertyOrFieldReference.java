@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2010 the original author or authors.
+ * Copyright 2002-2012 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 	private volatile PropertyAccessor cachedReadAccessor;
 
 	private volatile PropertyAccessor cachedWriteAccessor;
-	
+
 
 	public PropertyOrFieldReference(boolean nullSafe, String propertyOrFieldName, int pos) {
 		super(pos);
@@ -72,7 +72,7 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 		private TypedValue contextObject;
 		private EvaluationContext eContext;
 		private boolean isAutoGrowNullReferences;
-		
+
 		public AccessorLValue(
 				PropertyOrFieldReference propertyOrFieldReference,
 				TypedValue activeContextObject,
@@ -94,26 +94,23 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 		public boolean isWritable() {
 			return true;
 		}
-		
+
 	}
-	
+
 	@Override
 	public ValueRef getValueRef(ExpressionState state) throws EvaluationException {
-//		if (isWritable(state)) {
-			return new AccessorLValue(this,state.getActiveContextObject(),state.getEvaluationContext(),state.getConfiguration().isAutoGrowNullReferences());
-//		}
-//		return super.getLValue(state);
+		return new AccessorLValue(this,state.getActiveContextObject(),state.getEvaluationContext(),state.getConfiguration().isAutoGrowNullReferences());
 	}
-	
+
 	@Override
 	public TypedValue getValueInternal(ExpressionState state) throws EvaluationException {
 		return getValueInternal(state.getActiveContextObject(), state.getEvaluationContext(), state.getConfiguration().isAutoGrowNullReferences());
 	}
-	
+
 	private TypedValue getValueInternal(TypedValue contextObject, EvaluationContext eContext, boolean isAutoGrowNullReferences) throws EvaluationException {
 
 		TypedValue result = readProperty(contextObject, eContext, this.name);
-				
+
 		// Dynamically create the objects if the user has requested that optional behavior
 		if (result.getValue() == null && isAutoGrowNullReferences &&
 				nextChildIs(Indexer.class, PropertyOrFieldReference.class)) {
@@ -124,7 +121,7 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 				if (resultDescriptor.getType().equals(List.class)) {
 					try { 
 						if (isWritableProperty(this.name,contextObject,eContext)) {
-							List newList = ArrayList.class.newInstance();
+							List<?> newList = ArrayList.class.newInstance();
 							writeProperty(contextObject, eContext, this.name, newList);
 							result = readProperty(contextObject, eContext, this.name);
 						}
@@ -141,7 +138,7 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 				else {
 					try { 
 						if (isWritableProperty(this.name,contextObject,eContext)) {
-							Map newMap = HashMap.class.newInstance();
+							Map<?,?> newMap = HashMap.class.newInstance();
 							writeProperty(contextObject, eContext, name, newMap);
 							result = readProperty(contextObject, eContext, this.name);
 						}
@@ -201,7 +198,6 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 	 * @throws SpelEvaluationException if any problem accessing the property or it cannot be found
 	 */
 	private TypedValue readProperty(TypedValue contextObject, EvaluationContext eContext, String name) throws EvaluationException {
-//		TypedValue contextObject = state.getActiveContextObject();
 		Object targetObject = contextObject.getValue();
 
 		if (targetObject == null && this.nullSafe) {
@@ -252,7 +248,6 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 		}
 	}
 
-	// TODO why is name passed in here?
 	private void writeProperty(TypedValue contextObject, EvaluationContext eContext, String name, Object newValue) throws SpelEvaluationException {
 		
 		if (contextObject.getValue() == null && nullSafe) {
@@ -261,7 +256,7 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 
 		PropertyAccessor accessorToUse = this.cachedWriteAccessor;
 		if (accessorToUse != null) {
-			try {				
+			try {
 				accessorToUse.write(eContext, contextObject.getValue(), name, newValue);
 				return;
 			}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2009 the original author or authors.
+ * Copyright 2002-2012 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,9 +40,10 @@ public class VariableReference extends SpelNodeImpl {
 		super(pos);
 		name = variableName;
 	}
-	
+
+
 	class VariableRef implements ValueRef {
-		
+
 		private String name;
 		private TypedValue value;
 		private EvaluationContext eContext;
@@ -65,9 +66,10 @@ public class VariableReference extends SpelNodeImpl {
 		public boolean isWritable() {
 			return true;
 		}
-		
+
 	}
-	
+
+
 	@Override
 	public ValueRef getValueRef(ExpressionState state) throws SpelEvaluationException {
 		if (this.name.equals(THIS)) {

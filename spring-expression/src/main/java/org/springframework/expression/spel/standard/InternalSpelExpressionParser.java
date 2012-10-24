@@ -235,7 +235,7 @@ class InternalSpelExpressionParser extends TemplateAwareExpressionParser {
 			return new OperatorPower(toPos(t),expr, rhExpr);
 		} else if (expr!=null && peekToken(TokenKind.INC,TokenKind.DEC)) {
 			Token t = nextToken();//consume INC/DEC
-			if (t.getKind()==TokenKind.INC) { 
+			if (t.getKind()==TokenKind.INC) {
 				return new OpInc(toPos(t),true,expr);
 			} else {
 				return new OpDec(toPos(t),true,expr);
@@ -260,7 +260,7 @@ class InternalSpelExpressionParser extends TemplateAwareExpressionParser {
 		} else if (peekToken(TokenKind.INC,TokenKind.DEC)) {
 			Token t = nextToken();
 			SpelNodeImpl expr = eatUnaryExpression();
-			if (t.getKind()==TokenKind.INC) { 
+			if (t.getKind()==TokenKind.INC) {
 				return new OpInc(toPos(t),false,expr);
 			} else {
 				return new OpDec(toPos(t),false,expr);

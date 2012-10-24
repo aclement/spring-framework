@@ -36,7 +36,6 @@ import org.springframework.expression.MethodExecutor;
 import org.springframework.expression.MethodFilter;
 import org.springframework.expression.MethodResolver;
 import org.springframework.expression.ParseException;
-import org.springframework.expression.spel.SpringEL300Tests.MyBeanResolver;
 import org.springframework.expression.spel.standard.SpelExpression;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
@@ -45,7 +44,7 @@ import org.springframework.expression.spel.testresources.TestPerson;
 
 /**
  * Tests the evaluation of real expressions in a real context.
- * 
+ *
  * @author Andy Clement
  * @author Mark Fisher
  * @author Sam Brannen
@@ -623,7 +622,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		}
 
 	}
-	
+
 	// increment/decrement operators - SPR-9751
 
 	static class Spr9751 {
@@ -634,18 +633,18 @@ public class EvaluationTests extends ExpressionTestCase {
 		public int iii = 42;
 		public short sss = (short)15;
 		public Spr9751_2 foo = new Spr9751_2();
-		
+
 		public void m() {}
-		
+
 		public int[] intArray = new int[]{1,2,3,4,5};
 		public int index1 = 2;
-		
+
 		public Integer[] integerArray;
 		public int index2 = 2;
-		
+
 		public List<String> listOfStrings;
 		public int index3 = 0;
-		
+
 		public Spr9751() {
 			integerArray = new Integer[5];
 			integerArray[0] = 1;
@@ -661,19 +660,19 @@ public class EvaluationTests extends ExpressionTestCase {
 			return (i%2)==0;
 		}
 	}
-	
+
 	static class Spr9751_2 {
 		public int iii = 99;
 	}
-	
+
 	/**
-	 * This test is checking that with the changes for 9751 that the refactoring in Indexer is 
+	 * This test is checking that with the changes for 9751 that the refactoring in Indexer is
 	 * coping correctly for references beyond collection boundaries.
 	 */
 	@Test
 	public void collectionGrowingViaIndexer() {
 		Spr9751 instance = new Spr9751();
-		
+
 		// Add a new element to the list
 		StandardEvaluationContext ctx = new StandardEvaluationContext(instance);
 		ExpressionParser parser = new SpelExpressionParser(new SpelParserConfiguration(true, true));
@@ -681,7 +680,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		e.getValue(ctx);
 		assertEquals(2,instance.listOfStrings.size());
 		assertEquals("def",instance.listOfStrings.get(1));
-		
+
 		// Check reference beyond end of collection
 		ctx = new StandardEvaluationContext(instance);
 		parser = new SpelExpressionParser(new SpelParserConfiguration(true, true));
@@ -694,7 +693,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		e =  parser.parseExpression("listOfStrings[2]");
 		value = e.getValue(ctx,String.class);
 		assertEquals("",value);
-		
+
 		// Now turn off growing and reference off the end
 		ctx = new StandardEvaluationContext(instance);
 		parser = new SpelExpressionParser(new SpelParserConfiguration(false, false));
@@ -706,7 +705,7 @@ public class EvaluationTests extends ExpressionTestCase {
 			assertEquals(SpelMessage.COLLECTION_INDEX_OUT_OF_BOUNDS,see.getMessageCode());
 		}
 	}
-	
+
 	// For now I am making #this not assignable
 	@Test
 	public void increment01root() {
@@ -722,14 +721,14 @@ public class EvaluationTests extends ExpressionTestCase {
 			assertEquals(SpelMessage.NOT_ASSIGNABLE,see.getMessageCode());
 		}
 	}
-	
+
 	@Test
 	public void increment02postfix() {
 		Spr9751 helper = new Spr9751();
 		StandardEvaluationContext ctx = new StandardEvaluationContext(helper);
 		ExpressionParser parser = new SpelExpressionParser(new SpelParserConfiguration(true, true));
 		Expression e = null;
-		
+
 		// double
 		e = parser.parseExpression("ddd++");
 		assertEquals(2.0d,helper.ddd,0d);
@@ -743,7 +742,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		float return_fff = e.getValue(ctx,Float.TYPE);
 		assertEquals(3.0f,return_fff,0d);
 		assertEquals(4.0f,helper.fff,0d);
-		
+
 		// long
 		e = parser.parseExpression("lll++");
 		assertEquals(66666L,helper.lll);
@@ -760,7 +759,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		return_iii = e.getValue(ctx,Integer.TYPE);
 		assertEquals(43,return_iii);
 		assertEquals(44,helper.iii);
-		
+
 		// short
 		e = parser.parseExpression("sss++");
 		assertEquals(15,helper.sss);
@@ -768,14 +767,14 @@ public class EvaluationTests extends ExpressionTestCase {
 		assertEquals(15,return_sss);
 		assertEquals(16,helper.sss);
 	}
-	
+
 	@Test
 	public void increment02prefix() {
 		Spr9751 helper = new Spr9751();
 		StandardEvaluationContext ctx = new StandardEvaluationContext(helper);
 		ExpressionParser parser = new SpelExpressionParser(new SpelParserConfiguration(true, true));
 		Expression e = null;
-		
+
 		// double
 		e = parser.parseExpression("++ddd");
 		assertEquals(2.0d,helper.ddd,0d);
@@ -789,7 +788,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		float return_fff = e.getValue(ctx,Float.TYPE);
 		assertEquals(4.0f,return_fff,0d);
 		assertEquals(4.0f,helper.fff,0d);
-		
+
 		// long
 		e = parser.parseExpression("++lll");
 		assertEquals(66666L,helper.lll);
@@ -806,7 +805,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		return_iii = e.getValue(ctx,Integer.TYPE);
 		assertEquals(44,return_iii);
 		assertEquals(44,helper.iii);
-		
+
 		// short
 		e = parser.parseExpression("++sss");
 		assertEquals(15,helper.sss);
@@ -814,14 +813,14 @@ public class EvaluationTests extends ExpressionTestCase {
 		assertEquals(16,return_sss);
 		assertEquals(16,helper.sss);
 	}
-	
+
 	@Test
 	public void increment03() {
 		Spr9751 helper = new Spr9751();
 		StandardEvaluationContext ctx = new StandardEvaluationContext(helper);
 		ExpressionParser parser = new SpelExpressionParser(new SpelParserConfiguration(true, true));
 		Expression e = null;
-		
+
 		e = parser.parseExpression("m()++");
 		try {
 			e.getValue(ctx,Double.TYPE);
@@ -829,7 +828,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		} catch (SpelEvaluationException see) {
 			assertEquals(SpelMessage.OPERAND_NOT_INCREMENTABLE,see.getMessageCode());
 		}
-		
+
 		e = parser.parseExpression("++m()");
 		try {
 			e.getValue(ctx,Double.TYPE);
@@ -838,8 +837,8 @@ public class EvaluationTests extends ExpressionTestCase {
 			assertEquals(SpelMessage.OPERAND_NOT_INCREMENTABLE,see.getMessageCode());
 		}
 	}
-	
-	
+
+
 	@Test
 	public void increment04() {
 		Integer i = 42;
@@ -868,23 +867,20 @@ public class EvaluationTests extends ExpressionTestCase {
 		Expression e =  parser.parseExpression("#this--");
 		assertEquals(42,i.intValue());
 		try {
-//			Integer v = 
 			e.getValue(ctx,Integer.class);
 			fail();
 		} catch (SpelEvaluationException see) {
 			assertEquals(SpelMessage.NOT_ASSIGNABLE,see.getMessageCode());
 		}
-//		assertEquals(42,v.intValue());
-//		assertEquals(ctx.getRootObject().getValue(),i.intValue());
 	}
-	
+
 	@Test
 	public void decrement02postfix() {
 		Spr9751 helper = new Spr9751();
 		StandardEvaluationContext ctx = new StandardEvaluationContext(helper);
 		ExpressionParser parser = new SpelExpressionParser(new SpelParserConfiguration(true, true));
 		Expression e = null;
-		
+
 		// double
 		e = parser.parseExpression("ddd--");
 		assertEquals(2.0d,helper.ddd,0d);
@@ -898,7 +894,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		float return_fff = e.getValue(ctx,Float.TYPE);
 		assertEquals(3.0f,return_fff,0d);
 		assertEquals(2.0f,helper.fff,0d);
-		
+
 		// long
 		e = parser.parseExpression("lll--");
 		assertEquals(66666L,helper.lll);
@@ -915,7 +911,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		return_iii = e.getValue(ctx,Integer.TYPE);
 		assertEquals(41,return_iii);
 		assertEquals(40,helper.iii);
-		
+
 		// short
 		e = parser.parseExpression("sss--");
 		assertEquals(15,helper.sss);
@@ -923,14 +919,14 @@ public class EvaluationTests extends ExpressionTestCase {
 		assertEquals(15,return_sss);
 		assertEquals(14,helper.sss);
 	}
-	
+
 	@Test
 	public void decrement02prefix() {
 		Spr9751 helper = new Spr9751();
 		StandardEvaluationContext ctx = new StandardEvaluationContext(helper);
 		ExpressionParser parser = new SpelExpressionParser(new SpelParserConfiguration(true, true));
 		Expression e = null;
-		
+
 		// double
 		e = parser.parseExpression("--ddd");
 		assertEquals(2.0d,helper.ddd,0d);
@@ -944,7 +940,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		float return_fff = e.getValue(ctx,Float.TYPE);
 		assertEquals(2.0f,return_fff,0d);
 		assertEquals(2.0f,helper.fff,0d);
-		
+
 		// long
 		e = parser.parseExpression("--lll");
 		assertEquals(66666L,helper.lll);
@@ -961,7 +957,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		return_iii = e.getValue(ctx,Integer.TYPE);
 		assertEquals(40,return_iii);
 		assertEquals(40,helper.iii);
-		
+
 		// short
 		e = parser.parseExpression("--sss");
 		assertEquals(15,helper.sss);
@@ -969,14 +965,14 @@ public class EvaluationTests extends ExpressionTestCase {
 		assertEquals(14,return_sss);
 		assertEquals(14,helper.sss);
 	}
-	
+
 	@Test
 	public void decrement03() {
 		Spr9751 helper = new Spr9751();
 		StandardEvaluationContext ctx = new StandardEvaluationContext(helper);
 		ExpressionParser parser = new SpelExpressionParser(new SpelParserConfiguration(true, true));
 		Expression e = null;
-		
+
 		e = parser.parseExpression("m()--");
 		try {
 			e.getValue(ctx,Double.TYPE);
@@ -984,7 +980,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		} catch (SpelEvaluationException see) {
 			assertEquals(SpelMessage.OPERAND_NOT_DECREMENTABLE,see.getMessageCode());
 		}
-		
+
 		e = parser.parseExpression("--m()");
 		try {
 			e.getValue(ctx,Double.TYPE);
@@ -993,8 +989,8 @@ public class EvaluationTests extends ExpressionTestCase {
 			assertEquals(SpelMessage.OPERAND_NOT_DECREMENTABLE,see.getMessageCode());
 		}
 	}
-	
-	
+
+
 	@Test
 	public void decrement04() {
 		Integer i = 42;
@@ -1015,37 +1011,37 @@ public class EvaluationTests extends ExpressionTestCase {
 			assertEquals(SpelMessage.NOT_ASSIGNABLE,see.getMessageCode());
 		}
 	}
-	
+
 	@Test
 	public void incdecTogether() {
 		Spr9751 helper = new Spr9751();
 		StandardEvaluationContext ctx = new StandardEvaluationContext(helper);
 		ExpressionParser parser = new SpelExpressionParser(new SpelParserConfiguration(true, true));
 		Expression e = null;
-		
+
 		// index1 is 2 at the start - the 'intArray[#root.index1++]' should not be evaluated twice!
 		// intArray[2] is 3
 		e = parser.parseExpression("intArray[#root.index1++]++");
 		e.getValue(ctx,Integer.class);
 		assertEquals(3,helper.index1);
 		assertEquals(4,helper.intArray[2]);
-		
+
 		// index1 is 3 intArray[3] is 4
 		e =  parser.parseExpression("intArray[#root.index1++]--");
 		assertEquals(4,e.getValue(ctx,Integer.class).intValue());
 		assertEquals(4,helper.index1);
 		assertEquals(3,helper.intArray[3]);
-		
+
 		// index1 is 4, intArray[3] is 3
 		e =  parser.parseExpression("intArray[--#root.index1]++");
 		assertEquals(3,e.getValue(ctx,Integer.class).intValue());
 		assertEquals(3,helper.index1);
 		assertEquals(4,helper.intArray[3]);
 	}
-	
-	
 
-	
+
+
+
 	private void expectFail(ExpressionParser parser, EvaluationContext eContext, String expressionString, SpelMessage messageCode) {
 		try {
 			Expression e = parser.parseExpression(expressionString);
@@ -1057,7 +1053,7 @@ public class EvaluationTests extends ExpressionTestCase {
 			assertEquals(messageCode,see.getMessageCode());
 		}
 	}
-	
+
 	private void expectFailNotAssignable(ExpressionParser parser, EvaluationContext eContext, String expressionString) {
 		expectFail(parser,eContext,expressionString,SpelMessage.NOT_ASSIGNABLE);
 	}
@@ -1065,7 +1061,7 @@ public class EvaluationTests extends ExpressionTestCase {
 	private void expectFailSetValueNotSupported(ExpressionParser parser, EvaluationContext eContext, String expressionString) {
 		expectFail(parser,eContext,expressionString,SpelMessage.SETVALUE_NOT_SUPPORTED);
 	}
-	
+
 	private void expectFailNotIncrementable(ExpressionParser parser, EvaluationContext eContext, String expressionString) {
 		expectFail(parser,eContext,expressionString,SpelMessage.OPERAND_NOT_INCREMENTABLE);
 	}
@@ -1073,7 +1069,7 @@ public class EvaluationTests extends ExpressionTestCase {
 	private void expectFailNotDecrementable(ExpressionParser parser, EvaluationContext eContext, String expressionString) {
 		expectFail(parser,eContext,expressionString,SpelMessage.OPERAND_NOT_DECREMENTABLE);
 	}
-	
+
 	// Verify how all the nodes behave with assignment (++, --, =)
 	@Test
 	public void incrementAllNodeTypes() throws SecurityException, NoSuchMethodException {
@@ -1081,17 +1077,17 @@ public class EvaluationTests extends ExpressionTestCase {
 		StandardEvaluationContext ctx = new StandardEvaluationContext(helper);
 		ExpressionParser parser = new SpelExpressionParser(new SpelParserConfiguration(true, true));
 		Expression e = null;
-		
+
 		// BooleanLiteral
 		expectFailNotAssignable(parser, ctx, "true++");
 		expectFailNotAssignable(parser, ctx, "--false");
 		expectFailSetValueNotSupported(parser, ctx, "true=false");
-		
+
 		// IntLiteral
 		expectFailNotAssignable(parser, ctx, "12++");
 		expectFailNotAssignable(parser, ctx, "--1222");
 		expectFailSetValueNotSupported(parser, ctx, "12=16");
-		
+
 		// LongLiteral
 		expectFailNotAssignable(parser, ctx, "1.0d++");
 		expectFailNotAssignable(parser, ctx, "--3.4d");
@@ -1107,7 +1103,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		expectFailNotAssignable(parser, ctx, "(true && false)++");
 		expectFailNotAssignable(parser, ctx, "--(false AND true)");
 		expectFailSetValueNotSupported(parser, ctx, "(true && false)=(false && true)");
-		
+
 		// OpDivide
 		expectFailNotAssignable(parser, ctx, "(3/4)++");
 		expectFailNotAssignable(parser, ctx, "--(2/5)");
@@ -1142,7 +1138,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		expectFailNotAssignable(parser, ctx, "(3-4)++");
 		expectFailNotAssignable(parser, ctx, "--(2-5)");
 		expectFailSetValueNotSupported(parser, ctx, "(1-2)=(3-4)");
-		
+
 		// OpModulus
 		expectFailNotAssignable(parser, ctx, "(3%4)++");
 		expectFailNotAssignable(parser, ctx, "--(2%5)");
@@ -1162,12 +1158,12 @@ public class EvaluationTests extends ExpressionTestCase {
 		expectFailNotAssignable(parser, ctx, "(true || false)++");
 		expectFailNotAssignable(parser, ctx, "--(false OR true)");
 		expectFailSetValueNotSupported(parser, ctx, "(true || false)=(false OR true)");
-		
+
 		// OpPlus
 		expectFailNotAssignable(parser, ctx, "(3+4)++");
 		expectFailNotAssignable(parser, ctx, "--(2+5)");
 		expectFailSetValueNotSupported(parser, ctx, "(1+2)=(3+4)");
-		
+
 		// RealLiteral
 		expectFailNotAssignable(parser, ctx, "1.0d++");
 		expectFailNotAssignable(parser, ctx, "--2.0d");
@@ -1175,7 +1171,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		expectFailNotAssignable(parser, ctx, "1.0f++");
 		expectFailNotAssignable(parser, ctx, "--2.0f");
 		expectFailSetValueNotSupported(parser, ctx, "(1.0f)=(3.0f)");
-		
+
 		// StringLiteral
 		expectFailNotAssignable(parser, ctx, "'abc'++");
 		expectFailNotAssignable(parser, ctx, "--'def'");
@@ -1195,7 +1191,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		expectFailNotAssignable(parser, ctx, "(3 between {1,5})++");
 		expectFailNotAssignable(parser, ctx, "--(3 between {1,5})");
 		expectFailSetValueNotSupported(parser, ctx, "(3 between {1,5})=(3 between {1,5})");
-		
+
 		// OperatorInstanceOf
 		expectFailNotAssignable(parser, ctx, "(type instanceof T(String))++");
 		expectFailNotAssignable(parser, ctx, "--(type instanceof T(String))");
@@ -1205,22 +1201,22 @@ public class EvaluationTests extends ExpressionTestCase {
 		expectFailNotAssignable(parser, ctx, "(true?:false)++");
 		expectFailNotAssignable(parser, ctx, "--(true?:false)");
 		expectFailSetValueNotSupported(parser, ctx, "(true?:false)=(true?:false)");
-		
+
 		// OpInc
 		expectFailNotAssignable(parser, ctx, "(iii++)++");
 		expectFailNotAssignable(parser, ctx, "--(++iii)");
 		expectFailSetValueNotSupported(parser, ctx, "(iii++)=(++iii)");
-		
+
 		// OpDec
 		expectFailNotAssignable(parser, ctx, "(iii--)++");
 		expectFailNotAssignable(parser, ctx, "--(--iii)");
 		expectFailSetValueNotSupported(parser, ctx, "(iii--)=(--iii)");
-		
+
 		// OperatorNot
 		expectFailNotAssignable(parser, ctx, "(!true)++");
 		expectFailNotAssignable(parser, ctx, "--(!false)");
 		expectFailSetValueNotSupported(parser, ctx, "(!true)=(!false)");
-		
+
 		// OperatorPower
 		expectFailNotAssignable(parser, ctx, "(iii^2)++");
 		expectFailNotAssignable(parser, ctx, "--(iii^2)");
@@ -1277,7 +1273,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		expectFailNotAssignable(parser, ctx, "(new String('abc'))++");
 		expectFailNotAssignable(parser, ctx, "--(new String('abc'))");
 		expectFailSetValueNotSupported(parser, ctx, "(new String('abc'))=(new String('abc'))");
-		
+
 		// MethodReference
 		expectFailNotIncrementable(parser, ctx, "m()++");
 		expectFailNotDecrementable(parser, ctx, "--m()");
@@ -1287,9 +1283,9 @@ public class EvaluationTests extends ExpressionTestCase {
 		expectFailNotAssignable(parser, ctx, "('abc' matches '^a..')++");
 		expectFailNotAssignable(parser, ctx, "--('abc' matches '^a..')");
 		expectFailSetValueNotSupported(parser, ctx, "('abc' matches '^a..')=('abc' matches '^a..')");
-		
+
 		// Selection
-		ctx.registerFunction("isEven", Spr9751.class.getDeclaredMethod("isEven", Integer.TYPE));		
+		ctx.registerFunction("isEven", Spr9751.class.getDeclaredMethod("isEven", Integer.TYPE));
 
 		expectFailNotIncrementable(parser, ctx, "({1,2,3}.?[#isEven(#this)])++");
 		expectFailNotDecrementable(parser, ctx, "--({1,2,3}.?[#isEven(#this)])");
@@ -1303,12 +1299,12 @@ public class EvaluationTests extends ExpressionTestCase {
 		expectFailNotAssignable(parser, ctx, "({1,2,3}.$[#isEven(#this)])++");
 		expectFailNotAssignable(parser, ctx, "--({1,2,3}.$[#isEven(#this)])");
 		expectFailNotAssignable(parser, ctx, "({1,2,3}.$[#isEven(#this)])=({1,2,3}.$[#isEven(#this)])");
-		
+
 		// FunctionReference
 		expectFailNotAssignable(parser, ctx, "#isEven(3)++");
 		expectFailNotAssignable(parser, ctx, "--#isEven(4)");
 		expectFailSetValueNotSupported(parser, ctx, "#isEven(3)=#isEven(5)");
-		
+
 		// VariableReference
 		ctx.setVariable("wibble", "hello world");
 		expectFailNotIncrementable(parser, ctx, "#wibble++");
@@ -1317,7 +1313,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		String s = e.getValue(ctx,String.class);
 		assertEquals("hello worldhello world",s);
 		assertEquals("hello worldhello world",(String)ctx.lookupVariable("wibble"));
-		
+
 		ctx.setVariable("wobble", 3);
 		e = parser.parseExpression("#wobble++");
 		assertEquals(3,((Integer)ctx.lookupVariable("wobble")).intValue());
@@ -1374,7 +1370,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		assertEquals(100,helper.iii);
 
 	}
-	
+
 	static class MyBeanResolver implements BeanResolver {
 
 		public Object resolve(EvaluationContext context, String beanName)
@@ -1384,8 +1380,8 @@ public class EvaluationTests extends ExpressionTestCase {
 			}
 			throw new AccessException("not heard of "+beanName);
 		}
-		
+
 	}
-	
+
 
 }

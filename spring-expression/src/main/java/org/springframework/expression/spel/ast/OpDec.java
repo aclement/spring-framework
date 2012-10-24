@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 the original author or authors.
+ * Copyright 2002-2012 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ import org.springframework.util.Assert;
  * @since 3.2
  */
 public class OpDec extends Operator {
-	
+
 	private boolean postfix; // false means prefix
 
 	public OpDec(int pos, boolean postfix, SpelNodeImpl... operands) {
@@ -44,16 +44,16 @@ public class OpDec extends Operator {
 	@Override
 	public TypedValue getValueInternal(ExpressionState state) throws EvaluationException {
 		SpelNodeImpl operand = getLeftOperand();
-		
+
 		// The operand is going to be read and then assigned to, we don't want to evaluate it twice.
-		
+
 		ValueRef lvalue = operand.getValueRef(state);
 
 		final TypedValue operandTypedValue = lvalue.getValue();//operand.getValueInternal(state);
 		final Object operandValue = operandTypedValue.getValue();
 		TypedValue returnValue = operandTypedValue;
 		TypedValue newValue = null;
-			
+
 		if (operandValue instanceof Number) {
 			Number op1 = (Number) operandValue;
 			if (op1 instanceof Double) {
@@ -84,7 +84,6 @@ public class OpDec extends Operator {
 		// set the new value
 		try {
 			lvalue.setValue(newValue.getValue());
-//			operand.setValue(state, newValue.getValue());
 		} catch (SpelEvaluationException see) {
 			// if unable to set the value the operand is not writable (e.g. 1-- )
 			if (see.getMessageCode()==SpelMessage.SETVALUE_NOT_SUPPORTED) {
@@ -93,12 +92,12 @@ public class OpDec extends Operator {
 				throw see;
 			}
 		}
-		
+
 		if (!postfix) {
 			// the return value is the new value, not the original value
 			returnValue = newValue;
 		}
-		
+
 		return returnValue;
 	}
 
