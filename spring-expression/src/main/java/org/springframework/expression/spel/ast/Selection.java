@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2010 the original author or authors.
+ * Copyright 2002-2012 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,25 +59,23 @@ public class Selection extends SpelNodeImpl {
 		this.variant = variant;
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
 	public TypedValue getValueInternal(ExpressionState state) throws EvaluationException {
 		return getValueRef(state).getValue();
 	}
 
-	
 	@Override
 	protected ValueRef getValueRef(ExpressionState state) throws EvaluationException {
 		TypedValue op = state.getActiveContextObject();
 		Object operand = op.getValue();
-		
+
 		SpelNodeImpl selectionCriteria = children[0];
 		if (operand instanceof Map) {
 			Map<?, ?> mapdata = (Map<?, ?>) operand;
 			// TODO don't lose generic info for the new map
 			Map<Object,Object> result = new HashMap<Object,Object>();
 			Object lastKey = null;
-			for (Map.Entry entry : mapdata.entrySet()) {
+			for (Map.Entry<?,?> entry : mapdata.entrySet()) {
 				try {
 					TypedValue kvpair = new TypedValue(entry);
 					state.pushActiveContextObject(kvpair);
@@ -103,7 +101,7 @@ public class Selection extends SpelNodeImpl {
 				return new ValueRef.TypedValueHolderValueRef(new TypedValue(null),this);
 			}
 			if (variant == LAST) {
-				Map resultMap = new HashMap();
+				Map<Object,Object> resultMap = new HashMap<Object,Object>();
 				Object lastValue = result.get(lastKey);
 				resultMap.put(lastKey,lastValue);
 				return new ValueRef.TypedValueHolderValueRef(new TypedValue(resultMap),this);

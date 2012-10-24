@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 the original author or authors.
+ * Copyright 2002-2012 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,14 +25,14 @@ import org.springframework.expression.spel.SpelMessage;
 import org.springframework.util.Assert;
 
 /**
- * Increment operator.  Can be used in a prefix or postfix form. This will throw
+ * Increment operator. Can be used in a prefix or postfix form. This will throw
  * appropriate exceptions if the operand in question does not support increment.
  *
  * @author Andy Clement
  * @since 3.2
  */
 public class OpInc extends Operator {
-	
+
 	private boolean postfix; // false means prefix
 
 	public OpInc(int pos, boolean postfix, SpelNodeImpl... operands) {
@@ -44,14 +44,14 @@ public class OpInc extends Operator {
 	@Override
 	public TypedValue getValueInternal(ExpressionState state) throws EvaluationException {
 		SpelNodeImpl operand = getLeftOperand();
-		
+
 		ValueRef lvalue = operand.getValueRef(state);
 
 		final TypedValue operandTypedValue = lvalue.getValue();
 		final Object operandValue = operandTypedValue.getValue();
 		TypedValue returnValue = operandTypedValue;
 		TypedValue newValue = null;
-			
+
 		if (operandValue instanceof Number) {
 			Number op1 = (Number) operandValue;
 			if (op1 instanceof Double) {
@@ -90,12 +90,12 @@ public class OpInc extends Operator {
 				throw see;
 			}
 		}
-		
+
 		if (!postfix) {
 			// the return value is the new value, not the original value
 			returnValue = newValue;
 		}
-		
+
 		return returnValue;
 	}
 
