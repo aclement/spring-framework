@@ -82,7 +82,9 @@ public class MethodReference extends SpelNodeImpl {
 		Object value = state.getActiveContextObject().getValue();
 		TypeDescriptor targetType = state.getActiveContextObject().getTypeDescriptor();
 		Object[] arguments = getArguments(state);
-		return getValueInternal(evaluationContext, value, targetType, arguments);
+		TypedValue result = getValueInternal(evaluationContext, value, arguments, targetType);
+		exitType = result.getTypeDescriptor();
+		return result;
 	}
 
 	private TypedValue getValueInternal(EvaluationContext evaluationContext,
@@ -169,9 +171,7 @@ public class MethodReference extends SpelNodeImpl {
 	boolean compiled = false;
 	int hitcount = 0;
 
-	private MethodExecutor getCachedExecutor(EvaluationContext evaluationContext, Object value,
-			TypeDescriptor target, List<TypeDescriptor> argumentTypes) {
-
+	private MethodExecutor getCachedExecutor(TypeDescriptor target, List<TypeDescriptor> argumentTypes) {
 		List<MethodResolver> methodResolvers = evaluationContext.getMethodResolvers();
 		if (methodResolvers == null || methodResolvers.size() != 1 ||
 				!(methodResolvers.get(0) instanceof ReflectiveMethodResolver)) {
@@ -181,7 +181,14 @@ public class MethodReference extends SpelNodeImpl {
 
 		CachedMethodExecutor executorToCheck = this.cachedExecutor;
 		if (executorToCheck != null && executorToCheck.isSuitable(value, target, argumentTypes)) {
-			return executorToCheck.get();
+//			if (!compiled) {
+//				hitcount++;
+//				if (hitcount > 1000) {
+//					this.cachedExecutor = SpelCompiler.compile(this.cachedExecutor);
+//					this.compiled = true;
+//				}
+//			}
+			return this.cachedExecutor.get();
 		}
 		this.cachedExecutor = null;
 		return null;
