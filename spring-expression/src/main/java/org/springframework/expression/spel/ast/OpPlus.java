@@ -16,12 +16,15 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.Operation;
 import org.springframework.expression.TypeConverter;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
+import org.springframework.expression.spel.standard.CodeFlow;
+import org.springframework.expression.spel.standard.Utils;
 import org.springframework.util.Assert;
 
 /**
@@ -57,11 +60,14 @@ public class OpPlus extends Operator {
 			Object operandOne = leftOp.getValueInternal(state).getValue();
 			if (operandOne instanceof Number) {
 				if (operandOne instanceof Double || operandOne instanceof Long) {
+					this.exitTypeDescriptor = (operandOne instanceof Double)?"D":"J";
 					return new TypedValue(operandOne);
 				}
 				if (operandOne instanceof Float) {
+					this.exitTypeDescriptor = "F";
 					return new TypedValue(((Number) operandOne).floatValue());
 				}
+				this.exitTypeDescriptor = "I";
 				return new TypedValue(((Number) operandOne).intValue());
 			}
 			return state.operate(Operation.ADD, operandOne, null);
@@ -77,15 +83,25 @@ public class OpPlus extends Operator {
 			Number op1 = (Number) operandOne;
 			Number op2 = (Number) operandTwo;
 			if (op1 instanceof Double || op2 instanceof Double) {
+				if (op1 instanceof Double && op2 instanceof Double) {
+					this.exitTypeDescriptor = "D";
+				}
 				return new TypedValue(op1.doubleValue() + op2.doubleValue());
 			}
 			if (op1 instanceof Float || op2 instanceof Float) {
+				if (op1 instanceof Float && op2 instanceof Float) {
+					this.exitTypeDescriptor = "F";
+				}
 				return new TypedValue(op1.floatValue() + op2.floatValue());
 			}
 			if (op1 instanceof Long || op2 instanceof Long) {
+				if (op1 instanceof Long && op2 instanceof Long) {
+					this.exitTypeDescriptor = "J";
+				}
 				return new TypedValue(op1.longValue() + op2.longValue());
 			}
 			// TODO what about overflow?
+			this.exitTypeDescriptor = "I";
 			return new TypedValue(op1.intValue() + op2.intValue());
 		}
 
@@ -148,6 +164,52 @@ public class OpPlus extends Operator {
 		}
 
 		return String.valueOf(value.getValue());
+	}
+
+	@Override
+	public boolean isCompilable() {
+		if (!getLeftOperand().isCompilable()) {
+			return false;
+		}
+		if (this.children.length>1) {
+			 if (!getRightOperand().isCompilable()) {
+				 return false;
+			 }
+		}
+		return this.exitTypeDescriptor!=null;
+	}
+
+	@Override
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		getLeftOperand().generateCode(mv, codeflow);
+		String leftdesc = getLeftOperand().getExitDescriptor();
+		if (!CodeFlow.isPrimitive(leftdesc)) {
+			Utils.insertUnboxInsns(mv, this.exitTypeDescriptor.charAt(0), false);
+		}
+		if (this.children.length>1) {
+			getRightOperand().generateCode(mv, codeflow);
+			String rightdesc = getRightOperand().getExitDescriptor();
+			if (!CodeFlow.isPrimitive(rightdesc)) {
+				Utils.insertUnboxInsns(mv, this.exitTypeDescriptor.charAt(0), false);
+			}
+			switch (this.exitTypeDescriptor.charAt(0)) {
+				case 'I':
+					mv.visitInsn(IADD);
+					break;
+				case 'J':
+					mv.visitInsn(LADD);
+					break;
+				case 'F': 
+					mv.visitInsn(FADD);
+					break;
+				case 'D':
+					mv.visitInsn(DADD);
+					break;				
+				default:
+					throw new IllegalStateException("Unrecognized exit descriptor: '"+this.exitTypeDescriptor+"'");			
+			}
+		}
+		codeflow.pushDescriptor(this.exitTypeDescriptor);
 	}
 
 }

@@ -16,7 +16,9 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.TypedValue;
+import org.springframework.expression.spel.standard.CodeFlow;
 
 /**
  * Expression language AST node that represents null.
@@ -28,6 +30,7 @@ public class NullLiteral extends Literal {
 
 	public NullLiteral(int pos) {
 		super(null,pos);
+		this.exitTypeDescriptor = "Ljava/lang/Object";
 	}
 
 
@@ -39,6 +42,17 @@ public class NullLiteral extends Literal {
 	@Override
 	public String toString() {
 		return "null";
+	}
+
+	@Override
+	public boolean isCompilable() {
+		return true;
+	}
+	
+	@Override
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		mv.visitInsn(ACONST_NULL);
+		codeflow.pushDescriptor(getExitDescriptor());
 	}
 
 }

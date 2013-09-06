@@ -16,12 +16,16 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
+import org.springframework.asm.Type;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
+import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.support.BooleanTypedValue;
+
 
 /**
  * The operator 'instanceof' checks if an object is of the class specified in the right
@@ -32,10 +36,12 @@ import org.springframework.expression.spel.support.BooleanTypedValue;
  */
 public class OperatorInstanceof extends Operator {
 
+	private Class<?> type;
+	
 	public OperatorInstanceof(int pos, SpelNodeImpl... operands) {
 		super("instanceof", pos, operands);
 	}
-
+	
 
 	/**
 	 * Compare the left operand to see it is an instance of the type specified as the
@@ -51,16 +57,32 @@ public class OperatorInstanceof extends Operator {
 		TypedValue right = getRightOperand().getValueInternal(state);
 		Object leftValue = left.getValue();
 		Object rightValue = right.getValue();
-		if (leftValue == null) {
-			return BooleanTypedValue.FALSE;  // null is not an instanceof anything
-		}
+		BooleanTypedValue result = null;
 		if (rightValue == null || !(rightValue instanceof Class<?>)) {
 			throw new SpelEvaluationException(getRightOperand().getStartPosition(),
 					SpelMessage.INSTANCEOF_OPERATOR_NEEDS_CLASS_OPERAND,
 					(rightValue == null ? "null" : rightValue.getClass().getName()));
 		}
 		Class<?> rightClass = (Class<?>) rightValue;
-		return BooleanTypedValue.forValue(rightClass.isAssignableFrom(leftValue.getClass()));
+		if (leftValue == null) {
+			result = BooleanTypedValue.FALSE;  // null is not an instanceof anything
+		} else {
+			result = BooleanTypedValue.forValue(rightClass.isAssignableFrom(leftValue.getClass()));
+		}
+		this.type = rightClass;
+		this.exitTypeDescriptor = "Z";
+		return result;
 	}
 
+	@Override
+	public boolean isCompilable() {
+		return this.exitTypeDescriptor != null && getLeftOperand().isCompilable();
+	}
+	
+	@Override
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		getLeftOperand().generateCode(mv, codeflow);
+		mv.visitTypeInsn(INSTANCEOF,Type.getInternalName(this.type));
+		codeflow.pushDescriptor(getExitDescriptor());
+	}
 }

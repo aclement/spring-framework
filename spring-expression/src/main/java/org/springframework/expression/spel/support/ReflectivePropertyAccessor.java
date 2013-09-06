@@ -56,6 +56,7 @@ public class ReflectivePropertyAccessor implements PropertyAccessor {
 
 	private final Map<CacheKey, TypeDescriptor> typeDescriptorCache = new ConcurrentHashMap<CacheKey, TypeDescriptor>(64);
 
+	private InvokerPair lastReadInvokerPair;
 
 	/**
 	 * @return null which means this is a general purpose accessor
@@ -99,6 +100,10 @@ public class ReflectivePropertyAccessor implements PropertyAccessor {
 		}
 		return false;
 	}
+	
+	public Member getLastReadInvokerPair() {
+		return lastReadInvokerPair.member;
+	}
 
 	@Override
 	public TypedValue read(EvaluationContext context, Object target, String name) throws AccessException {
@@ -107,6 +112,7 @@ public class ReflectivePropertyAccessor implements PropertyAccessor {
 		}
 		Class<?> type = (target instanceof Class ? (Class<?>) target : target.getClass());
 
+		// TODO [spelcompiler] spel compiler dealing with this length special?
 		if (type.isArray() && name.equals("length")) {
 			if (target instanceof Class) {
 				throw new AccessException("Cannot access length on array class itself");
@@ -116,6 +122,7 @@ public class ReflectivePropertyAccessor implements PropertyAccessor {
 
 		CacheKey cacheKey = new CacheKey(type, name, target instanceof Class);
 		InvokerPair invoker = this.readerCache.get(cacheKey);
+		lastReadInvokerPair = invoker;
 
 		if (invoker == null || invoker.member instanceof Method) {
 			Method method = (Method) (invoker != null ? invoker.member : null);
@@ -128,6 +135,7 @@ public class ReflectivePropertyAccessor implements PropertyAccessor {
 					Property property = new Property(type, method, null);
 					TypeDescriptor typeDescriptor = new TypeDescriptor(property);
 					invoker = new InvokerPair(method, typeDescriptor);
+					lastReadInvokerPair = invoker;
 					this.readerCache.put(cacheKey, invoker);
 				}
 			}
@@ -149,6 +157,7 @@ public class ReflectivePropertyAccessor implements PropertyAccessor {
 				field = findField(name, type, target);
 				if (field != null) {
 					invoker = new InvokerPair(field, new TypeDescriptor(field));
+					lastReadInvokerPair = invoker;
 					this.readerCache.put(cacheKey, invoker);
 				}
 			}
@@ -482,6 +491,7 @@ public class ReflectivePropertyAccessor implements PropertyAccessor {
 			this.member = member;
 			this.typeDescriptor = typeDescriptor;
 		}
+		
 	}
 
 
@@ -536,9 +546,9 @@ public class ReflectivePropertyAccessor implements PropertyAccessor {
 	 * accessor exists because looking up the appropriate reflective object by class/name
 	 * on each read is not cheap.
 	 */
-	private static class OptimalPropertyAccessor implements PropertyAccessor {
+	public static class OptimalPropertyAccessor implements PropertyAccessor {
 
-		private final Member member;
+		public final Member member;
 
 		private final TypeDescriptor typeDescriptor;
 
