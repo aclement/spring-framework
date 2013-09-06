@@ -27,6 +27,9 @@ import org.springframework.expression.TypedValue;
  */
 public interface SpelNode {
 
+	int BITMASK_VARIABLES = 0x0030;
+//	int BIT_
+
 	/**
 	 * Evaluate the expression node in the context of the supplied expression state and
 	 * return the value.

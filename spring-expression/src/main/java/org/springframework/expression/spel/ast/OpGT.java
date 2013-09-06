@@ -16,8 +16,10 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.spel.ExpressionState;
+import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.support.BooleanTypedValue;
 
 /**
@@ -30,6 +32,7 @@ public class OpGT extends Operator {
 
 	public OpGT(int pos, SpelNodeImpl... operands) {
 		super(">", pos, operands);
+		this.exitTypeDescriptor = "Z";
 	}
 
 
@@ -53,4 +56,11 @@ public class OpGT extends Operator {
 		return BooleanTypedValue.forValue(state.getTypeComparator().compare(left, right) > 0);
 	}
 
+	public boolean isCompilable() {
+		return isCompilableOperatorUsingNumerics();
+	}
+	
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		generateComparisonCode(mv, codeflow, IFLE, IF_ICMPLE);
+	}
 }

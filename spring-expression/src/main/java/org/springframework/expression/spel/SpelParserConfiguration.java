@@ -16,11 +16,13 @@
 
 package org.springframework.expression.spel;
 
+
 /**
  * Configuration object for the SpEL expression parser.
  *
  * @author Juergen Hoeller
  * @author Phillip Webb
+ * @author Andy Clement
  * @since 3.0
  * @see org.springframework.expression.spel.standard.SpelExpressionParser#SpelExpressionParser(SpelParserConfiguration)
  */
@@ -29,10 +31,26 @@ public class SpelParserConfiguration {
 	private final boolean autoGrowNullReferences;
 
 	private final boolean autoGrowCollections;
+	
+	private static SpelCompilerMode defaultCompilerMode = SpelCompilerMode.off;
+	
+	private SpelCompilerMode compilerMode;
 
 	private final int maximumAutoGrowSize;
 
-
+	static {
+		try {
+			// TODO [spelcompiler] is this something Spring ever does? Checking system properties?
+			String compilerMode = System.getProperty("spel.compiler.mode");
+			if (compilerMode!=null) {
+				defaultCompilerMode = SpelCompilerMode.valueOf(compilerMode.toLowerCase());
+				System.out.println("SpelCompiler: switched to "+defaultCompilerMode+" mode");
+			}
+		} catch (Exception e) {
+			// Likely to be a security exception, ignore
+		}
+	}
+	
 	/**
 	 * Create a new {@link SpelParserConfiguration} instance.
 	 * @param autoGrowNullReferences if null references should automatically grow
@@ -53,8 +71,23 @@ public class SpelParserConfiguration {
 		this.autoGrowNullReferences = autoGrowNullReferences;
 		this.autoGrowCollections = autoGrowCollections;
 		this.maximumAutoGrowSize = maximumAutoGrowSize;
+		this.compilerMode = defaultCompilerMode;
+	}
+	
+	
+	/**
+	 * @param compilerMode
+	 */
+	public void setCompilerMode(SpelCompilerMode compilerMode) {
+		this.compilerMode = compilerMode;
 	}
 
+	/**
+	 * @return the configuration mode for parsers using this configuration object
+	 */
+	public SpelCompilerMode getCompilerMode() {
+		return this.compilerMode;
+	}
 
 	/**
 	 * @return {@code true} if {@code null} references should be automatically grown

@@ -16,8 +16,10 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.spel.ExpressionState;
+import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.support.BooleanTypedValue;
 
 /**
@@ -30,6 +32,7 @@ public class OpLT extends Operator {
 
 	public OpLT(int pos, SpelNodeImpl... operands) {
 		super("<", pos, operands);
+		this.exitTypeDescriptor = "Z";
 	}
 
 
@@ -38,7 +41,6 @@ public class OpLT extends Operator {
 			throws EvaluationException {
 		Object left = getLeftOperand().getValueInternal(state).getValue();
 		Object right = getRightOperand().getValueInternal(state).getValue();
-		// TODO could leave all of these to the comparator - just seems quicker to do some here
 		if (left instanceof Number && right instanceof Number) {
 			Number leftNumber = (Number) left;
 			Number rightNumber = (Number) right;
@@ -56,6 +58,14 @@ public class OpLT extends Operator {
 			}
 		}
 		return BooleanTypedValue.forValue(state.getTypeComparator().compare(left, right) < 0);
+	}
+	
+	public boolean isCompilable() {
+		return isCompilableOperatorUsingNumerics();
+	}
+	
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		generateComparisonCode(mv, codeflow, IFGE, IF_ICMPGE);							
 	}
 
 }

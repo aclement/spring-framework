@@ -120,6 +120,21 @@ public class IndexingTests {
 		expression.setValue(this, "37");
 		assertEquals(37, expression.getValue(this));
 	}
+	
+	@Test
+	public void setPropertyContainingMapNumericIndex() {
+		Map<Integer, Integer> property = new HashMap<Integer, Integer>();
+		property.put(9, 3);
+		this.parameterizedMap = property;
+		SpelExpressionParser parser = new SpelExpressionParser();
+		Expression expression = parser.parseExpression("parameterizedMap");
+		assertEquals("java.util.HashMap<java.lang.Integer, java.lang.Integer>", expression.getValueTypeDescriptor(this).toString());
+		assertEquals(property, expression.getValue(this));
+		expression = parser.parseExpression("parameterizedMap[9]");
+		assertEquals(3, expression.getValue(this));
+		expression.setValue(this, "37");
+		assertEquals(37, expression.getValue(this));
+	}
 
 	public Map<Integer, Integer> parameterizedMap;
 
@@ -296,6 +311,7 @@ public class IndexingTests {
 		assertEquals("", expression.getValue(this, String.class));
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void resolveCollectionElementType() {
 		listNotGeneric = new ArrayList();
@@ -323,6 +339,7 @@ public class IndexingTests {
 
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void resolveMapKeyValueTypes() {
 		mapNotGeneric = new HashMap();
@@ -336,6 +353,7 @@ public class IndexingTests {
 	@FieldAnnotation
 	public Map mapNotGeneric;
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testListOfScalar() {
 		listOfScalarNotGeneric = new ArrayList();
@@ -348,6 +366,7 @@ public class IndexingTests {
 	public List listOfScalarNotGeneric;
 
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testListsOfMap() {
 		listOfMapsNotGeneric = new ArrayList();
