@@ -16,11 +16,16 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.Label;
+import org.springframework.asm.MethodVisitor;
+import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
+import org.springframework.expression.spel.standard.CodeFlow;
+import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.support.BooleanTypedValue;
 
 /**
@@ -35,6 +40,7 @@ public class OpAnd extends Operator {
 
 	public OpAnd(int pos, SpelNodeImpl... operands) {
 		super("and", pos, operands);
+		this.exitType = TypeDescriptor.valueOf(Boolean.TYPE);
 	}
 
 
@@ -63,6 +69,25 @@ public class OpAnd extends Operator {
 		if (value == null) {
 			throw new SpelEvaluationException(SpelMessage.TYPE_CONVERSION_ERROR, "null", "boolean");
 		}
+	}
+	
+	public boolean isCompilable() {
+		return 
+			AstUtils.isBooleanCompatible(getLeftOperand().getExitType()) &&
+			AstUtils.isBooleanCompatible(getRightOperand().getExitType());
+	}
+	
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		// pseudo: if (!leftOperandValue) { result=false; } else { result=rightOperandValue; }
+		Label elseTarget = new Label();
+		Label endOfIf = new Label();
+		getLeftOperand().generateCode(mv, codeflow);
+		mv.visitJumpInsn(IFNE, elseTarget);
+		mv.visitLdcInsn(0);
+		mv.visitJumpInsn(GOTO,endOfIf);
+		mv.visitLabel(elseTarget);
+		getRightOperand().generateCode(mv, codeflow);
+		mv.visitLabel(endOfIf);
 	}
 
 }

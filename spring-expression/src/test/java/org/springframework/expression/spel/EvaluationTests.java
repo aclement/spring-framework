@@ -42,6 +42,7 @@ import org.springframework.expression.MethodExecutor;
 import org.springframework.expression.MethodFilter;
 import org.springframework.expression.MethodResolver;
 import org.springframework.expression.ParseException;
+import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.standard.SpelExpression;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
@@ -58,7 +59,7 @@ import org.springframework.expression.spel.testresources.TestPerson;
  * @since 3.0
  */
 public class EvaluationTests extends ExpressionTestCase {
-
+	
 	@Test
 	public void testCreateListsOnAttemptToIndexNull01() throws EvaluationException, ParseException {
 		ExpressionParser parser = new SpelExpressionParser(new SpelParserConfiguration(true, true));
@@ -585,6 +586,157 @@ public class EvaluationTests extends ExpressionTestCase {
 		exp = parser.parseExpression("NuLl");
 		assertNull(exp.getValue());
 	}
+	
+	@Test
+	public void performanceCompiledMethodReference() throws Exception {
+		String string = "Hello World"; 
+		
+//		int count = 10000000;
+		int count = 500000;
+		SpelParserConfiguration config = new SpelParserConfiguration(true, true);
+		String name = null;
+		SpelExpressionParser parser = new SpelExpressionParser(config);
+		Expression expression = parser.parseExpression("toLowerCase()");
+		// warmup
+		for (int i=0;i<count;i++) {
+			name = expression.getValue(string,String.class);
+		}
+		long stime,etime;
+		for (int iter=0;iter<5;iter++) {
+			stime = System.currentTimeMillis();		
+			for (int i=0;i<count;i++) { // 520ms
+				name = expression.getValue(string,String.class);
+			}
+			etime = System.currentTimeMillis();
+			System.out.println("Elapsed time for method invocation (interpreter) "+(etime-stime)+"ms");
+		}
+		// 31-Aug-13: 3791
+		// 
+		String nonjitResult = name;
+		
+		SpelCompiler.isCompilable=true;
+		for (int iter=0;iter<5;iter++) {
+			stime = System.currentTimeMillis();
+			for (int i=0;i<count;i++) {
+				name = expression.getValue(string,String.class);
+			}
+			etime = System.currentTimeMillis();
+			System.out.println("Elapsed time for method invocation (compiled) "+(etime-stime)+"ms");
+		}
+		assertEquals(nonjitResult,name);
+	}
+	
+	
+	public static class TestClass2 { 
+		public String name = "Santa";
+		private String name2 = "foobar";
+		public String getName2() {
+			return name2;
+		}
+	}
+	
+	@Test
+	public void performanceCompiledPropertyReference() throws Exception {
+		String string = "Hello World"; 
+		
+//		int count = 10000000;
+		int count = 1000000;
+		TestClass2 instance = new TestClass2();
+		
+		SpelParserConfiguration config = new SpelParserConfiguration(true, true);
+		String name = null;
+		SpelExpressionParser parser = new SpelExpressionParser(config);
+		Expression expression = parser.parseExpression("name");
+		// warmup
+		for (int i=0;i<count;i++) {
+			name = expression.getValue(instance,String.class);
+		}
+		long stime,etime;
+		for (int iter=0;iter<5;iter++) {
+			stime = System.currentTimeMillis();		
+			for (int i=0;i<count;i++) {
+				name = expression.getValue(instance,String.class);
+			}
+			etime = System.currentTimeMillis();
+			System.out.println("Elapsed time for method invocation (interpreter) "+(etime-stime)+"ms");
+		}
+		// 31-Aug-13: 3791
+		// 
+		String nonjitResult = name;
+		
+		SpelCompiler.isCompilable=true;
+		for (int iter=0;iter<5;iter++) {
+			stime = System.currentTimeMillis();
+			for (int i=0;i<count;i++) {
+				name = expression.getValue(instance,String.class);
+			}
+			etime = System.currentTimeMillis();
+			System.out.println("Elapsed time for method invocation (compiled) "+(etime-stime)+"ms");
+		}
+		assertEquals(nonjitResult,name);
+	}
+	
+	@Test
+	public void performanceCompiledPropertyReferenceGetter() throws Exception {
+		String string = "Hello World"; 
+		
+//		int count = 10000000;
+		int count = 10000000;
+		int iterations = 10;
+		long interpretedTotal = 0;
+		long compiledTotal = 0;
+		TestClass2 instance = new TestClass2();
+		
+		SpelParserConfiguration config = new SpelParserConfiguration(true, true);
+		String name = null;
+		SpelExpressionParser parser = new SpelExpressionParser(config);
+		Expression expression = parser.parseExpression("name2");
+		// warmup
+		for (int i=0;i<count;i++) {
+			name = expression.getValue(instance,String.class);
+		}
+		long stime,etime;
+		for (int iter=0;iter<iterations;iter++) {
+			stime = System.currentTimeMillis();		
+			for (int i=0;i<count;i++) {
+				name = expression.getValue(instance,String.class);
+			}
+			etime = System.currentTimeMillis();
+			System.out.println("Elapsed time for method invocation (interpreter) "+(etime-stime)+"ms");
+			interpretedTotal+=(etime-stime);
+		}
+		// 31-Aug-13: 3791
+		// 
+		String nonjitResult = name;
+		
+		SpelCompiler.isCompilable=true;
+		for (int iter=0;iter<iterations;iter++) {
+			stime = System.currentTimeMillis();
+			for (int i=0;i<count;i++) {
+				name = expression.getValue(instance,String.class);
+			}
+			etime = System.currentTimeMillis();
+			System.out.println("Elapsed time for method invocation (compiled) "+(etime-stime)+"ms");
+			compiledTotal+=(etime-stime);
+		}
+		assertEquals(nonjitResult,name);
+		
+		double averageInterpreted = interpretedTotal/(iterations);
+		double averageCompiled = compiledTotal/(iterations);
+		
+		System.out.println("Averate per "+count+" interpreted iterations: "+averageInterpreted+"ms");
+		System.out.println("Averate per "+count+" compiled iterations: "+averageCompiled+"ms");
+		
+		double increaseInTimeTakenForInterpreted = averageInterpreted-averageCompiled;
+		
+		
+		double ratio = (increaseInTimeTakenForInterpreted/averageCompiled)*100.0d;
+		System.out.println("Interpreted result is "+ratio+"% worse");
+		if (compiledTotal>=interpretedTotal) {
+			fail("Compiled version is slower than interpreted!");
+		}		
+	}
+	
 
 	/**
 	 * Verifies behavior requested in SPR-9621.

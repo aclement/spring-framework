@@ -16,10 +16,13 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
+import org.springframework.expression.spel.standard.CodeFlow;
+import org.springframework.expression.spel.standard.SpelCompiler;
 
 /**
  * Represents a DOT separated expression sequence, such as 'property1.property2.methodOne()'
@@ -61,7 +64,10 @@ public class CompoundExpression extends SpelNodeImpl {
 			try {
 				state.pushActiveContextObject(result);
 				nextNode = this.children[cc-1];
-				return nextNode.getValueRef(state);
+				ValueRef valuerefResult = nextNode.getValueRef(state);
+				// TODO is this one correct?
+				this.exitType = valuerefResult.getValue().getTypeDescriptor();
+				return valuerefResult;
 			}
 			finally {
 				state.popActiveContextObject();
@@ -105,6 +111,23 @@ public class CompoundExpression extends SpelNodeImpl {
 			sb.append(getChild(i).toStringAST());
 		}
 		return sb.toString();
+	}
+	
+	@Override
+	public boolean isCompilable() {
+		for (SpelNodeImpl child: children) {
+			if (!child.isCompilable()) {
+				return false;
+			}
+		}
+		return true;
+	}
+	
+	@Override
+	public void generateCode(MethodVisitor mv,CodeFlow codeflow) {
+		for (SpelNodeImpl child: children) {
+			child.generateCode(mv, codeflow);
+		}
 	}
 
 }

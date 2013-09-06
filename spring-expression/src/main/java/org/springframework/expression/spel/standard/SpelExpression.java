@@ -22,6 +22,7 @@ import org.springframework.expression.EvaluationException;
 import org.springframework.expression.Expression;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.common.ExpressionUtils;
+import org.springframework.expression.spel.CompiledExpression;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelNode;
 import org.springframework.expression.spel.SpelParserConfiguration;
@@ -41,14 +42,19 @@ import org.springframework.util.Assert;
 public class SpelExpression implements Expression {
 
 	private final String expression;
+	
+	transient CompiledExpression compiledAst;
 
-	private final SpelNodeImpl ast;
+	private SpelNodeImpl ast;
 
 	private final SpelParserConfiguration configuration;
 
 	// the default context is used if no override is supplied by the user
 	private EvaluationContext defaultContext;
 
+	private boolean attemptedCompile = false;
+	
+	private int hitcount = 0;
 
 	/**
 	 * Construct an expression, only used by the parser.
@@ -65,7 +71,13 @@ public class SpelExpression implements Expression {
 	@Override
 	public Object getValue() throws EvaluationException {
 		ExpressionState expressionState = new ExpressionState(getEvaluationContext(), this.configuration);
+		
 		return this.ast.getValue(expressionState);
+	}
+	
+	private void compileExpression(ExpressionState expressionState) {
+		this.compiledAst = SpelCompiler.compile(this.ast, expressionState);
+//		this.attemptedCompile = true;
 	}
 
 	@Override
@@ -83,9 +95,27 @@ public class SpelExpression implements Expression {
 
 	@Override
 	public <T> T getValue(Object rootObject, Class<T> expectedResultType) throws EvaluationException {
-		ExpressionState expressionState = new ExpressionState(getEvaluationContext(), toTypedValue(rootObject), this.configuration);
-		TypedValue typedResultValue = this.ast.getTypedValue(expressionState);
-		return ExpressionUtils.convertTypedValue(expressionState.getEvaluationContext(), typedResultValue, expectedResultType);
+		TypedValue typedResultValue;
+		if (compiledAst!=null) {
+			// Slower but easier route:
+			ExpressionState expressionState = new ExpressionState(getEvaluationContext(), toTypedValue(rootObject), this.configuration);
+			// TODO asc shortcircuit here - don't have the end of the generated class package it up only for us to unpack it, see the super fast route below...
+			Object result = this.compiledAst.getValueInternal(expressionState).getValue();
+			return (T)result;
+						
+			// Super fast route:
+//			Object result = this.compiledAst.getValue(rootObject);
+//			return (T)result;//ExpressionUtils.convertTypedValue(getEvaluationContext(), typedResultValue, expectedResultType);
+		} else {
+			// Interpreted route
+			ExpressionState expressionState = new ExpressionState(getEvaluationContext(), toTypedValue(rootObject), this.configuration);
+			hitcount++;
+			typedResultValue = this.ast.getTypedValue(expressionState);
+			if (SpelCompiler.isCompilable && !attemptedCompile && hitcount >= SpelCompiler.hitCountThreshold) {
+				compileExpression(expressionState);
+			}
+			return ExpressionUtils.convertTypedValue(expressionState.getEvaluationContext(), typedResultValue, expectedResultType);
+		}
 	}
 
 	@Override

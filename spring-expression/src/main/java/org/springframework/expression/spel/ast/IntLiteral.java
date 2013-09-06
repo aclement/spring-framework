@@ -15,7 +15,10 @@
  */
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
+import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.TypedValue;
+import org.springframework.expression.spel.standard.CodeFlow;
 
 /**
  * Expression language AST node that represents an integer literal.
@@ -31,12 +34,25 @@ public class IntLiteral extends Literal {
 	IntLiteral(String payload, int pos, int value) {
 		super(payload, pos);
 		this.value = new TypedValue(value);
+		this.exitType = TypeDescriptor.valueOf(Integer.TYPE);
 	}
 
 
 	@Override
 	public TypedValue getLiteralValue() {
 		return this.value;
+	}
+
+	@Override
+	public boolean isCompilable() {
+		return true;
+	}
+	
+	@Override
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		// TODO asc codeflow could communicate what we want here, whether it is primitive or not
+		mv.visitLdcInsn(((Integer)this.value.getValue()).intValue());
+		codeflow.pushType(Integer.TYPE);
 	}
 
 }

@@ -16,6 +16,9 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
+import org.springframework.asm.Opcodes;
+import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.common.ExpressionUtils;
@@ -23,6 +26,7 @@ import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
 import org.springframework.expression.spel.SpelNode;
+import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.util.Assert;
 
@@ -33,7 +37,7 @@ import org.springframework.util.Assert;
  * @author Andy Clement
  * @since 3.0
  */
-public abstract class SpelNodeImpl implements SpelNode {
+public abstract class SpelNodeImpl implements SpelNode, Opcodes {
 
 	private static SpelNodeImpl[] NO_CHILDREN = new SpelNodeImpl[0];
 
@@ -43,6 +47,7 @@ public abstract class SpelNodeImpl implements SpelNode {
 
 	private SpelNodeImpl parent;
 
+	protected TypeDescriptor exitType;
 
 	public SpelNodeImpl(int pos, SpelNodeImpl... operands) {
 		this.pos = pos;
@@ -169,5 +174,23 @@ public abstract class SpelNodeImpl implements SpelNode {
 
 	protected ValueRef getValueRef(ExpressionState state) throws EvaluationException {
 		throw new SpelEvaluationException(this.pos,SpelMessage.NOT_ASSIGNABLE,toStringAST());
+	}
+
+	public boolean isCompilable() {
+		System.out.println(this.getClass().getName()+" is not compilable");
+		return false;
+	}
+
+	public boolean needsTarget() {
+		return false;
+	}
+	
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		throw new IllegalStateException(this.getClass().getName()+" has no generateCode method");
+	}
+
+
+	public TypeDescriptor getExitType() {
+		return this.exitType;
 	}
 }

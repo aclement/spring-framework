@@ -16,20 +16,29 @@
 
 package org.springframework.expression.spel.ast;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.AccessException;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.PropertyAccessor;
 import org.springframework.expression.TypedValue;
+import org.springframework.expression.spel.EvaluationTests.TestClass2;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
+import org.springframework.expression.spel.standard.CodeFlow;
+import org.springframework.expression.spel.standard.SpelCompiler;
+import org.springframework.expression.spel.support.ReflectiveMethodExecutor;
 import org.springframework.expression.spel.support.ReflectivePropertyAccessor;
 
 /**
@@ -175,6 +184,7 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 				}
 			}
 		}
+		exitType = result.getTypeDescriptor();
 		return result;
 	}
 
@@ -354,6 +364,45 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 		generalAccessors.removeAll(specificAccessors);
 		resolvers.addAll(generalAccessors);
 		return resolvers;
+	}
+	
+	// TODO what to do about compiling the 'write' side? Initially only getValue* uses compiled code.
+	@Override
+	public boolean isCompilable() {
+		return this.cachedReadAccessor !=null &&
+				this.cachedReadAccessor instanceof ReflectivePropertyAccessor.OptimalPropertyAccessor;
+		// TODO host of conditions here that can be gradually loosened, like is the return type not primitive, is the return type not an array, etc, etc.
+	}
+	
+	@Override
+	public boolean needsTarget() {
+		return true;
+	}
+	
+	@Override
+	public void generateCode(MethodVisitor mv,CodeFlow codeflow) {
+		ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor;
+		Member member = accessor.member;
+
+		Class<?> descriptor = codeflow.lastKnownType();
+		if (descriptor == null) {
+			codeflow.loadTarget(mv);
+		}
+		String memberDeclaringClassSlashedDescriptor = member.getDeclaringClass().getName().replace('.','/');
+		if (descriptor == null || !member.getDeclaringClass().equals(descriptor)) {
+			mv.visitTypeInsn(CHECKCAST, memberDeclaringClassSlashedDescriptor);
+		}
+		Class<?> returnTypeDescriptor = null;
+		if (member instanceof Field) {
+			mv.visitFieldInsn(GETFIELD,memberDeclaringClassSlashedDescriptor,member.getName(),SpelCompiler.getDescriptor(((Field) member).getType()));
+			returnTypeDescriptor = ((Field)member).getType();
+		} else {
+			// TODO assert not static
+			mv.visitMethodInsn(INVOKEVIRTUAL, memberDeclaringClassSlashedDescriptor, member.getName(),SpelCompiler.createDescriptor((Method)member));
+			returnTypeDescriptor = ((Method)member).getReturnType();
+		}
+		codeflow.pushType(returnTypeDescriptor);
+		// TODO delegate further to the property accessors themselves? allowing users to plug into compilation
 	}
 
 }

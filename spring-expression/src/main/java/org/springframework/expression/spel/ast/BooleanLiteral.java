@@ -15,6 +15,9 @@
  */
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
+import org.springframework.core.convert.TypeDescriptor;
+import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.support.BooleanTypedValue;
 
 /**
@@ -27,16 +30,32 @@ public class BooleanLiteral extends Literal {
 
 	private final BooleanTypedValue value;
 
-
 	public BooleanLiteral(String payload, int pos, boolean value) {
 		super(payload, pos);
 		this.value = BooleanTypedValue.forValue(value);
+		this.exitType = TypeDescriptor.valueOf(Boolean.TYPE);
 	}
 
 
 	@Override
 	public BooleanTypedValue getLiteralValue() {
 		return this.value;
+	}
+	
+	@Override
+	public boolean isCompilable() {
+		return true;
+	}
+	
+	@Override
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		if (this.value==BooleanTypedValue.TRUE) {
+			mv.visitLdcInsn(1);		
+		} else {
+			mv.visitLdcInsn(0);
+			
+		}
+		codeflow.pushType(Boolean.TYPE);
 	}
 
 }

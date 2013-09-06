@@ -31,7 +31,7 @@ import org.springframework.util.ReflectionUtils;
  * @author Juergen Hoeller
  * @since 3.0
  */
-class ReflectiveMethodExecutor implements MethodExecutor {
+public class ReflectiveMethodExecutor implements MethodExecutor {
 
 	private final Method method;
 
@@ -41,6 +41,9 @@ class ReflectiveMethodExecutor implements MethodExecutor {
 	// to be invoked. Conversion won't be cheap so let's only do it if necessary.
 	private final int[] argsRequiringConversion;
 
+	public Method getMethod() {
+		return this.method;
+	}
 
 	public ReflectiveMethodExecutor(Method theMethod, int[] argumentsRequiringConversion) {
 		this.method = theMethod;
