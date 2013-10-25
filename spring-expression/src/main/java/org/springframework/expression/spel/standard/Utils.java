@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 VMware and contributors
+ * Copyright 2002-2013 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,219 +22,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import org.springframework.asm.AnnotationVisitor;
-import org.springframework.asm.Attribute;
-import org.springframework.asm.ClassReader;
-import org.springframework.asm.ClassVisitor;
-import org.springframework.asm.FieldVisitor;
 import org.springframework.asm.MethodVisitor;
 import org.springframework.asm.Opcodes;
 import org.springframework.asm.Type;
-//import org.springframework.asm.tree.AnnotationNode;
-//import org.springframework.asm.tree.FieldNode;
-//import org.springsource.loaded.Utils.ReturnType.Kind;
 
 
-// TODO debugging tests - how is the experience?  rewriting of field accesses will really 
-// affect field navigation in the debugger
 
 /**
- * Utility functions for use throughout SpringLoaded
  * 
  * @author Andy Clement
- * @since 0.5.0
+ * @since 4.0
  */
 public class Utils implements Opcodes {
 
 	// public final static boolean assertsOn = true;
 	public final static String[] NO_STRINGS = new String[0];
-
-	private final static String encoding = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-	private final static char[] encodingChars;
-
-	static {
-		encodingChars = new char[62];
-		for (int c = 0; c < 62; c++) {
-			encodingChars[c] = encoding.charAt(c);
-		}
-	}
-
-	/**
-	 * Convert a number (base10) to base62 encoded string
-	 * 
-	 * @param number the number to convert
-	 * @return the base 62 encoded string
-	 */
-	public static String encode(long number) {
-		char[] output = new char[32];
-		int p = 31;
-		long n = number;
-		while (n > 61) {
-			output[p--] = encodingChars[(int) (n % 62L)];
-			n = n / 62;
-		}
-		output[p] = encodingChars[(int) (n % 62L)];
-		return new String(output, p, 32 - p);
-	}
-
-	/**
-	 * Decode a base62 encoded string into a number (base10). (More expensive than encoding)
-	 * 
-	 * @param the string to decode
-	 * @return the number
-	 */
-	public static long decode(String s) {
-		long n = 0;
-		for (int i = 0, max = s.length(); i < max; i++) {
-			n = (n * 62) + encoding.indexOf(s.charAt(i));
-		}
-		return n;
-	}
-
-	/**
-	 * Depending on the signature of the return type, add the appropriate instructions to the method visitor.
-	 * 
-	 * @param mv where to visit to append the instructions
-	 * @param returnType return type descriptor
-	 */
-	public static void addCorrectReturnInstruction(MethodVisitor mv, ReturnType returnType, boolean createCast) {
-		if (returnType.isPrimitive()) {
-			char ch = returnType.descriptor.charAt(0);
-			switch (ch) {
-			case 'V': // void is treated as a special primitive
-				mv.visitInsn(RETURN);
-				break;
-			case 'I':
-			case 'Z':
-			case 'S':
-			case 'B':
-			case 'C':
-				mv.visitInsn(IRETURN);
-				break;
-			case 'F':
-				mv.visitInsn(FRETURN);
-				break;
-			case 'D':
-				mv.visitInsn(DRETURN);
-				break;
-			case 'J':
-				mv.visitInsn(LRETURN);
-				break;
-			default:
-				throw new IllegalArgumentException("Not supported for '" + ch + "'");
-			}
-		} else {
-//			// either array or reference type
-//			if (GlobalConfiguration.assertsOn) {
-//				// Must not end with a ';' unless it starts with a '['
-//				if (returnType.descriptor.endsWith(";") && !returnType.descriptor.startsWith("[")) {
-//					throw new IllegalArgumentException("Invalid signature of '" + returnType.descriptor + "'");
-//				}
-//			}
-			if (createCast) {
-				mv.visitTypeInsn(CHECKCAST, returnType.descriptor);
-			}
-			mv.visitInsn(ARETURN);
-		}
-	}
-
-	/**
-	 * Return the number of parameters in the descriptor. Copes with primitives and arrays and reference types.
-	 * 
-	 * @param methodDescriptor a method descriptor of the form (Ljava/lang/String;I[[Z)I
-	 * @return number of parameters in the descriptor
-	 */
-	public static int getParameterCount(String methodDescriptor) {
-		int pos = 1; // after the '('
-		int count = 0;
-		char ch;
-		while ((ch = methodDescriptor.charAt(pos)) != ')') {
-			// Either 'L' or '[' or primitive
-			if (ch == 'L') {
-				// skip to ';'
-				pos = methodDescriptor.indexOf(';', pos + 1);
-			} else if (ch == '[') {
-				while (methodDescriptor.charAt(++pos) == '[') {
-				}
-				if (methodDescriptor.charAt(pos) == 'L') {
-					// reference array like [[Ljava/lang/String;
-					pos = methodDescriptor.indexOf(';', pos + 1);
-				}
-			}
-			count++;
-			pos++;
-		}
-		return count;
-	}
-
-	/**
-	 * Create the set of LOAD instructions to load the method parameters. Take into account the size and type.
-	 * 
-	 * @param mv the method visitor to recieve the load instructions
-	 * @param descriptor the complete method descriptor (eg. "(ILjava/lang/String;)V") - params and return type are skipped
-	 * @param startindex the initial index in which to assume the first parameter is stored
-	 */
-	public static void createLoadsBasedOnDescriptor(MethodVisitor mv, String descriptor, int startindex) {
-		int slot = startindex;
-		int descriptorpos = 1; // start after the '('
-		char ch;
-		while ((ch = descriptor.charAt(descriptorpos)) != ')') {
-			switch (ch) {
-			case '[':
-				mv.visitVarInsn(ALOAD, slot);
-				slot++;
-				// jump to end of array, could be [[[[I
-				while (descriptor.charAt(++descriptorpos) == '[') {
-				}
-				if (descriptor.charAt(descriptorpos) == 'L') {
-					descriptorpos = descriptor.indexOf(';', descriptorpos) + 1;
-				} else {
-					// Just a primitive array
-					descriptorpos++;
-				}
-				break;
-			case 'L':
-				mv.visitVarInsn(ALOAD, slot);
-				slot++;
-				// jump to end of 'L' signature
-				descriptorpos = descriptor.indexOf(';', descriptorpos) + 1;
-				break;
-			case 'J':
-				mv.visitVarInsn(LLOAD, slot);
-				slot += 2; // double slotter
-				descriptorpos++;
-				break;
-			case 'D':
-				mv.visitVarInsn(DLOAD, slot);
-				slot += 2; // double slotter
-				descriptorpos++;
-				break;
-			case 'F':
-				mv.visitVarInsn(FLOAD, slot);
-				descriptorpos++;
-				slot++;
-				break;
-			case 'I':
-			case 'Z':
-			case 'B':
-			case 'C':
-			case 'S':
-				mv.visitVarInsn(ILOAD, slot);
-				descriptorpos++;
-				slot++;
-				break;
-			default:
-				throw new IllegalStateException("Unexpected type in descriptor: " + ch);
-			}
-		}
-	}
 
 	public static void insertUnboxInsnsIfNecessary(MethodVisitor mv, String type, boolean isObject) {
 		if (type.length() != 1) {
@@ -296,43 +98,6 @@ public class Utils implements Opcodes {
 		default:
 			throw new IllegalArgumentException("Unboxing should not be attempted for descriptor '" + ch + "'");
 		}
-	}
-
-	/**
-	 * Return a simple sequence for the descriptor where type references are collapsed to 'O', so (IILjava/lang/String;Z) will
-	 * return IIOZ.
-	 * 
-	 * @param descriptor method descriptor, for example (IILjava/lang/String;Z)V
-	 * @return sequence where all parameters are represented by a single character - or null if no parameters
-	 */
-	public static String getParamSequence(String descriptor) {
-		if (descriptor.charAt(1) == ')') {
-			// no parameters!
-			return null;
-		}
-		StringBuilder seq = new StringBuilder();
-		int pos = 1;
-		char ch;
-		while ((ch = descriptor.charAt(pos)) != ')') {
-			switch (ch) {
-			case 'L':
-				seq.append("O"); // O for Object
-				pos = descriptor.indexOf(';', pos + 1);
-				break;
-			case '[':
-				seq.append("O"); // O for Object
-				while (descriptor.charAt(++pos) == '[') {
-				}
-				if (descriptor.charAt(pos) == 'L') {
-					pos = descriptor.indexOf(';', pos + 1);
-				}
-				break;
-			default:
-				seq.append(ch);
-			}
-			pos++;
-		}
-		return seq.toString();
 	}
 
 	public static void insertBoxInsns(MethodVisitor mv, String type) {
@@ -1048,7 +813,7 @@ public class Utils implements Opcodes {
 	 * @param bytesLoaded
 	 * @return the path to the file
 	 */
-	public static String dump(String slashname, byte[] bytesLoaded) {
+	public static String dump(String info, String slashname, byte[] bytesLoaded) {
 		if (slashname.indexOf('.') != -1) {
 			throw new IllegalStateException("Slashed type name expected, not '" + slashname + "'");
 		}
@@ -1064,7 +829,7 @@ public class Utils implements Opcodes {
 			File f = new File(tempfile, dir);
 			f.mkdirs();
 			dumplocation = tempfile + File.separator + slashname + ".class";
-			System.out.println("dump to " + dumplocation);
+			System.out.println("Expression '"+info+"' compiled code dumped to " + dumplocation);
 			f = new File(dumplocation);
 			FileOutputStream fos = new FileOutputStream(f);
 			fos.write(bytesLoaded);
@@ -1193,212 +958,6 @@ public class Utils implements Opcodes {
 		return Class.forName(slashedName.replace('/', '.'), false, classLoader);
 	}
 
-//	@SuppressWarnings("unchecked")
-//	public static String fieldNodeFormat(FieldNode fieldNode) {
-//		StringBuilder s = new StringBuilder();
-//		if (fieldNode.invisibleAnnotations != null) {
-//			List<AnnotationNode> annotations = fieldNode.invisibleAnnotations;
-//			for (AnnotationNode annotationNode : annotations) {
-//				s.append(annotationNodeFormat(annotationNode));
-//			}
-//			annotations = fieldNode.visibleAnnotations;
-//			for (AnnotationNode annotationNode : annotations) {
-//				s.append(annotationNodeFormat(annotationNode));
-//			}
-//		}
-//		s.append(Modifier.toString(fieldNode.access));
-//		s.append(' ');
-//		s.append(fieldNode.desc);
-//		s.append(' ');
-//		s.append(fieldNode.name);
-//		if (fieldNode.signature != null) {
-//			s.append("    ").append(fieldNode.signature);
-//		}
-//		// TODO include field attributes?
-//		return s.toString();
-//	}
-//
-//	public static String annotationNodeFormat(AnnotationNode o) {
-//		StringBuilder s = new StringBuilder();
-//		s.append(o.desc, 1, o.desc.length() - 1);
-//		if (o.values != null) {
-//			s.append("(");
-//			for (int i = 0, max = o.values.size(); i < max; i += 2) {
-//				if (i > 0) {
-//					s.append(",");
-//				}
-//				String valueName = (String) o.values.get(i);
-//				Object valueValue = o.values.get(i + 1);
-//				s.append(valueName).append("=");
-//				formatAnnotationNodeNameValuePairValue(valueValue, s);
-//			}
-//			s.append(")");
-//		}
-//		return s.toString();
-//	}
-//
-//	public static void formatAnnotationNodeNameValuePairValue(Object value, StringBuilder s) {
-//		if (value instanceof Type) {
-//			s.append(((org.objectweb.asm.Type) value).getDescriptor());
-//		} else if (value instanceof Array) {
-//			// enum node
-//			@SuppressWarnings("rawtypes")
-//			List l = Arrays.asList(value);
-//			s.append(l.get(0)).append(l.get(1));
-//		} else if (value instanceof List) {
-//			@SuppressWarnings("rawtypes")
-//			List l = (List) value;
-//			s.append("[");
-//			for (int i = 0, max = l.size(); i < max; i++) {
-//				if (i > 0) {
-//					s.append(',');
-//				}
-//				formatAnnotationNodeNameValuePairValue(l.get(i), s);
-//			}
-//		} else if (value instanceof AnnotationNode) {
-//			s.append(annotationNodeFormat((AnnotationNode) value));
-//		} else {
-//			s.append(value);
-//		}
-//	}
-
-	//    * The name value pairs of this annotation. Each name value pair is stored
-	//    * as two consecutive elements in the list. The name is a {@link String},
-	//    * and the value may be a {@link Byte}, {@link Boolean}, {@link Character},
-	//    * {@link Short}, {@link Integer}, {@link Long}, {@link Float},
-	//    * {@link Double}, {@link String} or {@link org.objectweb.asm.Type}, or an
-	//    * two elements String array (for enumeration values), a
-	//    * {@link AnnotationNode}, or a {@link List} of values of one of the
-	//    * preceding types. The list may be <tt>null</tt> if there is no name
-	//    * value pair.
-
-//	public static String fieldNodeFormat(Collection<FieldNode> fieldNodes) {
-//		StringBuilder s = new StringBuilder();
-//		int n = 0;
-//		for (FieldNode fieldNode : fieldNodes) {
-//			if (n > 0) {
-//				s.append(" ");
-//			}
-//			s.append("'").append(fieldNodeFormat(fieldNode)).append("'");
-//			n++;
-//		}
-//		return s.toString();
-//	}
-
-//	/**
-//	 * Load the contents of an input stream.
-//	 */
-//	public static byte[] loadFromStream(InputStream stream) {
-//		try {
-//			BufferedInputStream bis = new BufferedInputStream(stream);
-//			int size = 2048;
-//			byte[] theData = new byte[size];
-//			int dataReadSoFar = 0;
-//			byte[] buffer = new byte[size / 2];
-//			int read = 0;
-//			while ((read = bis.read(buffer)) != -1) {
-//				if ((read + dataReadSoFar) > theData.length) {
-//					// need to make more room
-//					byte[] newTheData = new byte[theData.length * 2];
-//					// System.out.println("doubled to " + newTheData.length);
-//					System.arraycopy(theData, 0, newTheData, 0, dataReadSoFar);
-//					theData = newTheData;
-//				}
-//				System.arraycopy(buffer, 0, theData, dataReadSoFar, read);
-//				dataReadSoFar += read;
-//			}
-//			bis.close();
-//			// Resize to actual data read
-//			byte[] returnData = new byte[dataReadSoFar];
-//			System.arraycopy(theData, 0, returnData, 0, dataReadSoFar);
-//			return returnData;
-//		} catch (IOException e) {
-//			e.printStackTrace();
-////			throw new ReloadException("Unexpectedly unable to load bytedata from input stream", e);
-//		}
-//	}
-
-//	/**
-//	 * If the flags indicate it is not public, private or protected, then it is default and make it public.
-//	 * 
-//	 * Default visibility needs promoting because package visibility is determined by classloader+package, not just package.
-//	 */
-//	public static int promoteDefaultOrProtectedToPublic(int access) {
-//		if ((access & Constants.ACC_PUBLIC_PRIVATE_PROTECTED) == 0) {
-//			// is default
-//			return (access | Modifier.PUBLIC);
-//		}
-//		if ((access & Constants.ACC_PROTECTED) != 0) {
-//			// was protected, need to 'publicize' it
-//			return access - Constants.ACC_PROTECTED + Constants.ACC_PUBLIC;
-//		}
-//		//		if ((access & Constants.ACC_PRIVATE) != 0) {
-//		//			// was private, need to 'publicize' it
-//		//			return access - Constants.ACC_PRIVATE + Constants.ACC_PUBLIC;
-//		//		}
-//		return access;
-//	}
-//
-//	public static int promoteDefaultOrProtectedToPublic(int access, boolean isEnum) {
-//		if ((access & Constants.ACC_PUBLIC_PRIVATE_PROTECTED) == 0) {
-//			// is default
-//			return (access | Modifier.PUBLIC);
-//		}
-//		if ((access & Constants.ACC_PROTECTED) != 0) {
-//			// was protected, need to 'publicize' it
-//			return access - Constants.ACC_PROTECTED + Constants.ACC_PUBLIC;
-//		}
-//		if (isEnum && (access & Constants.ACC_PRIVATE) != 0) {
-//			// was private, need to 'publicize' it
-//			return access - Constants.ACC_PRIVATE + Constants.ACC_PUBLIC;
-//		}
-//		return access;
-//	}
-//
-//	public static int promoteDefaultOrPrivateOrProtectedToPublic(int access) {
-//		if ((access & Constants.ACC_PUBLIC_PRIVATE_PROTECTED) == 0) {
-//			// is default
-//			return (access | Modifier.PUBLIC);
-//		}
-//		if ((access & Constants.ACC_PROTECTED) != 0) {
-//			// was protected, need to 'publicize' it
-//			return access - Constants.ACC_PROTECTED + Constants.ACC_PUBLIC;
-//		}
-//		//		if ((access & Constants.ACC_PRIVATE) != 0) {
-//		//			// was private, need to 'publicize' it
-//		//			return access - Constants.ACC_PRIVATE + Constants.ACC_PUBLIC;
-//		//		}
-//		return access;
-//	}
-
-	/**
-	 * Utility method similar to Java 1.6 Arrays.copyOf, used instead of that method to stick to Java 1.5 only API.
-	 */
-	public static <T> T[] arrayCopyOf(T[] array, int newSize) {
-		@SuppressWarnings("unchecked")
-		T[] newArr = (T[]) Array.newInstance(array.getClass().getComponentType(), newSize);
-		System.arraycopy(array, 0, newArr, 0, Math.min(newSize, newArr.length));
-		return newArr;
-	}
-
-	/**
-	 * Modify visibility to be public.
-	 */
-	public static int makePublicNonFinal(int access) {
-		access = (access & ~(ACC_PRIVATE | ACC_PROTECTED)) | ACC_PUBLIC;
-		access = (access & ~ACC_FINAL);
-		return access;
-	}
-
-//	public static Class<?> toClass(ReloadableType rtype) {
-//		try {
-//			return toClass(Type.getObjectType(rtype.getSlashedName()), rtype.typeRegistry.getClassLoader());
-//		} catch (ClassNotFoundException e) {
-//			//If a reloadable type exists, its classloader should be able to produce a class object for that type.
-//			throw new IllegalStateException(e);
-//		}
-//	}
-
 	/**
 	 * @return true if the possiblyBoxedType is the boxed form of the primitive
 	 */
@@ -1424,45 +983,6 @@ public class Utils implements Opcodes {
 			throw new IllegalStateException("nyi " + possiblyBoxedType + " " + primitive);
 		}
 	}
-
-	/**
-	 * Convert a value to the requested descriptor. For null values where the caller needs a primitive, this returns the appropriate
-	 * (boxed) default. This method will not attempt conversion, it is basically checking what to do if the result is null - and
-	 * ensuring the caller gets back what they expect (the appropriate primitive default).
-	 * 
-	 * @param value the value
-	 * @param desc the type the caller would like it to be
-	 */
-//	public static Object toResultCheckIfNull(Object value, String desc) {
-//		if (value == null) {
-//			if (desc.length() == 1) {
-//				switch (desc.charAt(0)) {
-//				case 'I':
-//					return DEFAULT_INT;
-//				case 'B':
-//					return DEFAULT_BYTE;
-//				case 'C':
-//					return DEFAULT_CHAR;
-//				case 'S':
-//					return DEFAULT_SHORT;
-//				case 'J':
-//					return DEFAULT_LONG;
-//				case 'F':
-//					return DEFAULT_FLOAT;
-//				case 'D':
-//					return DEFAULT_DOUBLE;
-//				case 'Z':
-//					return Boolean.FALSE;
-//				default:
-//					throw new IllegalStateException("Invalid primitive descriptor " + desc);
-//				}
-//			} else {
-//				return null;
-//			}
-//		} else {
-//			return value;
-//		}
-//	}
 
 	/**
 	 * Check that the value we have discovered is of the right type. It may not be if the field has changed type during a reload.
@@ -1545,110 +1065,6 @@ public class Utils implements Opcodes {
 //		return isAssignableFrom(lookingFor, candidate.getTypeRegistry().getDescriptorFor(supertypename));
 //	}
 
-	/**
-	 * Produce the bytecode that will collapse the stack entries into an array - the descriptor describes what is being packed.
-	 * 
-	 * @param mv the method visitor to receive the instructions to package the data
-	 * @param desc the descriptor for the method that shows (through its parameters) the contents of the stack
-	 */
-	public static int collapseStackToArray(MethodVisitor mv, String desc) {
-		// Descriptor is of the format (Ljava/lang/String;IZZ)V
-		String descSequence = Utils.getParamSequence(desc);
-		if (descSequence == null) {
-			return 0; // nothing to do, there are no parameters
-		}
-		int count = descSequence.length();
-		// Create array to hold the params
-		mv.visitLdcInsn(count);
-		mv.visitTypeInsn(ANEWARRAY, "java/lang/Object");
-
-		// collapse the array with autoboxing where necessary
-		for (int dpos = count - 1; dpos >= 0; dpos--) {
-			char ch = descSequence.charAt(dpos);
-			switch (ch) {
-			case 'O':
-				mv.visitInsn(DUP_X1);
-				mv.visitInsn(SWAP);
-				mv.visitLdcInsn(dpos);
-				mv.visitInsn(SWAP);
-				mv.visitInsn(AASTORE);
-				break;
-			case 'I':
-			case 'Z':
-			case 'F':
-			case 'S':
-			case 'C':
-			case 'B':
-				// stack is: <paramvalue> <arrayref>
-				mv.visitInsn(DUP_X1);
-				// stack is <arrayref> <paramvalue> <arrayref>
-				mv.visitInsn(SWAP);
-				// stack is <arrayref> <arrayref> <paramvalue>
-				mv.visitLdcInsn(dpos);
-				// stack is <arrayref> <arrayref> <paramvalue> <index>
-				mv.visitInsn(SWAP);
-				// stack is <arrayref> <arrayref> <index> <paramvalue>
-				Utils.insertBoxInsns(mv, ch);
-				mv.visitInsn(AASTORE);
-				break;
-			case 'J': // long - double slot
-			case 'D': // double - double slot
-				// stack is: <paramvalue1> <paramvalue2> <arrayref>
-				mv.visitInsn(DUP_X2);
-				// stack is <arrayref> <paramvalue1> <paramvalue2> <arrayref>
-				mv.visitInsn(DUP_X2);
-				// stack is <arrayref> <arrayref> <paramvalue1> <paramvalue2> <arrayref>
-				mv.visitInsn(POP);
-				// stack is <arrayref> <arrayref> <paramvalue1> <paramvalue2>
-				Utils.insertBoxInsns(mv, ch);
-				// stack is <arrayref> <arrayref> <paramvalueBoxed>
-				mv.visitLdcInsn(dpos);
-				mv.visitInsn(SWAP);
-				// stack is <arrayref> <arrayref> <index> <paramvalueBoxed>
-				mv.visitInsn(AASTORE);
-				break;
-			default:
-				throw new IllegalStateException("Unexpected character: " + ch + " from " + desc + ":" + dpos);
-			}
-		}
-		return count;
-	}
-
-	/**
-	 * Looks at the supplied descriptor and inserts enough pops to remove all parameters. Should be used when about to avoid a
-	 * method call.
-	 */
-	public static int insertPopsForAllParameters(MethodVisitor mv, String desc) {
-		// Descriptor is of the format (Ljava/lang/String;IZZ)V
-		String descSequence = Utils.getParamSequence(desc);
-		if (descSequence == null) {
-			return 0; // nothing to do, there are no parameters
-		}
-		int count = descSequence.length();
-		for (int dpos = count - 1; dpos >= 0; dpos--) {
-			char ch = descSequence.charAt(dpos);
-			switch (ch) {
-			case 'O':
-			case 'I':
-			case 'Z':
-			case 'F':
-			case 'S':
-			case 'C':
-			case 'B':
-				mv.visitInsn(POP);
-				break;
-			case 'J': // long - double slot
-			case 'D': // double - double slot
-				mv.visitInsn(POP2);
-				//				mv.visitInsn(POP);
-				break;
-			default:
-				throw new IllegalStateException("Unexpected character: " + ch + " from " + desc + ":" + dpos);
-			}
-		}
-		return count;
-	}
-
 	public static String toConstructorDescriptor(Class<?>... params) {
 		return new StringBuilder(toParamDescriptor(params)).append("V").toString();
 	}
@@ -1688,63 +1104,4 @@ public class Utils implements Opcodes {
 		}
 	}
 
-	/**
-	 * Determine the interfaces implemented by a given class (supplied as bytes)
-	 * 
-	 * @param classbytes the classfile bytes
-	 * @return array of interface names (slashed descriptors)
-	 */
-//	public static String[] discoverInterfaces(byte[] classbytes) {
-//		ClassReader cr = new ClassReader(classbytes);
-//		InterfaceCollectingClassVisitor f = new InterfaceCollectingClassVisitor();
-//		cr.accept(f, 0);
-//		return f.interfaces;
-//	}
-
-	// TODO [performance] speed up by throwing exception from first visit method? (but this isn't used in the mainline really)
-	// TODO or just write a quicker bytecode parser that just looks at the interfaces then returns
-//	private static class InterfaceCollectingClassVisitor implements ClassVisitor {
-//
-//		public String[] interfaces;
-//
-//		public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-//			this.interfaces = interfaces;
-//		}
-//
-//		public void visitSource(String source, String debug) {
-//		}
-//
-//		public void visitOuterClass(String owner, String name, String desc) {
-//		}
-//
-//		public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
-//			return null;
-//		}
-//
-//		public void visitAttribute(Attribute attr) {
-//		}
-//
-//		public void visitInnerClass(String name, String outerName, String innerName, int access) {
-//		}
-//
-//		public FieldVisitor visitField(int access, String name, String desc, String signature, Object value) {
-//			return null;
-//		}
-//
-//		public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
-//			return null;
-//		}
-//
-//		public void visitEnd() {
-//		}
-//
-//	}
-
-	public static String getProtectedFieldGetterName(String fieldname) {
-		return "r$getProtField_" + fieldname;
-	}
-
-	public static String getProtectedFieldSetterName(String fieldname) {
-		return "r$setProtField_" + fieldname;
-	}
 }

@@ -20,7 +20,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.springframework.expression.Expression;
 import org.springframework.expression.spel.standard.SpelCompiler;
-import org.springframework.expression.spel.standard.SpelExpressionParser;
 
 import static org.junit.Assert.*;
 
@@ -35,8 +34,8 @@ public class SpelCompilationTests extends ExpressionTestCase {
 	// For tests that compare interpreted vs compiled performance. These
 	// can feasibly fail if a machine is very busy.
 	boolean runComparisonTests = true;
-	int count = 500000; // Number of evaluations that are timed in one run
-	int iterations = 7; // Number of times to repeat 'count' evaluations (for averaging)
+	int count = 5000000; // Number of evaluations that are timed in one run
+	int iterations = 10; // Number of times to repeat 'count' evaluations (for averaging)
 	private final static boolean debugTests = false;
 	
 	Expression expression;
@@ -46,231 +45,75 @@ public class SpelCompilationTests extends ExpressionTestCase {
 		SpelCompiler.reset();
 	}
 	
-	// Nodes to test compilation of:
 	
-	// tested:
-	// stringlit, booleanlit, nulllit, opOr, opAnd
+	// payload.DR[0].DRFixedSection.duration lt 0.1
 	
-	// not tested enough or at all yet:
-	
-	// assign, beanreference, compoundexpr, constructorref, elvis,
-	// floatlit, functionref, identifier?, indexer, inlinelist, intlit,
-	// longlit, methodref, opand, opdec, opdivide, opeq, opbetween,
-	// opinstanceof, opmatches, opnot, oppower, opge, opgt, opinc, ople, oplt,
-	// opminut, opmodulus, opmultiply, opne, opor, opplus, projection,
-	// propertyorfieldref, qualifiedid, reallit, selection, 
-	// ternary, typeref, valueref?, varref
-	
-	@Test
-	public void methodReferenceVariants_simpleInstanceMethodNonLiteralArg() throws Exception {
-		Expression expression = parser.parseExpression("'abcd'.substring(index1,index2)");
-		String resultI = expression.getValue(new TC3(),String.class);
-		compile(expression);
-		String resultC = expression.getValue(new TC3(),String.class);
-		assertEquals("bc",resultI);
-		assertEquals("bc",resultC);
-	}
-	public static class TC3 {
-		public int index1 = 1;
-		public int index2 = 3;
-		public String word = "abcd";		
-	}
-	
-	@Test
-	public void literalArguments_int() throws Exception {
-		Expression expression = parser.parseExpression("'abcd'.substring(1,3)");
-		String resultI = expression.getValue(new TC3(),String.class);
-		compile(expression);
-		String resultC = expression.getValue(new TC3(),String.class);
-		assertEquals("bc",resultI);
-		assertEquals("bc",resultC);
-	}
-
-	@Test
-	public void node_nullLiteral() throws Exception {
-		expression = parser.parseExpression("null");
-		Object resultI = expression.getValue(new TC3(),Object.class);
-		compile(expression);
-		Object resultC = expression.getValue(new TC3(),Object.class);
-		assertEquals(null,resultI);
-		assertEquals(null,resultC);
-	}
-	
-	@Test
-	public void node_stringLiteral() throws Exception {
-		expression = parser.parseExpression("'abcde'");
-		// TODO asc test other variants of getValue() like the one with no required type
-		String resultI = expression.getValue(new TC3(),String.class);
-		compile(expression);
-		String resultC = expression.getValue(new TC3(),String.class);
-		assertEquals("abcde",resultI);
-		assertEquals("abcde",resultC);
-	}
-	
-	@Test
-	public void node_intLiteral() throws Exception {
-		expression = parser.parseExpression("42");
-		int resultI = expression.getValue(new TC3(),Integer.TYPE);
-		compile(expression);
-		int resultC = expression.getValue(new TC3(),Integer.TYPE);
-		assertEquals(42,resultI);
-		assertEquals(42,resultC);
-	}
-	
-	@Test
-	public void node_opMinusSingleOperand() throws Exception {
-		expression = parser.parseExpression("-1");
-		int resultI = expression.getValue(new TC3(),Integer.TYPE);
-		compile(expression);
-		int resultC = expression.getValue(new TC3(),Integer.TYPE);
-		assertEquals(-1,resultI);
-		assertEquals(-1,resultC);
-	}
-	
-	@Test
-	public void node_booleanLiteral() throws Exception {
-		expression = parser.parseExpression("true");
-		boolean resultI = expression.getValue(1,Boolean.TYPE);
-		assertEquals(true,resultI);
-		assertTrue(SpelCompiler.compile(expression));
-		boolean resultC = expression.getValue(1,Boolean.TYPE);
-		assertEquals(true,resultC);
+	public static class Payload {
+		Two[] DR = new Two[]{new Two()};
 		
-		expression = parser.parseExpression("false");
-		resultI = expression.getValue(1,Boolean.TYPE);
-		assertEquals(false,resultI);
-		assertTrue(SpelCompiler.compile(expression));
-		resultC = expression.getValue(1,Boolean.TYPE);
-		assertEquals(false,resultC);
+		public Two[] getDR() {
+			return DR;
+		}
 	}
 	
-	@Test
-	public void node_opOr() throws Exception {
-		Expression expression = parser.parseExpression("false or false");
-		boolean resultI = expression.getValue(1,Boolean.TYPE);
-		SpelCompiler.compile(expression);
-		boolean resultC = expression.getValue(1,Boolean.TYPE);
-		assertEquals(false,resultI);
-		assertEquals(false,resultC);
-		
-		expression = parser.parseExpression("false or true");
-		resultI = expression.getValue(1,Boolean.TYPE);
-		compile(expression);
-		resultC = expression.getValue(1,Boolean.TYPE);
-		assertEquals(true,resultI);
-		assertEquals(true,resultC);
-		
-		expression = parser.parseExpression("true or false");
-		resultI = expression.getValue(1,Boolean.TYPE);
-		compile(expression);
-		resultC = expression.getValue(1,Boolean.TYPE);
-		assertEquals(true,resultI);
-		assertEquals(true,resultC);
-		
-		expression = parser.parseExpression("true or true");
-		resultI = expression.getValue(1,Boolean.TYPE);
-		compile(expression);
-		resultC = expression.getValue(1,Boolean.TYPE);
-		assertEquals(true,resultI);
-		assertEquals(true,resultC);
-		
-		// TODO asc test here is failing because when run we are not exercising the second method, so not computing the accessor for it...
-		TestClass4 tc = new TestClass4();
-		expression = parser.parseExpression("gettrue() or getfalse()");
-		resultI = expression.getValue(tc,Boolean.TYPE);
-		compile(expression);
-		resultC = expression.getValue(tc,Boolean.TYPE);
-		assertEquals(true,resultI);
-		assertEquals(true,resultC);
-	}
-	static class TestClass4 {
-		public boolean gettrue() { return true; }
-		public boolean getfalse() { return false; }
-	}
-
-	@Test
-	public void node_opAnd() throws Exception {
-		Expression expression = parser.parseExpression("false and false");
-		boolean resultI = expression.getValue(1,Boolean.TYPE);
-		SpelCompiler.compile(expression);
-		boolean resultC = expression.getValue(1,Boolean.TYPE);
-		assertEquals(false,resultI);
-		assertEquals(false,resultC);
-
-		expression = parser.parseExpression("false and true");
-		resultI = expression.getValue(1,Boolean.TYPE);
-		SpelCompiler.compile(expression);
-		resultC = expression.getValue(1,Boolean.TYPE);
-		assertEquals(false,resultI);
-		assertEquals(false,resultC);
-		
-		expression = parser.parseExpression("true and false");
-		resultI = expression.getValue(1,Boolean.TYPE);
-		SpelCompiler.compile(expression);
-		resultC = expression.getValue(1,Boolean.TYPE);
-		assertEquals(false,resultI);
-		assertEquals(false,resultC);
-
-		expression = parser.parseExpression("true and true");
-		resultI = expression.getValue(1,Boolean.TYPE);
-		SpelCompiler.compile(expression);
-		resultC = expression.getValue(1,Boolean.TYPE);
-		assertEquals(true,resultI);
-		assertEquals(true,resultC);
+	public static class Two {
+		Three DRFixedSection = new Three();
+		public Three getDRFixedSection() {
+			return DRFixedSection;
+		}
 	}
 	
-	@Test
-	public void methodReferenceVariants_simpleInstanceMethodNoArg() throws Exception {
-		Expression expression = parser.parseExpression("toString()");
-		String resultI = expression.getValue(42,String.class);
-		compile(expression);
-		String resultC = expression.getValue(42,String.class);
-		assertEquals("42",resultI);
-		assertEquals("42",resultC);
-	}
-
-	@Test
-	public void methodReferenceVariants_simpleInstanceMethodNoArgReturnPrimitive() throws Exception {
-		expression = parser.parseExpression("intValue()");
-		int resultI = expression.getValue(new Integer(42),Integer.TYPE);
-		assertEquals(42,resultI);
-		compile(expression);
-		int resultC = expression.getValue(new Integer(42),Integer.TYPE);
-		assertEquals(42,resultC);
+	public static class Three {
+		double duration = 0.4d;
+		public double getDuration() {
+			return duration;
+		}
 	}
 	
-	@Test
-	public void methodReferenceVariants_simpleInstanceMethodOneArgReturnPrimitive1() throws Exception {
-		Expression expression = parser.parseExpression("indexOf('b')");
-		int resultI = expression.getValue("abc",Integer.TYPE);
-		compile(expression);
-		int resultC = expression.getValue("abc",Integer.TYPE);
-		assertEquals(1,resultI);
-		assertEquals(1,resultC);
-	}
-
-	@Test
-	public void methodReferenceVariants_simpleInstanceMethodOneArgReturnPrimitive2() throws Exception {
-		expression = parser.parseExpression("charAt(2)");
-		int resultI = expression.getValue("abc",Character.TYPE);
-		assertEquals('c',resultI);
-		compile(expression);
-		int resultC = expression.getValue("abc",Character.TYPE);
-		assertEquals('c',resultC);
-	}
-
-	// TODO asc the compiler is kicking in for submodes if the top node isn't compilable, is that good and f'kin cool or wrong?
-
-	// -- performance comparisons: interpreted vs compiled
 	
+	@Test
+	public void complexExpressionPerformance() throws Exception {
+		Payload payload = new Payload();
+		Expression expression = parser.parseExpression("DR[0].DRFixedSection.duration lt 0.1");		
+		boolean b = false;
+		
+		for (int i=0;i<1000000;i++) {
+			b = expression.getValue(payload,Boolean.TYPE);			
+		}
+		long stime = System.currentTimeMillis();
+		for (int i=0;i<8000000;i++) {
+			b = expression.getValue(payload,Boolean.TYPE);			
+		}
+		long etime = System.currentTimeMillis();
+		System.out.println("Time for interpreted "+(etime-stime)+"ms");
+		compile(expression);
+		boolean bc = false;
+		stime = System.currentTimeMillis();
+		for (int i=0;i<8000000;i++) {
+			bc = expression.getValue(payload,Boolean.TYPE);			
+		}
+		etime = System.currentTimeMillis();
+		System.out.println("Time for compiled "+(etime-stime)+"ms");
+		assertFalse(b);
+		assertEquals(b,bc);
+		payload.DR[0].DRFixedSection.duration = 0.04d;
+		bc = expression.getValue(payload,Boolean.TYPE);
+		assertTrue(bc);
+	}
+	
+	public static class HW {
+			public String hello() {
+				return "foobar";
+			}
+	}
 	@Test
 	public void compilingMethodReference() throws Exception {
 		long interpretedTotal = 0, compiledTotal = 0;
 		long stime,etime;
 		String interpretedResult = null,compiledResult = null;
 
-		String testdata = "Hello World";
-		Expression expression = parser.parseExpression("toLowerCase()");
+		HW testdata = new HW();
+		Expression expression = parser.parseExpression("hello()");
 
 		// warmup
 		for (int i=0;i<count;i++) {
@@ -303,6 +146,7 @@ public class SpelCompilationTests extends ExpressionTestCase {
 			log("Elapsed time for method invocation (compiled) "+(etime-stime)+"ms");
 		}
 		assertEquals(interpretedResult,compiledResult);
+		System.out.println(interpretedResult);
 		reportPerformance("method reference", interpretedTotal, compiledTotal);
 		if (compiledTotal>=interpretedTotal) {
 			fail("Compiled version is slower than interpreted!");

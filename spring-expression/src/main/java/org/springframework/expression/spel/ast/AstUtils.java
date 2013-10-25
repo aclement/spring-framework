@@ -19,7 +19,6 @@ package org.springframework.expression.spel.ast;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.PropertyAccessor;
 
 /**
@@ -72,7 +71,4 @@ public class AstUtils {
 		return resolvers;
 	}
 
-	public static boolean isBooleanCompatible(TypeDescriptor exitType) {
-		return exitType!=null && ( exitType.getType()==Boolean.class || exitType.getType()==Boolean.TYPE);
-	}
 }

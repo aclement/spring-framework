@@ -18,7 +18,6 @@ package org.springframework.expression.spel.ast;
 
 import org.springframework.asm.MethodVisitor;
 import org.springframework.asm.Opcodes;
-import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.common.ExpressionUtils;
@@ -47,7 +46,11 @@ public abstract class SpelNodeImpl implements SpelNode, Opcodes {
 
 	private SpelNodeImpl parent;
 
-	protected TypeDescriptor exitType;
+	// Indicates the type descriptor for the result of this expression node. This is
+	// set as soon as it is known. For a literal node it is known immediately. For
+	// a property access or method invocation it is known after one evaluation of
+	// that node.
+	protected String exitTypeDescriptor;
 
 	public SpelNodeImpl(int pos, SpelNodeImpl... operands) {
 		this.pos = pos;
@@ -176,6 +179,13 @@ public abstract class SpelNodeImpl implements SpelNode, Opcodes {
 		throw new SpelEvaluationException(this.pos,SpelMessage.NOT_ASSIGNABLE,toStringAST());
 	}
 
+	/**
+	 * Check whether a node can be compiled to bytecode. The reasoning in each node may
+	 * be different but will typically involve checking whether the exit type descriptor
+	 * of the node is known and any relevant child nodes are compilable.
+	 * 
+	 * @return true if this node can be compiled to bytecode
+	 */
 	public boolean isCompilable() {
 		System.out.println(this.getClass().getName()+" is not compilable");
 		return false;
@@ -184,13 +194,21 @@ public abstract class SpelNodeImpl implements SpelNode, Opcodes {
 	public boolean needsTarget() {
 		return false;
 	}
-	
+
+	/**
+	 * Generate the bytecode for this node into the supplied visitor. Context info about
+	 * the current expression being compiled is available in the codeflow object. For
+	 * example it will include information about the type of the object currently
+	 * on the stack.
+	 * 
+	 * @param mv the ASM MethodVisitor into which code should be generated
+	 * @param codeflow a context object with info about what is on the stack
+	 */
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
-		throw new IllegalStateException(this.getClass().getName()+" has no generateCode method");
+		throw new IllegalStateException(this.getClass().getName()+" has no generateCode(..) method");
 	}
 
-
-	public TypeDescriptor getExitType() {
-		return this.exitType;
+	public String getExitDescriptor() {
+		return this.exitTypeDescriptor;
 	}
 }

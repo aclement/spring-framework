@@ -22,7 +22,6 @@ import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
 
 /**
  * Represents a DOT separated expression sequence, such as 'property1.property2.methodOne()'
@@ -65,8 +64,6 @@ public class CompoundExpression extends SpelNodeImpl {
 				state.pushActiveContextObject(result);
 				nextNode = this.children[cc-1];
 				ValueRef valuerefResult = nextNode.getValueRef(state);
-				// TODO is this one correct?
-				this.exitType = valuerefResult.getValue().getTypeDescriptor();
 				return valuerefResult;
 			}
 			finally {
@@ -88,7 +85,13 @@ public class CompoundExpression extends SpelNodeImpl {
 	 */
 	@Override
 	public TypedValue getValueInternal(ExpressionState state) throws EvaluationException {
-		return getValueRef(state).getValue();
+		ValueRef ref = getValueRef(state);
+		TypedValue result = ref.getValue();
+		this.exitTypeDescriptor = this.children[this.children.length-1].getExitDescriptor();
+//		if (this.exitTypeDescriptor ==  null) {
+//			throw new IllegalStateException("Have not computed value exit descriptor for this node "+this.children[this.children.length-1]);
+//		}
+		return result;
 	}
 
 	@Override
@@ -124,10 +127,21 @@ public class CompoundExpression extends SpelNodeImpl {
 	}
 	
 	@Override
-	public void generateCode(MethodVisitor mv,CodeFlow codeflow) {
-		for (SpelNodeImpl child: children) {
+	public void generateCode(MethodVisitor mv,CodeFlow codeflow) {		
+		for (int i=0;i<children.length;i++) {
+			SpelNodeImpl child = children[i];
+			if (child instanceof TypeReference && 
+				(i+1)<children.length && 
+				children[i+1] instanceof MethodReference) {
+				continue;
+			}
 			child.generateCode(mv, codeflow);
 		}
+//		if one is a type ref then a state method
+//		for (SpelNodeImpl child: children) {
+//			child.generateCode(mv, codeflow);
+//		}
+		codeflow.pushDescriptor(this.getExitDescriptor());
 	}
 
 }

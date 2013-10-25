@@ -16,7 +16,6 @@
 package org.springframework.expression.spel.ast;
 
 import org.springframework.asm.MethodVisitor;
-import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.standard.CodeFlow;
 
@@ -30,11 +29,10 @@ public class IntLiteral extends Literal {
 
 	private final TypedValue value;
 
-
 	IntLiteral(String payload, int pos, int value) {
 		super(payload, pos);
 		this.value = new TypedValue(value);
-		this.exitType = TypeDescriptor.valueOf(Integer.TYPE);
+		this.exitTypeDescriptor = "I";
 	}
 
 
@@ -50,9 +48,18 @@ public class IntLiteral extends Literal {
 	
 	@Override
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
-		// TODO asc codeflow could communicate what we want here, whether it is primitive or not
-		mv.visitLdcInsn(((Integer)this.value.getValue()).intValue());
-		codeflow.pushType(Integer.TYPE);
+		int intValue = ((Integer)this.value.getValue()).intValue();
+		if (intValue==-1) {
+			// Not sure we can get here because -1 is OpMinus
+			mv.visitInsn(ICONST_M1);
+		}
+		else if (intValue>=0 && intValue<6) {
+			mv.visitInsn(ICONST_0+intValue);			
+		}
+		else {
+			mv.visitLdcInsn(intValue);
+		}
+		codeflow.pushDescriptor(getExitDescriptor());
 	}
 
 }

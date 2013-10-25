@@ -16,7 +16,9 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.TypedValue;
+import org.springframework.expression.spel.standard.CodeFlow;
 
 /**
  * Expression language AST node that represents a real literal.
@@ -32,6 +34,7 @@ public class RealLiteral extends Literal {
 	public RealLiteral(String payload, int pos, double value) {
 		super(payload, pos);
 		this.value = new TypedValue(value);
+		this.exitTypeDescriptor = "D";
 	}
 
 
@@ -39,5 +42,17 @@ public class RealLiteral extends Literal {
 	public TypedValue getLiteralValue() {
 		return this.value;
 	}
+
+	@Override
+	public boolean isCompilable() {
+		return true;
+	}
+	
+	@Override
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		mv.visitLdcInsn(this.value.getValue());
+		codeflow.pushDescriptor(getExitDescriptor());
+	}
+
 
 }

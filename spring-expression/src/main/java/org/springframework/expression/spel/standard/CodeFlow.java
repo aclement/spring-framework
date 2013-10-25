@@ -22,6 +22,7 @@ import java.util.Stack;
 
 import org.springframework.asm.MethodVisitor;
 import org.springframework.asm.Opcodes;
+import org.springframework.util.Assert;
 
 
 /**
@@ -35,55 +36,17 @@ public class CodeFlow implements Opcodes {
 		State(int i) {
 			var = i;
 		}
-//		Class<?> descriptor;
-//		boolean stored;
-//		State(Class<?> descriptor) {
-//			this.descriptor=descriptor;
-//			this.stored=false;
-//		}
 	}
 	Stack<State> stack = new Stack<State>();
 	
-	List<Class<?>> types = new ArrayList<Class<?>>();
+	List<String> types = new ArrayList<String>();
 
 	int depth = 2;
-//
-//	public void pushDescriptor(Class<?> clazz) {
-//		stack.push(new State(clazz));
-//	}
-//
-//	public String peekDescriptor() {
-//		if (stack.isEmpty()) {
-//			return null;
-//		}
-//		return stack.peek().descriptor.getName().replace('.','/');
-//	}
-//
-//	public String popDescriptor() {
-//		if (stack.isEmpty()) {
-//			return null;
-//		}
-//		return stack.pop().descriptor.getName().replace('.','/');
-//	}
-//	
-//	public Class<?> peek() {
-//		if (stack.isEmpty()) {
-//			return null;
-//		}
-//		return stack.peek().descriptor;
-//	}
-//
-//	public Class<?> pop() {
-//		if (stack.isEmpty()) {
-//			return null;
-//		}
-//		return stack.pop().descriptor;
-//	}
-
 	
-	private int ROOT_VAR = 2;
+	private int ROOT_VAR = 1;
 	private boolean rootVarLoaded = false;
 	private int nextFreeVar = 3;
+	private boolean typeReferenceOnStack = false;
 	
 	public void loadActiveContextObject(MethodVisitor mv, boolean saveIt) {
 		mv.visitVarInsn(ALOAD,1);
@@ -103,13 +66,13 @@ public class CodeFlow implements Opcodes {
 	}
 
 	public void loadRootObject(MethodVisitor mv) {
-		if (!rootVarLoaded) {
-			mv.visitVarInsn(ALOAD,1);
-			mv.visitMethodInsn(INVOKEVIRTUAL, "org/springframework/expression/spel/ExpressionState", "getRootContextObject", "()Lorg/springframework/expression/TypedValue;");
-			mv.visitMethodInsn(INVOKEVIRTUAL, "org/springframework/expression/TypedValue","getValue","()Ljava/lang/Object;");
-			mv.visitVarInsn(ASTORE,ROOT_VAR);
-			rootVarLoaded = true;
-		}
+//		if (!rootVarLoaded) {
+//			mv.visitVarInsn(ALOAD,1);
+//			mv.visitMethodInsn(INVOKEVIRTUAL, "org/springframework/expression/spel/ExpressionState", "getRootContextObject", "()Lorg/springframework/expression/TypedValue;");
+//			mv.visitMethodInsn(INVOKEVIRTUAL, "org/springframework/expression/TypedValue","getValue","()Ljava/lang/Object;");
+//			mv.visitVarInsn(ASTORE,ROOT_VAR);
+//			rootVarLoaded = true;
+//		}
 		mv.visitVarInsn(ALOAD,ROOT_VAR);		
 		addStack(ROOT_VAR);
 	}
@@ -148,23 +111,92 @@ public class CodeFlow implements Opcodes {
 		mv.visitVarInsn(ALOAD, depth);
 	}
 
-	public void incDepth() {
-		depth++;
-	}
-	
-	public void decDepth() {
-		depth--;
-	}
 
-	public void pushType(Class<?> clazz) {
-		types.add(clazz);
+	/**
+	 * Descriptor of a type, almost like a bytecode one but slightly easier to chop up for asm usage.
+	 * For a primitive type it is the single character. For a reference type it is the slashed name
+	 * prefixed with an "L". Note there is no trailing ";". So for string the descriptor is "Ljava/lang/String".
+	 *
+	 * @param descriptor descriptor for the type on top of the stack in the bytecode
+	 */
+	public void pushDescriptor(String descriptor) {
+		Assert.notNull(descriptor);
+		types.add(descriptor);
 	}
 	
-	public Class<?> lastKnownType() {
+	public String lastDescriptor() {
 		if (types.size()==0) {
 			return null;
 		}
 		return types.get(types.size()-1);
+	}
+
+	Stack<String> requestedReturnDescriptors = new Stack<String>();
+	
+	public String popRequested() {
+		return requestedReturnDescriptors.pop();
+	}
+	
+	public void pushRequested(String requestedReturnDescriptor) {
+		requestedReturnDescriptors.push(requestedReturnDescriptor);
+	}
+
+	public void clearDescriptor() {
+		types.clear();
+	}
+
+	public boolean lastDescriptorIsPrimitive() {
+		return lastDescriptor().length()==1;
+	}
+	
+	public void insertUnboxIfNecessary(MethodVisitor mv, char desiredPrimitiveType) {
+		String ld = lastDescriptor();
+		switch (desiredPrimitiveType) {
+			case 'Z':
+				if (ld.equals("Ljava/lang/Boolean")) {
+					mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Boolean", "booleanValue", "()Z");
+				} else if (!ld.equals("Z")) {
+					throw new IllegalStateException("not unboxable to boolean:"+lastDescriptor());
+				}
+				break;
+			default:
+				throw new IllegalStateException("nyi "+desiredPrimitiveType);
+		}
+	}
+	
+	public static void insertBoxInsns(MethodVisitor mv, char ch) {
+		switch (ch) {
+		case 'I':
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;");
+			break;
+		case 'F':
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;");
+			break;
+		case 'S':
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Short", "valueOf", "(S)Ljava/lang/Short;");
+			break;
+		case 'Z':
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Z)Ljava/lang/Boolean;");
+			break;
+		case 'J':
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;");
+			break;
+		case 'D':
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Double", "valueOf", "(D)Ljava/lang/Double;");
+			break;
+		case 'C':
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Character", "valueOf", "(C)Ljava/lang/Character;");
+			break;
+		case 'B':
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Byte", "valueOf", "(B)Ljava/lang/Byte;");
+			break;
+		case 'L':
+		case '[':
+			// no box needed
+			break;
+		default:
+			throw new IllegalArgumentException("Boxing should not be attempted for descriptor '" + ch + "'");
+		}
 	}
 
 }

@@ -17,7 +17,6 @@
 package org.springframework.expression.spel.ast;
 
 import org.springframework.asm.MethodVisitor;
-import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.standard.CodeFlow;
 
@@ -35,10 +34,9 @@ public class StringLiteral extends Literal {
 
 	public StringLiteral(String payload, int pos, String value) {
 		super(payload,pos);
-		// TODO should these have been skipped being created by the parser rules? or not?
 		value = value.substring(1, value.length() - 1);
 		this.value = new TypedValue(value.replaceAll("''", "'").replaceAll("\"\"", "\""));
-		this.exitType = TypeDescriptor.valueOf(String.class); // TODO asc move into constants? Don't need to go off hunting for it every time we build a literal node
+		this.exitTypeDescriptor = "Ljava/lang/String";
 	}
 
 
@@ -60,7 +58,7 @@ public class StringLiteral extends Literal {
 	@Override
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
 		mv.visitLdcInsn(this.value.getValue());
-		codeflow.pushType(String.class); // TODO asc push exitType?
+		codeflow.pushDescriptor(getExitDescriptor());
 	}
 
 }

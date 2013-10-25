@@ -16,8 +16,13 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.Label;
+import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.spel.ExpressionState;
+import org.springframework.expression.spel.standard.CodeFlow;
+import org.springframework.expression.spel.standard.SpelCompiler;
+import org.springframework.expression.spel.standard.Utils;
 import org.springframework.expression.spel.support.BooleanTypedValue;
 
 /**
@@ -30,6 +35,7 @@ public class OpEQ extends Operator {
 
 	public OpEQ(int pos, SpelNodeImpl... operands) {
 		super("==", pos, operands);
+		this.exitTypeDescriptor = "Z";
 	}
 
 
@@ -61,6 +67,68 @@ public class OpEQ extends Operator {
 		else {
 			return BooleanTypedValue.forValue(left == right);
 		}
+	}
+	
+
+	// This check is different to the one in the other numeric operators (OpLt/etc)
+	// because we allow basic object comparison if 
+	public boolean isCompilable() {
+		SpelNodeImpl left = getLeftOperand();
+		SpelNodeImpl right= getRightOperand();
+		if (!left.isCompilable() || !right.isCompilable()) {
+			return false;
+		}
+		// Supported operand types for equals (at the moment)
+		String leftDesc = left.getExitDescriptor();
+		String rightDesc= right.getExitDescriptor();
+		if ((SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(leftDesc) || SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(rightDesc)) && !SpelCompiler.boxingCompatible(leftDesc,rightDesc)) {
+			return false;
+		} 
+		return true;
+	}
+	
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		String leftDesc = getLeftOperand().getExitDescriptor();
+		String rightDesc = getRightOperand().getExitDescriptor();
+		boolean unboxing = SpelCompiler.isPrimitive(leftDesc) || SpelCompiler.isPrimitive(rightDesc);
+		
+		getLeftOperand().generateCode(mv, codeflow);
+		if (unboxing && !SpelCompiler.isPrimitive(leftDesc)) {
+			Utils.insertUnboxInsns(mv, rightDesc.charAt(0), false);
+		}
+		getRightOperand().generateCode(mv, codeflow);
+		if (unboxing && !SpelCompiler.isPrimitive(rightDesc)) {
+			Utils.insertUnboxInsns(mv, leftDesc.charAt(0), false);
+		}
+		Label elseTarget = new Label();
+		Label endOfIf = new Label();
+		if ((SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(leftDesc) || SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(rightDesc)) && SpelCompiler.boxingCompatible(leftDesc,rightDesc)) {
+			if (leftDesc.equals("D") || rightDesc.equals("D")) {
+				mv.visitInsn(DCMPL);		
+				mv.visitJumpInsn(IFNE, elseTarget);
+			}
+			else if (leftDesc.equals("F") || rightDesc.equals("F")) {
+				mv.visitInsn(FCMPL);		
+				mv.visitJumpInsn(IFNE, elseTarget);
+			}
+			else if (leftDesc.equals("J") || rightDesc.equals("J")) {
+				mv.visitInsn(LCMP);		
+				mv.visitJumpInsn(IFNE, elseTarget);
+			}
+			else if (leftDesc.equals("I") || rightDesc.equals("I") ||
+					 leftDesc.equals("Z") || rightDesc.equals("Z")) {
+				mv.visitJumpInsn(IF_ICMPNE,elseTarget);		
+			}
+		}
+		else {
+			mv.visitJumpInsn(IF_ACMPNE,elseTarget);		
+		}
+		mv.visitInsn(ICONST_1);
+		mv.visitJumpInsn(GOTO,endOfIf);
+		mv.visitLabel(elseTarget);
+		mv.visitInsn(ICONST_0);
+		mv.visitLabel(endOfIf);
+		codeflow.pushDescriptor("Z");
 	}
 
 }

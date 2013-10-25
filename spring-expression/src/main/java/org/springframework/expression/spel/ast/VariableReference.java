@@ -16,10 +16,13 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
+import org.springframework.expression.spel.standard.CodeFlow;
+import org.springframework.expression.spel.standard.SpelCompiler;
 
 /**
  * Represents a variable reference, eg. #someVar. Note this is different to a *local*
@@ -64,7 +67,9 @@ public class VariableReference extends SpelNodeImpl {
 			return state.getActiveContextObject();
 		}
 		if (this.name.equals(ROOT)) {
-			return state.getRootContextObject();
+			TypedValue result = state.getRootContextObject();
+			this.exitTypeDescriptor = SpelCompiler.toDescriptorFromObject(result.getValue());
+			return result;
 		}
 		TypedValue result = state.lookupVariable(this.name);
 		// a null value will mean either the value was null or the variable was not found
@@ -118,6 +123,18 @@ public class VariableReference extends SpelNodeImpl {
 		public boolean isWritable() {
 			return true;
 		}
+	}
+
+	@Override
+	public boolean isCompilable() {
+		return this.name.equals(ROOT) && getExitDescriptor()!=null;
+	}
+	
+	@Override
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		mv.visitVarInsn(ALOAD,1);
+		SpelCompiler.insertCheckCast(mv,getExitDescriptor());
+		codeflow.pushDescriptor(getExitDescriptor());
 	}
 
 

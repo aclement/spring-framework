@@ -18,7 +18,6 @@ package org.springframework.expression.spel.ast;
 
 import org.springframework.asm.Label;
 import org.springframework.asm.MethodVisitor;
-import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
@@ -39,7 +38,7 @@ public class OpOr extends Operator {
 
 	public OpOr(int pos, SpelNodeImpl... operands) {
 		super("or", pos, operands);
-		this.exitType = TypeDescriptor.valueOf(Boolean.TYPE);
+		this.exitTypeDescriptor = "Z";
 	}
 
 
@@ -71,9 +70,14 @@ public class OpOr extends Operator {
 	}
 
 	public boolean isCompilable() {
-		return 
-				AstUtils.isBooleanCompatible(getLeftOperand().getExitType()) &&
-				AstUtils.isBooleanCompatible(getRightOperand().getExitType());
+		SpelNodeImpl left = getLeftOperand();
+		SpelNodeImpl right= getRightOperand();
+		if (!left.isCompilable() || !right.isCompilable()) {
+			return false;
+		}
+		return
+				SpelCompiler.isBooleanCompatible(left.getExitDescriptor()) &&
+				SpelCompiler.isBooleanCompatible(right.getExitDescriptor());		
 	}
 	
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
@@ -81,12 +85,16 @@ public class OpOr extends Operator {
 		Label elseTarget = new Label();
 		Label endOfIf = new Label();
 		getLeftOperand().generateCode(mv, codeflow);
+		codeflow.insertUnboxIfNecessary(mv, 'Z');
 		mv.visitJumpInsn(IFEQ, elseTarget);
-		mv.visitLdcInsn(1);
+		mv.visitLdcInsn(1); // TRUE
 		mv.visitJumpInsn(GOTO,endOfIf);
 		mv.visitLabel(elseTarget);
+		codeflow.clearDescriptor();
 		getRightOperand().generateCode(mv, codeflow);
-		mv.visitLabel(endOfIf);		
+		codeflow.insertUnboxIfNecessary(mv, 'Z');
+		mv.visitLabel(endOfIf);
+		codeflow.pushDescriptor(getExitDescriptor());
 	}
 	
 }

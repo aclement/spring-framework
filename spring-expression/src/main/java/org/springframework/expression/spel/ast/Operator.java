@@ -16,6 +16,8 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.expression.spel.standard.SpelCompiler;
+
 /**
  * Common supertype for operators that operate on either one or two operands. In the case
  * of multiply or divide there would be two operands, but for unary plus or minus, there
@@ -63,4 +65,21 @@ public abstract class Operator extends SpelNodeImpl {
 		return sb.toString();
 	}
 
+	protected boolean isCompilableOperatorUsingNumerics() {
+		SpelNodeImpl left = getLeftOperand();
+		SpelNodeImpl right= getRightOperand();
+		if (!left.isCompilable() || !right.isCompilable()) {
+			return false;
+		}
+		// Supported operand types for equals (at the moment)
+		String leftDesc = left.getExitDescriptor();
+		String rightDesc= right.getExitDescriptor();
+		if (SpelCompiler.isPrimitiveOrUnboxableSupportedNumber(leftDesc) && SpelCompiler.isPrimitiveOrUnboxableSupportedNumber(rightDesc)) {
+			if (SpelCompiler.boxingCompatible(leftDesc, rightDesc)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	
 }

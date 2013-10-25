@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.AccessException;
 import org.springframework.expression.EvaluationContext;
@@ -30,6 +31,8 @@ import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
+import org.springframework.expression.spel.standard.CodeFlow;
+import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.support.ReflectivePropertyAccessor;
 
 /**
@@ -65,6 +68,9 @@ public class Indexer extends SpelNodeImpl {
 	private Class<?> cachedWriteTargetType;
 
 	private PropertyAccessor cachedWriteAccessor;
+
+	private int TYPE_MAP=0x001;
+	private int indexerType;
 
 
 	public Indexer(int pos, SpelNodeImpl expr) {
@@ -150,6 +156,7 @@ public class Indexer extends SpelNodeImpl {
 		@Override
 		public TypedValue getValue() {
 			Object value = this.map.get(this.key);
+			exitTypeDescriptor=SpelCompiler.toDescriptorFromObject(value);
 			return new TypedValue(value,
 					this.mapEntryTypeDescriptor.getMapValueTypeDescriptor(value));
 		}
@@ -433,6 +440,7 @@ public class Indexer extends SpelNodeImpl {
 			if (targetObjectTypeDescriptor.getMapKeyTypeDescriptor() != null) {
 				key = state.convertValue(key, targetObjectTypeDescriptor.getMapKeyTypeDescriptor());
 			}
+			this.indexerType = TYPE_MAP;
 			return new MapIndexingValueRef(state.getTypeConverter(), (Map<?, ?>) targetObject, key,
 					targetObjectTypeDescriptor);
 		}
@@ -595,6 +603,41 @@ public class Indexer extends SpelNodeImpl {
 		if (index > arrayLength) {
 			throw new SpelEvaluationException(getStartPosition(), SpelMessage.ARRAY_INDEX_OUT_OF_BOUNDS,
 					arrayLength, index);
+		}
+	}
+	
+	public boolean isCompilable() {
+		return true;
+	}
+	
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		String s = codeflow.lastDescriptor();
+
+		if ((this.indexerType&TYPE_MAP)!=0) {
+			 // 3: invokeinterface #3,  2            // InterfaceMethod java/util/Map.get:(Ljava/lang/Object;)Ljava/lang/Object;
+			String descriptor = codeflow.lastDescriptor();
+
+			if (descriptor == null) {
+				codeflow.loadTarget(mv);
+			}
+
+			this.children[0].generateCode(mv, codeflow);
+			mv.visitMethodInsn(INVOKEINTERFACE,"java/util/Map","get","(Ljava/lang/Object;)Ljava/lang/Object;");
+			mv.visitTypeInsn(CHECKCAST, exitTypeDescriptor.substring(1));
+			codeflow.pushDescriptor(exitTypeDescriptor);
+		} else {
+			Object o = this.children[0];
+			// assuming s is object array
+			if (o instanceof IntLiteral) {
+				mv.visitLdcInsn(((Integer)((IntLiteral)o).getLiteralValue().getValue()).intValue());
+				mv.visitInsn(AALOAD);
+			} else {
+				throw new IllegalStateException("nyi");
+			}
+	//		if (s.charAt(1)=='L') {
+	//			// it is [Lsomething
+	//		}
+			codeflow.pushDescriptor(s.substring(1));
 		}
 	}
 

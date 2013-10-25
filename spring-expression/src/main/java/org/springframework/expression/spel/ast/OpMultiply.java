@@ -16,10 +16,12 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.Operation;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
+import org.springframework.expression.spel.standard.CodeFlow;
 
 /**
  * Implements the {@code multiply} operator.
@@ -68,18 +70,31 @@ public class OpMultiply extends Operator {
 			Number leftNumber = (Number) operandOne;
 			Number rightNumber = (Number) operandTwo;
 			if (leftNumber instanceof Double || rightNumber instanceof Double) {
+				if (leftNumber instanceof Double && rightNumber instanceof Double) {
+					// TODO asc need to do this change on opplus too?
+					this.exitTypeDescriptor = "D";
+				}
 				return new TypedValue(leftNumber.doubleValue()
 						* rightNumber.doubleValue());
 			}
 
 			if (leftNumber instanceof Float || rightNumber instanceof Float) {
+				if (leftNumber instanceof Float && rightNumber instanceof Float) {
+					// TODO asc need to do this change on opplus too?
+					this.exitTypeDescriptor = "F";
+				}
 				return new TypedValue(leftNumber.floatValue() * rightNumber.floatValue());
 			}
 
 			if (leftNumber instanceof Long || rightNumber instanceof Long) {
+				if (leftNumber instanceof Long && rightNumber instanceof Long) {
+					// TODO asc need to do this change on opplus too?
+					this.exitTypeDescriptor = "J";
+				}
 				return new TypedValue(leftNumber.longValue() * rightNumber.longValue());
 			}
-
+			// TODO asc verify both are integers?
+			this.exitTypeDescriptor = "I";
 			return new TypedValue(leftNumber.intValue() * rightNumber.intValue());
 		}
 		else if (operandOne instanceof String && operandTwo instanceof Integer) {
@@ -92,6 +107,38 @@ public class OpMultiply extends Operator {
 		}
 
 		return state.operate(Operation.MULTIPLY, operandOne, operandTwo);
+	}
+	
+	@Override
+	public boolean isCompilable() {
+		// TODO asc check children are compilable
+		return this.exitTypeDescriptor!=null;
+	}
+	
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		getLeftOperand().generateCode(mv, codeflow);
+		getLeftOperand().getExitDescriptor();	
+		if (this.children.length>1) {
+			getRightOperand().generateCode(mv, codeflow);
+			getRightOperand().getExitDescriptor();
+			switch (this.exitTypeDescriptor.charAt(0)) {
+				case 'I':
+					mv.visitInsn(IMUL);
+					break;
+				case 'J':
+					mv.visitInsn(LMUL);
+					break;
+				case 'F': 
+					mv.visitInsn(FMUL);
+					break;
+				case 'D':
+					mv.visitInsn(DMUL);
+					break;				
+				default:
+					throw new IllegalStateException();			
+			}
+		}
+		codeflow.pushDescriptor(this.exitTypeDescriptor);
 	}
 
 }

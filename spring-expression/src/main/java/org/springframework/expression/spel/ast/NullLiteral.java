@@ -17,7 +17,6 @@
 package org.springframework.expression.spel.ast;
 
 import org.springframework.asm.MethodVisitor;
-import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.standard.CodeFlow;
 
@@ -31,7 +30,7 @@ public class NullLiteral extends Literal {
 
 	public NullLiteral(int pos) {
 		super(null,pos);
-		this.exitType= TypeDescriptor.valueOf(Object.class);
+		this.exitTypeDescriptor = "Ljava/lang/Object";
 	}
 
 
@@ -53,7 +52,7 @@ public class NullLiteral extends Literal {
 	@Override
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
 		mv.visitInsn(ACONST_NULL);
-		codeflow.pushType(Object.class);
+		codeflow.pushDescriptor(getExitDescriptor());
 	}
 
 }
