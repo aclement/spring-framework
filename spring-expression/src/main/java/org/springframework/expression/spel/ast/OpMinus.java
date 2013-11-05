@@ -22,6 +22,8 @@ import org.springframework.expression.Operation;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.standard.CodeFlow;
+import org.springframework.expression.spel.standard.SpelCompiler;
+import org.springframework.expression.spel.standard.Utils;
 
 /**
  * The minus operator supports:
@@ -134,15 +136,30 @@ public class OpMinus extends Operator {
 
 	@Override
 	public boolean isCompilable() {
+		if (!getLeftOperand().isCompilable()) {
+			return false;
+		}
+		if (this.children.length>1) {
+			 if (!getRightOperand().isCompilable()) {
+				 return false;
+			 }
+		}
 		return this.exitTypeDescriptor!=null;
 	}
 	
+	@Override
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
 		getLeftOperand().generateCode(mv, codeflow);
-		getLeftOperand().getExitDescriptor();	
+		String leftdesc = getLeftOperand().getExitDescriptor();
+		if (!SpelCompiler.isPrimitive(leftdesc)) {
+			Utils.insertUnboxInsns(mv, this.exitTypeDescriptor.charAt(0), false);
+		}	
 		if (this.children.length>1) {
 			getRightOperand().generateCode(mv, codeflow);
-			getRightOperand().getExitDescriptor();
+			String rightdesc = getRightOperand().getExitDescriptor();
+			if (!SpelCompiler.isPrimitive(rightdesc)) {
+				Utils.insertUnboxInsns(mv, this.exitTypeDescriptor.charAt(0), false);
+			}
 			switch (this.exitTypeDescriptor.charAt(0)) {
 				case 'I':
 					mv.visitInsn(ISUB);
@@ -157,7 +174,7 @@ public class OpMinus extends Operator {
 					mv.visitInsn(DSUB);
 					break;				
 				default:
-					throw new IllegalStateException();			
+					throw new IllegalStateException("Unrecognized exit descriptor: '"+this.exitTypeDescriptor+"'");
 			}
 		} else {
 			switch (this.exitTypeDescriptor.charAt(0)) {
@@ -174,7 +191,7 @@ public class OpMinus extends Operator {
 					mv.visitInsn(DNEG);
 					break;				
 				default:
-					throw new IllegalStateException();			
+					throw new IllegalStateException("Unrecognized exit descriptor: '"+this.exitTypeDescriptor+"'");
 			}			
 		}
 		codeflow.pushDescriptor(this.exitTypeDescriptor);

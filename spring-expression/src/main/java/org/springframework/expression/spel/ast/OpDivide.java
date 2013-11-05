@@ -22,6 +22,8 @@ import org.springframework.expression.Operation;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.standard.CodeFlow;
+import org.springframework.expression.spel.standard.SpelCompiler;
+import org.springframework.expression.spel.standard.Utils;
 
 /**
  * Implements division operator.
@@ -45,28 +47,27 @@ public class OpDivide extends Operator {
 			Number op1 = (Number) operandOne;
 			Number op2 = (Number) operandTwo;
 			if (op1 instanceof Double || op2 instanceof Double) {
-				if (op1 instanceof Double && op1 instanceof Double) {
-					// TODO asc need to do this change on opplus too?
+				if (op1 instanceof Double && op2 instanceof Double) {
 					this.exitTypeDescriptor = "D";
 				}
 				return new TypedValue(op1.doubleValue() / op2.doubleValue());
 			}
 			else if (op1 instanceof Float || op2 instanceof Float) {
-				if (op1 instanceof Float && op1 instanceof Float) {
-					// TODO asc need to do this change on opplus too?
+				if (op1 instanceof Float && op2 instanceof Float) {
 					this.exitTypeDescriptor = "F";
 				}
 				return new TypedValue(op1.floatValue() / op2.floatValue());
 			}
 			else if (op1 instanceof Long || op2 instanceof Long) {
-				if (op1 instanceof Long && op1 instanceof Long) {
-					// TODO asc need to do this change on opplus too?
+				if (op1 instanceof Long && op2 instanceof Long) {
 					this.exitTypeDescriptor = "J";
 				}
 				return new TypedValue(op1.longValue() / op2.longValue());
 			}
 			else {
-				this.exitTypeDescriptor = "I"; // TODO asc conditional on both being ints?
+				if (op1 instanceof Integer && op2 instanceof Integer) {
+					this.exitTypeDescriptor = "I";
+				}
 				// TODO what about non-int result of the division?
 				return new TypedValue(op1.intValue() / op2.intValue());
 			}
@@ -76,16 +77,29 @@ public class OpDivide extends Operator {
 	
 	@Override
 	public boolean isCompilable() {
-		// TODO asc check children are compilable
+		if (!getLeftOperand().isCompilable()) {
+			return false;
+		}
+		if (this.children.length>1) {
+			 if (!getRightOperand().isCompilable()) {
+				 return false;
+			 }
+		}
 		return this.exitTypeDescriptor!=null;
 	}
 	
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
 		getLeftOperand().generateCode(mv, codeflow);
-		getLeftOperand().getExitDescriptor();	
+		String leftdesc = getLeftOperand().getExitDescriptor();
+		if (!SpelCompiler.isPrimitive(leftdesc)) {
+			Utils.insertUnboxInsns(mv, this.exitTypeDescriptor.charAt(0), false);
+		}
 		if (this.children.length>1) {
 			getRightOperand().generateCode(mv, codeflow);
-			getRightOperand().getExitDescriptor();
+			String rightdesc = getRightOperand().getExitDescriptor();
+			if (!SpelCompiler.isPrimitive(rightdesc)) {
+				Utils.insertUnboxInsns(mv, this.exitTypeDescriptor.charAt(0), false);
+			}
 			switch (this.exitTypeDescriptor.charAt(0)) {
 				case 'I':
 					mv.visitInsn(IDIV);
@@ -100,7 +114,7 @@ public class OpDivide extends Operator {
 					mv.visitInsn(DDIV);
 					break;				
 				default:
-					throw new IllegalStateException();			
+					throw new IllegalStateException("Unrecognized exit descriptor: '"+this.exitTypeDescriptor+"'");			
 			}
 		}
 		codeflow.pushDescriptor(this.exitTypeDescriptor);

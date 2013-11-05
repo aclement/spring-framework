@@ -175,6 +175,9 @@ public class SpelCompiler implements Opcodes {
 		ast.generateCode(mv,codeflow);
 		boxIfNecessary(mv,codeflow.lastDescriptor());
 
+		if (codeflow.lastDescriptor() == "V") {
+			mv.visitInsn(ACONST_NULL);
+		}
 //		// Build result TypedValue
 //		pushCorrectStore(mv, codeflow.lastKnownType(), 3);
 //		mv.visitTypeInsn(NEW, "org/springframework/expression/TypedValue");
@@ -259,6 +262,10 @@ public class SpelCompiler implements Opcodes {
 			break;
 		case 'B':
 			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Byte", "valueOf", "(B)Ljava/lang/Byte;");
+			break;
+		case 'V':
+		case '[':
+			// does not need boxing
 			break;
 		default:
 			throw new IllegalArgumentException("Boxing should not be attempted for descriptor '" + ch + "'");
@@ -438,6 +445,13 @@ public class SpelCompiler implements Opcodes {
 		}
 		return false;
 	}
+	
+	public static void revertToInterpreted(Expression expression) {
+		if (expression instanceof SpelExpression) {
+			SpelExpression spelExpression = (SpelExpression)expression;
+			spelExpression.compiledAst = null;
+		}
+	}
 
 	public static String toDescriptor(Class<?> type) {
 		String name = type.getName();
@@ -480,7 +494,11 @@ public class SpelCompiler implements Opcodes {
 			if (name.charAt(0)!='[') {
 				return new StringBuilder("L").append(type.getName().replace('.', '/')).toString();
 			} else {
-				return name.substring(0,name.length()-1).replace('.','/');
+				if (name.endsWith(";")) {
+					return name.substring(0,name.length()-1).replace('.','/');					
+				} else {
+					return name; // primitive
+				}
 			}
 		}
 	}
@@ -507,11 +525,29 @@ public class SpelCompiler implements Opcodes {
 				throw new IllegalStateException("nyi "+desiredPrimitiveType);
 		}
 	}
+	
+	public static boolean isPrimitiveArray(String descriptor) {
+		boolean primitive = true;
+		for (int i=0,max=descriptor.length();i<max;i++) {
+			char ch = descriptor.charAt(i);
+			if (ch=='[') {
+				continue;
+			} 
+			primitive = (ch!='L');
+			break;
+		}
+		return primitive;
+	}
 
 	public static void insertCheckCast(MethodVisitor mv, String exitTypeDescriptor) {
 		if (exitTypeDescriptor.length()!=1) {
 			if (exitTypeDescriptor.charAt(0)=='[') {
-				mv.visitTypeInsn(CHECKCAST, exitTypeDescriptor+";");
+				if (isPrimitiveArray(exitTypeDescriptor)) {
+					mv.visitTypeInsn(CHECKCAST, exitTypeDescriptor);					
+				}
+				else {
+					mv.visitTypeInsn(CHECKCAST, exitTypeDescriptor+";");
+				}
 			} else {
 				// This is chopping off the 'L' to leave us with "java/lang/String"
 				mv.visitTypeInsn(CHECKCAST, exitTypeDescriptor.substring(1));
@@ -521,6 +557,25 @@ public class SpelCompiler implements Opcodes {
 
 	public static boolean isPrimitive(String descriptor) {
 		return descriptor!=null && descriptor.length()==1;
+	}
+	
+	public static char toPrimitiveTargetDesc(String descriptor) {
+		if (descriptor.length()==1) {
+			return descriptor.charAt(0);
+		}
+		if (descriptor.equals("Ljava/lang/Double")) {
+			return 'D';
+		} else if (descriptor.equals("Ljava/lang/Integer")) {
+			return 'I';
+		} else if (descriptor.equals("Ljava/lang/Float")) {
+			return 'F';
+		} else if (descriptor.equals("Ljava/lang/Long")) {
+			return 'J';
+		} else if (descriptor.equals("Ljava/lang/Boolean")) {
+			return 'Z';
+		} else {
+			throw new IllegalStateException("No primitive for '"+descriptor+"'");
+		}
 	}
 
 	public static boolean isPrimitiveOrUnboxableSupportedNumber(String descriptor) {

@@ -17,6 +17,7 @@
 package org.springframework.expression.spel;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.springframework.expression.Expression;
 import org.springframework.expression.spel.standard.SpelCompiler;
@@ -34,7 +35,7 @@ public class SpelCompilationTests extends ExpressionTestCase {
 	// For tests that compare interpreted vs compiled performance. These
 	// can feasibly fail if a machine is very busy.
 	boolean runComparisonTests = true;
-	int count = 5000000; // Number of evaluations that are timed in one run
+	int count = 50000; // Number of evaluations that are timed in one run was 5000000
 	int iterations = 10; // Number of times to repeat 'count' evaluations (for averaging)
 	private final static boolean debugTests = false;
 	
@@ -70,7 +71,7 @@ public class SpelCompilationTests extends ExpressionTestCase {
 		}
 	}
 	
-	
+	@Ignore
 	@Test
 	public void complexExpressionPerformance() throws Exception {
 		Payload payload = new Payload();
@@ -106,6 +107,7 @@ public class SpelCompilationTests extends ExpressionTestCase {
 				return "foobar";
 			}
 	}
+	@Ignore
 	@Test
 	public void compilingMethodReference() throws Exception {
 		long interpretedTotal = 0, compiledTotal = 0;
@@ -177,7 +179,8 @@ public class SpelCompilationTests extends ExpressionTestCase {
 			public String boo = "oranges";
 		}
 	}
-	
+
+	@Ignore
 	@Test
 	public void compilingPropertyReferenceField() throws Exception {
 		long interpretedTotal = 0, compiledTotal = 0, stime, etime;
@@ -219,7 +222,8 @@ public class SpelCompilationTests extends ExpressionTestCase {
 			fail("Compiled version is slower than interpreted!");
 		}		
 	}
-	
+
+	@Ignore
 	@Test
 	public void compilingPropertyReferenceNestedField() throws Exception {
 		long interpretedTotal = 0, compiledTotal = 0, stime, etime;
@@ -262,7 +266,8 @@ public class SpelCompilationTests extends ExpressionTestCase {
 			fail("Compiled version is slower than interpreted!");
 		}		
 	}
-	
+
+	@Ignore
 	@Test
 	public void compilingPropertyReferenceNestedMixedFieldGetter() throws Exception {
 		long interpretedTotal = 0, compiledTotal = 0, stime, etime;
@@ -304,7 +309,8 @@ public class SpelCompilationTests extends ExpressionTestCase {
 			fail("Compiled version is slower than interpreted!");
 		}		
 	}
-	
+
+	@Ignore
 	@Test
 	public void compilingNestedMixedFieldPropertyReferenceMethodReference() throws Exception {
 		long interpretedTotal = 0, compiledTotal = 0, stime, etime;
@@ -346,7 +352,8 @@ public class SpelCompilationTests extends ExpressionTestCase {
 			fail("Compiled version is slower than interpreted!");
 		}		
 	}
-	
+
+	@Ignore
 	@Test
 	public void compilingPropertyReferenceGetter() throws Exception {
 		long interpretedTotal = 0, compiledTotal = 0, stime, etime;

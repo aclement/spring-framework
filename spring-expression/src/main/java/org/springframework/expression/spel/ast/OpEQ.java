@@ -69,59 +69,72 @@ public class OpEQ extends Operator {
 		}
 	}
 	
-
 	// This check is different to the one in the other numeric operators (OpLt/etc)
-	// because we allow basic object comparison if 
+	// because we allow basic object comparison
+	@Override
 	public boolean isCompilable() {
 		SpelNodeImpl left = getLeftOperand();
 		SpelNodeImpl right= getRightOperand();
 		if (!left.isCompilable() || !right.isCompilable()) {
 			return false;
 		}
-		// Supported operand types for equals (at the moment)
-		String leftDesc = left.getExitDescriptor();
-		String rightDesc= right.getExitDescriptor();
-		if ((SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(leftDesc) || SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(rightDesc)) && !SpelCompiler.boxingCompatible(leftDesc,rightDesc)) {
-			return false;
-		} 
+		String leftdesc = left.getExitDescriptor();
+		String rightdesc = right.getExitDescriptor();
+		if ((SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(leftdesc) ||
+				SpelCompiler.isPrimitiveOrUnboxableSupportedNumber(rightdesc))) {
+			if (!SpelCompiler.boxingCompatible(leftdesc, rightdesc)) {
+				return false;
+			}
+		}
 		return true;
 	}
 	
+	@Override
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
 		String leftDesc = getLeftOperand().getExitDescriptor();
 		String rightDesc = getRightOperand().getExitDescriptor();
-		boolean unboxing = SpelCompiler.isPrimitive(leftDesc) || SpelCompiler.isPrimitive(rightDesc);
-		
-		getLeftOperand().generateCode(mv, codeflow);
-		if (unboxing && !SpelCompiler.isPrimitive(leftDesc)) {
-			Utils.insertUnboxInsns(mv, rightDesc.charAt(0), false);
-		}
-		getRightOperand().generateCode(mv, codeflow);
-		if (unboxing && !SpelCompiler.isPrimitive(rightDesc)) {
-			Utils.insertUnboxInsns(mv, leftDesc.charAt(0), false);
-		}
 		Label elseTarget = new Label();
 		Label endOfIf = new Label();
-		if ((SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(leftDesc) || SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(rightDesc)) && SpelCompiler.boxingCompatible(leftDesc,rightDesc)) {
-			if (leftDesc.equals("D") || rightDesc.equals("D")) {
-				mv.visitInsn(DCMPL);		
+		boolean leftPrim = SpelCompiler.isPrimitive(leftDesc);
+		boolean rightPrim = SpelCompiler.isPrimitive(rightDesc);
+
+		if ((SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(leftDesc) || 
+			 SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(rightDesc)) && 
+			 SpelCompiler.boxingCompatible(leftDesc,rightDesc)) {
+			char targetType = SpelCompiler.toPrimitiveTargetDesc(leftDesc);
+			
+			getLeftOperand().generateCode(mv, codeflow);
+			if (!leftPrim) {
+				Utils.insertUnboxInsns(mv, targetType, false);
+			}
+		
+			getRightOperand().generateCode(mv, codeflow);
+			if (!rightPrim) {
+				Utils.insertUnboxInsns(mv, targetType, false);
+			}
+			// assert: SpelCompiler.boxingCompatible(leftDesc, rightDesc)
+			if (targetType=='D') {
+				mv.visitInsn(DCMPL);
 				mv.visitJumpInsn(IFNE, elseTarget);
 			}
-			else if (leftDesc.equals("F") || rightDesc.equals("F")) {
+			else if (targetType=='F') {
 				mv.visitInsn(FCMPL);		
 				mv.visitJumpInsn(IFNE, elseTarget);
 			}
-			else if (leftDesc.equals("J") || rightDesc.equals("J")) {
+			else if (targetType=='J') {
 				mv.visitInsn(LCMP);		
 				mv.visitJumpInsn(IFNE, elseTarget);
 			}
-			else if (leftDesc.equals("I") || rightDesc.equals("I") ||
-					 leftDesc.equals("Z") || rightDesc.equals("Z")) {
-				mv.visitJumpInsn(IF_ICMPNE,elseTarget);		
+			else if (targetType=='I' || targetType=='Z') {
+				mv.visitJumpInsn(IF_ICMPNE, elseTarget);		
 			}
-		}
-		else {
-			mv.visitJumpInsn(IF_ACMPNE,elseTarget);		
+			else {
+				throw new IllegalStateException("Unexpected descriptor "+leftDesc);
+			}
+		} else {
+			getLeftOperand().generateCode(mv, codeflow);
+			getRightOperand().generateCode(mv, codeflow);
+			mv.visitJumpInsn(IF_ACMPNE, elseTarget);
 		}
 		mv.visitInsn(ICONST_1);
 		mv.visitJumpInsn(GOTO,endOfIf);

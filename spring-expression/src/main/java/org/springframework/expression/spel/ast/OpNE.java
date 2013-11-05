@@ -22,6 +22,7 @@ import org.springframework.expression.EvaluationException;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.standard.SpelCompiler;
+import org.springframework.expression.spel.standard.Utils;
 import org.springframework.expression.spel.support.BooleanTypedValue;
 
 /**
@@ -70,99 +71,79 @@ public class OpNE extends Operator {
 
 		return BooleanTypedValue.forValue(left != right);
 	}
-	
+
+	// This check is different to the one in the other numeric operators (OpLt/etc)
+	// because we allow basic object comparison
 	public boolean isCompilable() {
-		String leftDesc = getLeftOperand().getExitDescriptor();
-		String rightDesc = getRightOperand().getExitDescriptor();
-		// TODO asc reasonable condition? Should also check left and right are compilable!
-		return SpelCompiler.isNumber(leftDesc) && leftDesc.equals(rightDesc); //AstUtils.isNumber(rightDesc) && 
+		SpelNodeImpl left = getLeftOperand();
+		SpelNodeImpl right= getRightOperand();
+		if (!left.isCompilable() || !right.isCompilable()) {
+			return false;
+		}
+		String leftdesc = left.getExitDescriptor();
+		String rightdesc = right.getExitDescriptor();
+		if ((SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(leftdesc) ||
+				SpelCompiler.isPrimitiveOrUnboxableSupportedNumber(rightdesc))) {
+			if (!SpelCompiler.boxingCompatible(leftdesc, rightdesc)) {
+				return false;
+			}
+		}
+		return true;
 	}
 	
+	
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
-		getLeftOperand().generateCode(mv, codeflow);
 		String leftDesc = getLeftOperand().getExitDescriptor();
-//		if (getLeftOperand().getExitDescriptor().equals("Ljava/lang/Double")) {
-//			// unbox
-//			Utils.insertUnboxInsns(mv, 'D', false);
-//		}
-		getRightOperand().generateCode(mv, codeflow);
 		String rightDesc = getRightOperand().getExitDescriptor();
-//		if (getLeftOperand().getExitDescriptor().equals("Ljava/lang/Double")) {
-//			// unbox
-//			Utils.insertUnboxInsns( mv, 'D', false);
-//		}
-		if (leftDesc != null && rightDesc !=null) {
-			if (!SpelCompiler.isPrimitive(leftDesc) && !SpelCompiler.isPrimitive(rightDesc)) {
-//				mv.visitMethodInsn(INVOKEVIRTUAL,"java/lang/Object","equals","(Ljava/lang/Object;)Z");
-//				codeflow.pushDescriptor("Z");
-				Label elseTarget = new Label();
-				Label endOfIf = new Label();
-				mv.visitJumpInsn(IF_ACMPEQ,elseTarget);		
-				mv.visitInsn(ICONST_1);
-				mv.visitJumpInsn(GOTO,endOfIf);
-				mv.visitLabel(elseTarget);
-				mv.visitInsn(ICONST_0);
-				mv.visitLabel(endOfIf);
-				codeflow.pushDescriptor("Z");				
-				return;
+		Label elseTarget = new Label();
+		Label endOfIf = new Label();
+		boolean leftPrim = SpelCompiler.isPrimitive(leftDesc);
+		boolean rightPrim = SpelCompiler.isPrimitive(rightDesc);
+
+		if ((SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(leftDesc) || 
+			 SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(rightDesc)) && 
+			 SpelCompiler.boxingCompatible(leftDesc,rightDesc)) {
+			char targetType = SpelCompiler.toPrimitiveTargetDesc(leftDesc);
+			
+			getLeftOperand().generateCode(mv, codeflow);
+			if (!leftPrim) {
+				Utils.insertUnboxInsns(mv, targetType, false);
 			}
-		}
-		if (leftDesc.equals(rightDesc)) {
-			if (leftDesc.equals("D")) {
-				mv.visitInsn(DCMPL);		
-				Label elseTarget = new Label();
-				Label endOfIf = new Label();
+		
+			getRightOperand().generateCode(mv, codeflow);
+			if (!rightPrim) {
+				Utils.insertUnboxInsns(mv, targetType, false);
+			}
+			// assert: SpelCompiler.boxingCompatible(leftDesc, rightDesc)
+			if (targetType=='D') {
+				mv.visitInsn(DCMPL);
 				mv.visitJumpInsn(IFEQ, elseTarget);
-				mv.visitInsn(ICONST_1);
-				mv.visitJumpInsn(GOTO,endOfIf);
-				mv.visitLabel(elseTarget);
-				mv.visitInsn(ICONST_0);
-				mv.visitLabel(endOfIf);
-				codeflow.pushDescriptor("Z");				
 			}
-			else if (leftDesc.equals("F")) {
+			else if (targetType=='F') {
 				mv.visitInsn(FCMPL);		
-				Label elseTarget = new Label();
-				Label endOfIf = new Label();
 				mv.visitJumpInsn(IFEQ, elseTarget);
-				mv.visitInsn(ICONST_1);
-				mv.visitJumpInsn(GOTO,endOfIf);
-				mv.visitLabel(elseTarget);
-				mv.visitInsn(ICONST_0);
-				mv.visitLabel(endOfIf);
-				codeflow.pushDescriptor("Z");								
 			}
-			else if (leftDesc.equals("J")) {
+			else if (targetType=='J') {
 				mv.visitInsn(LCMP);		
-				Label elseTarget = new Label();
-				Label endOfIf = new Label();
 				mv.visitJumpInsn(IFEQ, elseTarget);
-				mv.visitInsn(ICONST_1);
-				mv.visitJumpInsn(GOTO,endOfIf);
-				mv.visitLabel(elseTarget);
-				mv.visitInsn(ICONST_0);
-				mv.visitLabel(endOfIf);
-				codeflow.pushDescriptor("Z");												
 			}
-			else if (leftDesc.equals("I")) {
-				Label elseTarget = new Label();
-				Label endOfIf = new Label();
-				mv.visitJumpInsn(IF_ICMPEQ,elseTarget);		
-				mv.visitInsn(ICONST_1);
-				mv.visitJumpInsn(GOTO,endOfIf);
-				mv.visitLabel(elseTarget);
-				mv.visitInsn(ICONST_0);
-				mv.visitLabel(endOfIf);
-				codeflow.pushDescriptor("Z");												
+			else if (targetType=='I' || targetType=='Z') {
+				mv.visitJumpInsn(IF_ICMPEQ, elseTarget);		
 			}
 			else {
-				throw new IllegalStateException("nyi "+leftDesc);
+				throw new IllegalStateException("Unexpected descriptor "+leftDesc);
 			}
+		} else {
+			getLeftOperand().generateCode(mv, codeflow);
+			getRightOperand().generateCode(mv, codeflow);
+			mv.visitJumpInsn(IF_ACMPEQ, elseTarget);
 		}
-		else {
-			throw new IllegalStateException("nyi "+leftDesc+" "+rightDesc);
-		}
-		
+		mv.visitInsn(ICONST_1);
+		mv.visitJumpInsn(GOTO,endOfIf);
+		mv.visitLabel(elseTarget);
+		mv.visitInsn(ICONST_0);
+		mv.visitLabel(endOfIf);
+		codeflow.pushDescriptor("Z");
 	}
 
 }

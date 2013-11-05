@@ -16,13 +16,10 @@
 
 package org.springframework.expression.spel.ast;
 
-import org.springframework.asm.Label;
 import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
-import org.springframework.expression.spel.standard.Utils;
 import org.springframework.expression.spel.support.BooleanTypedValue;
 
 /**
@@ -64,46 +61,6 @@ public class OpGT extends Operator {
 	}
 	
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
-		String leftDesc = getLeftOperand().getExitDescriptor();
-		String rightDesc = getRightOperand().getExitDescriptor();
-
-		boolean mayNeedToUnbox = SpelCompiler.isPrimitive(leftDesc) || SpelCompiler.isPrimitive(rightDesc);
-		
-		getLeftOperand().generateCode(mv, codeflow);
-		if (mayNeedToUnbox && !SpelCompiler.isPrimitive(leftDesc)) {
-			Utils.insertUnboxInsns(mv, rightDesc.charAt(0), false);
-		}
-
-		getRightOperand().generateCode(mv, codeflow);
-		if (mayNeedToUnbox && !SpelCompiler.isPrimitive(rightDesc)) {
-			Utils.insertUnboxInsns(mv, leftDesc.charAt(0), false);
-		}
-		// assert: SpelCompiler.boxingCompatible(leftDesc, rightDesc)
-		Label elseTarget = new Label();
-		Label endOfIf = new Label();
-		if (SpelCompiler.isDouble(leftDesc)) {
-			mv.visitInsn(DCMPL);		
-			mv.visitJumpInsn(IFLE, elseTarget);
-		}
-		else if (SpelCompiler.isFloat(leftDesc)) {
-			mv.visitInsn(FCMPG);		
-			mv.visitJumpInsn(IFLE, elseTarget);
-		}
-		else if (SpelCompiler.isLong(leftDesc)) {
-			mv.visitInsn(LCMP);
-			mv.visitJumpInsn(IFLE, elseTarget);
-		}
-		else if (SpelCompiler.isInteger(leftDesc)) {
-			mv.visitJumpInsn(IF_ICMPLE,elseTarget);		
-		}		
-		else {
-			throw new IllegalStateException("Unexpected descriptor "+leftDesc);
-		}
-		mv.visitInsn(ICONST_1);
-		mv.visitJumpInsn(GOTO,endOfIf);
-		mv.visitLabel(elseTarget);
-		mv.visitInsn(ICONST_0);
-		mv.visitLabel(endOfIf);
-		codeflow.pushDescriptor("Z");				
+		generateComparisonCode(mv, codeflow, IFLE, IF_ICMPLE);
 	}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2013 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,12 @@ import java.util.Map;
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.expression.Expression;
+import org.springframework.expression.spel.ast.CompoundExpression;
+import org.springframework.expression.spel.ast.OpLT;
+import org.springframework.expression.spel.ast.SpelNodeImpl;
+import org.springframework.expression.spel.ast.Ternary;
 import org.springframework.expression.spel.standard.SpelCompiler;
+import org.springframework.expression.spel.standard.SpelExpression;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 
 import static org.junit.Assert.*;
@@ -38,38 +43,68 @@ import static org.junit.Assert.*;
  */
 public class SpelCompilationCoverageTests extends ExpressionTestCase {
 	
-	Expression expression;
+	private Expression expression;
+	private SpelNodeImpl ast;
 	
 	@Before
 	public void setup() {
 		SpelCompiler.reset();
 	}
 	
-	// Nodes to test compilation of:
+	/*
+	 * Future work:
+	 * - allow other accessors/resolvers to participate in compilation and create their own code
+	 * 
+	 * Compilation notes:
+	 * 
+What to keep in mind for complete pass:
+- who is setting exitTypeDescriptor, any NPE possibilities?
+- is compile check sufficient?
+- opminus with other literals (float, long double)
+- generate code ok?
+- Dont fix the exittypedescriptor, allow it to change over time n
+- need @Override
+
+	 * 
+	 * TypeReference
+	 * OperatorInstanceOf
+	 * StringLiteral
+	 * NullLiteral
+	 * RealLiteral
+	 * IntLiteral
+	 * LongLiteral
+	 * BooleanLiteral
+	 * FloatLiteral
+	 * OpOr
+	 * OpAnd
+	 * OperatorNot
+	 * Ternary
+	 * Elvis
+	 * VariableReference
+	 * OpLt
+	 * OpLe
+	 * OpGt
+	 * OpGe
+	 * OpEq
+	 * OpNe
+	 * OpPlus
+	 * OpMinus
+	 * OpMultiply
+	 * OpDivide
+	 * MethodReference
+	 * PropertyOrFieldReference
+	 * Indexer
+	 * CompoundExpression
+	 */
 	
-	// tested:
-	// StringLiteral, BooleanLiteral, NullLiteral, RealLiteral, IntLiteral, FloatLiteral, LongLiteral
-	// opOr, opAnd, opLt, opGe, opLe, opGt, opPlus, opMinus
-	// OpEq, OpNe, OpMultiply, OpDivide
-	// Ternary, Elvis
-	// TypeReference
-	// OperatorInstanceOf
-	// OperatorNot
-	// MethodReference
-	
-	// in progress:
-	// Indexer
-	// CompoundExpression
-	// VariableReference
-	
-	// not tested enough or at all yet:
-	
+	// These nodes are not yet compiled:
+	//
 	// assign, beanreference, constructorref,
 	// functionref, identifier?, inlinelist, 
 	// opdec, opbetween,
 	// opmatches, oppower, opinc,
 	// opmodulus, projection,
-	// propertyorfieldref, qualifiedid, selection, 
+	// qualifiedid, selection
 
 	
 	@Test
@@ -555,126 +590,77 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 		assertTrue((Boolean)expression.getValue());
 		assertCanCompile(expression);
 		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("T(Integer).valueOf(3) < T(Integer).valueOf(3)");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+
+		expression = parse("5 < T(Integer).valueOf(3)");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
 	}
 	
 	@Test
 	public void opLe() throws Exception {
-//		expression = parse("3.0d <= 4.0d");
-//		assertCanCompile(expression);
-//		assertTrue((Boolean)expression.getValue());
-//		expression = parse("3446.0d <= 1123.0d");
-//		assertCanCompile(expression);
-//		assertFalse((Boolean)expression.getValue());
-//		expression = parse("3446.0d <= 3446.0d");
-//		assertCanCompile(expression);
-//		assertTrue((Boolean)expression.getValue());
-//
-//		expression = parse("3 <= 1");
-//		assertCanCompile(expression);
-//		assertFalse((Boolean)expression.getValue());
-//		expression = parse("2 <= 4");
-//		assertCanCompile(expression);
-//		assertTrue((Boolean)expression.getValue());
-//		expression = parse("3 <= 3");
-//		assertCanCompile(expression);
-//		assertTrue((Boolean)expression.getValue());
-//		
-//		expression = parse("3.0f <= 1.0f");
-//		assertCanCompile(expression);
-//		assertFalse((Boolean)expression.getValue());
-//		expression = parse("1.0f <= 5.0f");
-//		assertCanCompile(expression);
-//		assertTrue((Boolean)expression.getValue());
-//		expression = parse("2.0f <= 2.0f");
-//		assertCanCompile(expression);
-//		assertTrue((Boolean)expression.getValue());
-//		
-//		expression = parse("30L <= 30L");
-//		assertCanCompile(expression);
-//		assertTrue((Boolean)expression.getValue());
-//		expression = parse("15L <= 20L");
-//		assertCanCompile(expression);
-//		assertTrue((Boolean)expression.getValue());
-//		
-//		// Differing types of number, not yet supported
-//		expression = parse("1 <= 3.0d");
-//		assertCantCompile(expression);
-//
-//		expression = parse("T(Integer).valueOf(3) <= 4");
-//		assertTrue((Boolean)expression.getValue());
-//		assertCanCompile(expression);
-//		assertTrue((Boolean)expression.getValue());
+		expression = parse("3.0d <= 4.0d");
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		expression = parse("3446.0d <= 1123.0d");
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		expression = parse("3446.0d <= 3446.0d");
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("3 <= 1");
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		expression = parse("2 <= 4");
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		expression = parse("3 <= 3");
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		
+		expression = parse("3.0f <= 1.0f");
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		expression = parse("1.0f <= 5.0f");
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		expression = parse("2.0f <= 2.0f");
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		
+		expression = parse("30L <= 30L");
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		expression = parse("15L <= 20L");
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		
+		// Differing types of number, not yet supported
+		expression = parse("1 <= 3.0d");
+		assertCantCompile(expression);
+
+		expression = parse("T(Integer).valueOf(3) <= 4");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
 
 		expression = parse("T(Integer).valueOf(3) <= T(Integer).valueOf(3)");
 		assertTrue((Boolean)expression.getValue());
 		assertCanCompile(expression);
 		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("5 <= T(Integer).valueOf(3)");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
 	}
 	
-	@Test
-	public void opEq() throws Exception {
-		expression = parse("3.0d == 4.0d");
-		assertCanCompile(expression);
-		assertFalse((Boolean)expression.getValue());
-		expression = parse("3446.0d == 3446.0d");
-		assertCanCompile(expression);
-		assertTrue((Boolean)expression.getValue());
-
-		expression = parse("3 == 1");
-		assertCanCompile(expression);
-		assertFalse((Boolean)expression.getValue());
-		expression = parse("3 == 3");
-		assertCanCompile(expression);
-		assertTrue((Boolean)expression.getValue());
-		
-		expression = parse("3.0f == 1.0f");
-		assertCanCompile(expression);
-		assertFalse((Boolean)expression.getValue());
-		expression = parse("2.0f == 2.0f");
-		assertCanCompile(expression);
-		assertTrue((Boolean)expression.getValue());
-		
-		expression = parse("30L == 30L");
-		assertCanCompile(expression);
-		assertTrue((Boolean)expression.getValue());
-		expression = parse("15L == 20L");
-		assertCanCompile(expression);
-		assertFalse((Boolean)expression.getValue());
-		
-		// Differing types of number, not yet supported
-		expression = parse("1 == 3.0d");
-		assertCantCompile(expression);
-		
-		Double d = 3.0d;
-		expression = parse("#root==3.0d");
-		assertTrue((Boolean)expression.getValue(d));
-		assertCanCompile(expression);
-		assertTrue((Boolean)expression.getValue(d));
-		
-		Integer i = 3;
-		expression = parse("#root==3");
-		assertTrue((Boolean)expression.getValue(i));
-		assertCanCompile(expression);
-		assertTrue((Boolean)expression.getValue(i));
-
-		Float f = 3.0f;
-		expression = parse("#root==3.0f");
-		assertTrue((Boolean)expression.getValue(f));
-		assertCanCompile(expression);
-		assertTrue((Boolean)expression.getValue(f));
-		
-		long l = 300l;
-		expression = parse("#root==300l");
-		assertTrue((Boolean)expression.getValue(l));
-		assertCanCompile(expression);
-		assertTrue((Boolean)expression.getValue(l));
-		
-		boolean b = true;
-		expression = parse("#root==true");
-		assertTrue((Boolean)expression.getValue(b));
-		assertCanCompile(expression);
-		assertTrue((Boolean)expression.getValue(b));
-	}
 	
 	@Test
 	public void opGt() throws Exception {
@@ -714,6 +700,16 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 		assertFalse((Boolean)expression.getValue());
 		assertCanCompile(expression);
 		assertFalse((Boolean)expression.getValue());
+		
+		expression = parse("T(Integer).valueOf(3) > T(Integer).valueOf(3)");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+
+		expression = parse("5 > T(Integer).valueOf(3)");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
 	}
 	
 	@Test
@@ -761,6 +757,166 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 		// Differing types of number, not yet supported
 		expression = parse("1 >= 3.0d");
 		assertCantCompile(expression);
+
+		expression = parse("T(Integer).valueOf(3) >= 4");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		
+		expression = parse("T(Integer).valueOf(3) >= T(Integer).valueOf(3)");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("5 >= T(Integer).valueOf(3)");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+	}
+
+	@Test
+	public void opEq() throws Exception {
+		expression = parse("3.0d == 4.0d");
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		expression = parse("3446.0d == 3446.0d");
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("3 == 1");
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		expression = parse("3 == 3");
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		
+		expression = parse("3.0f == 1.0f");
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		expression = parse("2.0f == 2.0f");
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		
+		expression = parse("30L == 30L");
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		expression = parse("15L == 20L");
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		
+		// number types are not the same
+		expression = parse("1 == 3.0d");
+		assertCantCompile(expression);
+		
+		Double d = 3.0d;
+		expression = parse("#root==3.0d");
+		assertTrue((Boolean)expression.getValue(d));
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue(d));
+		
+		Integer i = 3;
+		expression = parse("#root==3");
+		assertTrue((Boolean)expression.getValue(i));
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue(i));
+
+		Float f = 3.0f;
+		expression = parse("#root==3.0f");
+		assertTrue((Boolean)expression.getValue(f));
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue(f));
+		
+		long l = 300l;
+		expression = parse("#root==300l");
+		assertTrue((Boolean)expression.getValue(l));
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue(l));
+		
+		boolean b = true;
+		expression = parse("#root==true");
+		assertTrue((Boolean)expression.getValue(b));
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue(b));
+
+		expression = parse("T(Integer).valueOf(3) == 4");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		
+		expression = parse("T(Integer).valueOf(3) == T(Integer).valueOf(3)");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("5 == T(Integer).valueOf(3)");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+
+		expression = parse("T(Float).valueOf(3.0f) == 4.0f");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		
+		expression = parse("T(Float).valueOf(3.0f) == T(Float).valueOf(3.0f)");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("5.0f == T(Float).valueOf(3.0f)");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		
+		expression = parse("T(Long).valueOf(3L) == 4L");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		
+		expression = parse("T(Long).valueOf(3L) == T(Long).valueOf(3L)");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("5L == T(Long).valueOf(3L)");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());	
+		
+		expression = parse("T(Double).valueOf(3.0d) == 4.0d");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		
+		expression = parse("T(Double).valueOf(3.0d) == T(Double).valueOf(3.0d)");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("5.0d == T(Double).valueOf(3.0d)");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+
+		expression = parse("false == true");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		
+		expression = parse("T(Boolean).valueOf('true') == T(Boolean).valueOf('true')");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("T(Boolean).valueOf('true') == true");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("false == T(Boolean).valueOf('false')");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
 	}
 
 	@Test
@@ -793,9 +949,89 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 		assertCanCompile(expression);
 		assertTrue((Boolean)expression.getValue());
 		
-		// Differing types of number, not yet supported
-		expression = parse("1 != 3.0d");
+		// not compatible number types
+		expression = parse("1 != 3.0d");	
 		assertCantCompile(expression);
+
+		expression = parse("T(Integer).valueOf(3) != 4");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		
+		expression = parse("T(Integer).valueOf(3) != T(Integer).valueOf(3)");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+
+		expression = parse("5 != T(Integer).valueOf(3)");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("T(Float).valueOf(3.0f) != 4.0f");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		
+		expression = parse("T(Float).valueOf(3.0f) != T(Float).valueOf(3.0f)");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+
+		expression = parse("5.0f != T(Float).valueOf(3.0f)");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		
+		expression = parse("T(Long).valueOf(3L) != 4L");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+		
+		expression = parse("T(Long).valueOf(3L) != T(Long).valueOf(3L)");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+
+		expression = parse("5L != T(Long).valueOf(3L)");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());	
+		
+		expression = parse("T(Double).valueOf(3.0d) == 4.0d");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		
+		expression = parse("T(Double).valueOf(3.0d) == T(Double).valueOf(3.0d)");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("5.0d == T(Double).valueOf(3.0d)");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+
+		expression = parse("false == true");
+		assertFalse((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertFalse((Boolean)expression.getValue());
+		
+		expression = parse("T(Boolean).valueOf('true') == T(Boolean).valueOf('true')");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("T(Boolean).valueOf('true') == true");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
+
+		expression = parse("false == T(Boolean).valueOf('false')");
+		assertTrue((Boolean)expression.getValue());
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue());
 	}
 	
 	@Test
@@ -838,55 +1074,57 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 		expression = parse("+2.5d");
 		expression.getValue();
 		assertCanCompile(expression);
-		assertEquals(2.5d,expression.getValue());		
-	}
-	
-	@Test
-	public void opMultiply() throws Exception {
-		expression = parse("2*2");
+		assertEquals(2.5d,expression.getValue());	
+
+		expression = parse("+T(Double).valueOf(2.5d)");
 		expression.getValue();
+		assertCanCompile(expression);
+		assertEquals(2.5d,expression.getValue());	
+		
+		expression = parse("T(Integer).valueOf(2)+6");
+		assertEquals(8,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(8,expression.getValue());
+		
+		expression = parse("T(Integer).valueOf(1)+T(Integer).valueOf(3)");
+		assertEquals(4,expression.getValue());
 		assertCanCompile(expression);
 		assertEquals(4,expression.getValue());
+
+		expression = parse("1+T(Integer).valueOf(3)");
+		assertEquals(4,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(4,expression.getValue());
+
+		expression = parse("T(Float).valueOf(2.0f)+6");
+		assertEquals(8.0f,expression.getValue());
+		assertCantCompile(expression);
 		
-		expression = parse("2L*2L");
-		expression.getValue();
+		expression = parse("T(Float).valueOf(2.0f)+T(Float).valueOf(3.0f)");
+		assertEquals(5.0f,expression.getValue());
 		assertCanCompile(expression);
-		assertEquals(4L,expression.getValue());
+		assertEquals(5.0f,expression.getValue());
 
-		expression = parse("2.0f*2.0f");
-		expression.getValue();
+		expression = parse("3L+T(Long).valueOf(4L)");
+		assertEquals(7L,expression.getValue());
 		assertCanCompile(expression);
-		assertEquals(4.0f,expression.getValue());
+		assertEquals(7L,expression.getValue());
 
-		expression = parse("3.0d*4.0d");
-		expression.getValue();
-		assertCanCompile(expression);
-		assertEquals(12.0d,expression.getValue());
-	}
-	
-	@Test
-	public void opDivide() throws Exception {
-		expression = parse("2/2");
-		expression.getValue();
-		assertCanCompile(expression);
-		assertEquals(1,expression.getValue());
+		expression = parse("T(Long).valueOf(2L)+6");
+		assertEquals(8L,expression.getValue());
+		assertCantCompile(expression);
 		
-		expression = parse("2L/2L");
-		expression.getValue();
+		expression = parse("T(Long).valueOf(2L)+T(Long).valueOf(3L)");
+		assertEquals(5L,expression.getValue());
 		assertCanCompile(expression);
-		assertEquals(1L,expression.getValue());
+		assertEquals(5L,expression.getValue());
 
-		expression = parse("2.0f/2.0f");
-		expression.getValue();
+		expression = parse("1L+T(Long).valueOf(2L)");
+		assertEquals(3L,expression.getValue());
 		assertCanCompile(expression);
-		assertEquals(1.0f,expression.getValue());
-
-		expression = parse("3.0d/4.0d");
-		expression.getValue();
-		assertCanCompile(expression);
-		assertEquals(0.75d,expression.getValue());
+		assertEquals(3L,expression.getValue());
 	}
-	
+
 	@Test
 	public void opMinus() throws Exception {
 		expression = parse("2-2");
@@ -927,17 +1165,350 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 		expression = parse("-2.5d");
 		expression.getValue();
 		assertCanCompile(expression);
-		assertEquals(-2.5d,expression.getValue());		
+		assertEquals(-2.5d,expression.getValue());	
+		
+		expression = parse("T(Integer).valueOf(2)-6");
+		assertEquals(-4,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(-4,expression.getValue());
+		
+		expression = parse("T(Integer).valueOf(1)-T(Integer).valueOf(3)");
+		assertEquals(-2,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(-2,expression.getValue());
+
+		expression = parse("4-T(Integer).valueOf(3)");
+		assertEquals(1,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(1,expression.getValue());
+
+		expression = parse("T(Float).valueOf(2.0f)-6");
+		assertEquals(-4.0f,expression.getValue());
+		assertCantCompile(expression);
+		
+		expression = parse("T(Float).valueOf(8.0f)-T(Float).valueOf(3.0f)");
+		assertEquals(5.0f,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(5.0f,expression.getValue());
+
+		expression = parse("11L-T(Long).valueOf(4L)");
+		assertEquals(7L,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(7L,expression.getValue());
+
+		expression = parse("T(Long).valueOf(9L)-6");
+		assertEquals(3L,expression.getValue());
+		assertCantCompile(expression);
+		
+		expression = parse("T(Long).valueOf(4L)-T(Long).valueOf(3L)");
+		assertEquals(1L,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(1L,expression.getValue());
+
+		expression = parse("8L-T(Long).valueOf(2L)");
+		assertEquals(6L,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(6L,expression.getValue());
+	}
+	
+	
+	@Test
+	public void opMultiply() throws Exception {
+		expression = parse("2*2");
+		expression.getValue();
+		assertCanCompile(expression);
+		assertEquals(4,expression.getValue());
+		
+		expression = parse("2L*2L");
+		expression.getValue();
+		assertCanCompile(expression);
+		assertEquals(4L,expression.getValue());
+
+		expression = parse("2.0f*2.0f");
+		expression.getValue();
+		assertCanCompile(expression);
+		assertEquals(4.0f,expression.getValue());
+
+		expression = parse("3.0d*4.0d");
+		expression.getValue();
+		assertCanCompile(expression);
+		assertEquals(12.0d,expression.getValue());
+
+		expression = parse("T(Float).valueOf(2.0f)*6");
+		assertEquals(12.0f,expression.getValue());
+		assertCantCompile(expression);
+		
+		expression = parse("T(Float).valueOf(8.0f)*T(Float).valueOf(3.0f)");
+		assertEquals(24.0f,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(24.0f,expression.getValue());
+
+		expression = parse("11L*T(Long).valueOf(4L)");
+		assertEquals(44L,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(44L,expression.getValue());
+
+		expression = parse("T(Long).valueOf(9L)*6");
+		assertEquals(54L,expression.getValue());
+		assertCantCompile(expression);
+		
+		expression = parse("T(Long).valueOf(4L)*T(Long).valueOf(3L)");
+		assertEquals(12L,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(12L,expression.getValue());
+
+		expression = parse("8L*T(Long).valueOf(2L)");
+		assertEquals(16L,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(16L,expression.getValue());
+
+		expression = parse("T(Float).valueOf(8.0f)*-T(Float).valueOf(3.0f)");
+		assertEquals(-24.0f,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(-24.0f,expression.getValue());
 	}
 	
 	@Test
-	public void methodReference_simpleInstanceMethodNonLiteralArg() throws Exception {
+	public void opDivide() throws Exception {
+		expression = parse("2/2");
+		expression.getValue();
+		assertCanCompile(expression);
+		assertEquals(1,expression.getValue());
+		
+		expression = parse("2L/2L");
+		expression.getValue();
+		assertCanCompile(expression);
+		assertEquals(1L,expression.getValue());
+
+		expression = parse("2.0f/2.0f");
+		expression.getValue();
+		assertCanCompile(expression);
+		assertEquals(1.0f,expression.getValue());
+
+		expression = parse("3.0d/4.0d");
+		expression.getValue();
+		assertCanCompile(expression);
+		assertEquals(0.75d,expression.getValue());
+
+		expression = parse("T(Float).valueOf(6.0f)/2");
+		assertEquals(3.0f,expression.getValue());
+		assertCantCompile(expression);
+		
+		expression = parse("T(Float).valueOf(8.0f)/T(Float).valueOf(2.0f)");
+		assertEquals(4.0f,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(4.0f,expression.getValue());
+
+		expression = parse("12L/T(Long).valueOf(4L)");
+		assertEquals(3L,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(3L,expression.getValue());
+
+		expression = parse("T(Long).valueOf(44L)/11");
+		assertEquals(4L,expression.getValue());
+		assertCantCompile(expression);
+		
+		expression = parse("T(Long).valueOf(4L)/T(Long).valueOf(2L)");
+		assertEquals(2L,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(2L,expression.getValue());
+
+		expression = parse("8L/T(Long).valueOf(2L)");
+		assertEquals(4L,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(4L,expression.getValue());
+
+		expression = parse("T(Float).valueOf(8.0f)/-T(Float).valueOf(4.0f)");
+		assertEquals(-2.0f,expression.getValue());
+		assertCanCompile(expression);
+		assertEquals(-2.0f,expression.getValue());
+	}
+	
+	// TODO method reference needsTarget thing?
+	@Test
+	public void methodReference() throws Exception {
+		TestClass5 tc = new TestClass5();
+		
+		// non-static method, no args, void return
+		expression = parser.parseExpression("one()");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCanCompile(expression);
+		tc.reset();
+		expression.getValue(tc);
+		assertEquals(1,tc.i);
+		tc.reset();
+		
+		// static method, no args, void return
+		expression = parser.parseExpression("two()");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCanCompile(expression);
+		tc.reset();
+		expression.getValue(tc);
+		assertEquals(1,TestClass5._i);
+		tc.reset();
+		
+		// non-static method, reference type return
+		expression = parser.parseExpression("three()");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCanCompile(expression);
+		tc.reset();
+		assertEquals("hello",expression.getValue(tc));
+		tc.reset();
+
+		// non-static method, primitive type return
+		expression = parser.parseExpression("four()");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCanCompile(expression);
+		tc.reset();
+		assertEquals(3277700L,expression.getValue(tc));
+		tc.reset();
+		
+		// static method, reference type return
+		expression = parser.parseExpression("five()");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCanCompile(expression);
+		tc.reset();
+		assertEquals("hello",expression.getValue(tc));
+		tc.reset();
+
+		// static method, primitive type return
+		expression = parser.parseExpression("six()");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCanCompile(expression);
+		tc.reset();
+		assertEquals(3277700L,expression.getValue(tc));
+		tc.reset();
+		
+		// non-static method, one parameter of reference type
+		expression = parser.parseExpression("seven(\"foo\")");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCanCompile(expression);
+		tc.reset();
+		expression.getValue(tc);
+		assertEquals("foo",tc.s);
+		tc.reset();
+		
+		// static method, one parameter of reference type
+		expression = parser.parseExpression("eight(\"bar\")");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCanCompile(expression);
+		tc.reset();
+		expression.getValue(tc);
+		assertEquals("bar",TestClass5._s);
+		tc.reset();
+		
+		// non-static method, one parameter of primitive type
+		expression = parser.parseExpression("nine(231)");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCanCompile(expression);
+		tc.reset();
+		expression.getValue(tc);
+		assertEquals(231,tc.i);
+		tc.reset();
+		
+		// static method, one parameter of primitive type
+		expression = parser.parseExpression("ten(111)");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCanCompile(expression);
+		tc.reset();
+		expression.getValue(tc);
+		assertEquals(111,TestClass5._i);
+		tc.reset();
+		
+		// non-static method, varargs with reference type
+		expression = parser.parseExpression("eleven(\"a\",\"b\",\"c\")");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCantCompile(expression); // Varargs is not yet supported
+		
+		expression = parser.parseExpression("eleven()");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCantCompile(expression); // Varargs is not yet supported
+		
+		// static method, varargs with primitive type
+		expression = parser.parseExpression("twelve(1,2,3)");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCantCompile(expression); // Varargs is not yet supported
+		
+		expression = parser.parseExpression("twelve()");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertCantCompile(expression); // Varargs is not yet supported
+		
+		// method that gets type converted parameters
+		
+		// Converting from an int to a string
+		expression = parser.parseExpression("seven(123)");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertEquals("123",tc.s);
+		assertCantCompile(expression); // Uncompilable as argument conversion is occurring
+		
 		Expression expression = parser.parseExpression("'abcd'.substring(index1,index2)");
 		String resultI = expression.getValue(new TestClass1(),String.class);
 		assertCanCompile(expression);
 		String resultC = expression.getValue(new TestClass1(),String.class);
 		assertEquals("bc",resultI);
 		assertEquals("bc",resultC);
+	}
+		
+	
+	@Test 
+	public void errorHandling() throws Exception {
+		TestClass5 tc = new TestClass5();
+		
+		// changing target
+		
+		// from primitive array to reference type array
+		int[] is = new int[]{1,2,3};
+		String[] strings = new String[]{"a","b","c"};
+		expression = parser.parseExpression("[1]");
+		assertEquals(2,expression.getValue(is));
+		assertCanCompile(expression);
+		assertEquals(2,expression.getValue(is));
+		
+		// Throws CCE
+		try {
+			assertEquals(2,expression.getValue(strings));
+			fail();
+		} catch (ClassCastException cce) {
+			// success
+		}
+		SpelCompiler.revertToInterpreted(expression);
+		assertEquals("b",expression.getValue(strings));
+		assertCanCompile(expression);
+		assertEquals("b",expression.getValue(strings));
+		
+		
+		
+		// TODO method with changing parameter types (change reference type)
+		tc.field = "foo";
+		expression = parser.parseExpression("seven(field)");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertEquals("foo",tc.s);
+		assertCanCompile(expression);
+		tc.reset();
+		tc.field="bar";
+		expression.getValue(tc);
+		
+		
+		// TODO method with changing target
+		
+		// TODO method with changing parameter types (reference to primitive, primitive to reference)
+		
 	}
 	
 	@Test
@@ -959,7 +1530,6 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 		assertEquals("bc",resultI);
 		assertEquals("bc",resultC);
 	}
-
 
 	@Test
 	public void methodReference_simpleInstanceMethodNoArg() throws Exception {
@@ -1001,6 +1571,45 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 		assertEquals('c',resultC);
 	}
 
+
+	@Test
+	public void compoundExpression() throws Exception {
+		Payload payload = new Payload();
+		expression = parser.parseExpression("DR[0]");
+		assertEquals("instanceof Two",expression.getValue(payload).toString());
+		assertCanCompile(expression);
+		assertEquals("instanceof Two",expression.getValue(payload).toString());
+		ast = getAst();
+		assertEquals("Lorg/springframework/expression/spel/SpelCompilationCoverageTests$Two",ast.getExitDescriptor());
+
+		expression = parser.parseExpression("holder.three");
+		assertEquals("org.springframework.expression.spel.SpelCompilationCoverageTests$Three",expression.getValue(payload).getClass().getName());
+		assertCanCompile(expression);
+		assertEquals("org.springframework.expression.spel.SpelCompilationCoverageTests$Three",expression.getValue(payload).getClass().getName());
+		ast = getAst();
+		assertEquals("Lorg/springframework/expression/spel/SpelCompilationCoverageTests$Three",ast.getExitDescriptor());
+
+		expression = parser.parseExpression("DR[0]");
+		assertEquals("org.springframework.expression.spel.SpelCompilationCoverageTests$Two",expression.getValue(payload).getClass().getName());
+		assertCanCompile(expression);
+		assertEquals("org.springframework.expression.spel.SpelCompilationCoverageTests$Two",expression.getValue(payload).getClass().getName());
+		assertEquals("Lorg/springframework/expression/spel/SpelCompilationCoverageTests$Two",getAst().getExitDescriptor());
+
+		expression = parser.parseExpression("DR[0].three");
+		assertEquals("org.springframework.expression.spel.SpelCompilationCoverageTests$Three",expression.getValue(payload).getClass().getName());
+		assertCanCompile(expression);
+		assertEquals("org.springframework.expression.spel.SpelCompilationCoverageTests$Three",expression.getValue(payload).getClass().getName());
+		ast = getAst();
+		assertEquals("Lorg/springframework/expression/spel/SpelCompilationCoverageTests$Three",ast.getExitDescriptor());
+
+		expression = parser.parseExpression("DR[0].three.four");
+		assertEquals(0.04d,expression.getValue(payload));
+		assertCanCompile(expression);
+		assertEquals(0.04d,expression.getValue(payload));
+		assertEquals("D",getAst().getExitDescriptor());
+	}
+	
+	
 	@Test
 	public void mixingItUp_indexerOpEqTernary() throws Exception {
 		Map<String, String> m = new HashMap<String,String>();
@@ -1015,10 +1624,341 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 	}
 	
 	@Test
+	public void propertyReference() throws Exception {
+		TestClass6 tc = new TestClass6();
+		
+		// non static field
+		expression = parser.parseExpression("orange");
+		assertCantCompile(expression);
+		assertEquals("value1",expression.getValue(tc));
+		assertCanCompile(expression);
+		assertEquals("value1",expression.getValue(tc));
+		
+		// static field
+		expression = parser.parseExpression("apple");
+		assertCantCompile(expression);
+		assertEquals("value2",expression.getValue(tc));
+		assertCanCompile(expression);
+		assertEquals("value2",expression.getValue(tc));	
+		
+		// non static getter
+		expression = parser.parseExpression("banana");
+		assertCantCompile(expression);
+		assertEquals("value3",expression.getValue(tc));
+		assertCanCompile(expression);
+		assertEquals("value3",expression.getValue(tc));
+
+		// static getter
+		expression = parser.parseExpression("plum");
+		assertCantCompile(expression);
+		assertEquals("value4",expression.getValue(tc));
+		assertCanCompile(expression);
+		assertEquals("value4",expression.getValue(tc));
+	}
+	
+	@SuppressWarnings("unchecked")
+	@Test
+	public void indexer() throws Exception {
+		String[] sss = new String[]{"a","b","c"};
+		Number[] ns = new Number[]{2,8,9};
+		int[] is = new int[]{8,9,10};
+		double[] ds = new double[]{3.0d,4.0d,5.0d};
+		long[] ls = new long[]{2L,3L,4L};
+		short[] ss = new short[]{(short)33,(short)44,(short)55};
+		float[] fs = new float[]{6.0f,7.0f,8.0f};
+		byte[] bs = new byte[]{(byte)2,(byte)3,(byte)4};
+		char[] cs = new char[]{'a','b','c'};
+				
+		// Access String (reference type) array
+		expression = parser.parseExpression("[0]");
+		assertEquals("a",expression.getValue(sss));
+		assertCanCompile(expression);
+		assertEquals("a",expression.getValue(sss));
+		assertEquals("Ljava/lang/String",getAst().getExitDescriptor());
+
+		expression = parser.parseExpression("[1]");
+		assertEquals(8,expression.getValue(ns));
+		assertCanCompile(expression);
+		assertEquals(8,expression.getValue(ns));
+		assertEquals("Ljava/lang/Number",getAst().getExitDescriptor());
+		
+		// Access int array
+		expression = parser.parseExpression("[2]");
+		assertEquals(10,expression.getValue(is));
+		assertCanCompile(expression);
+		assertEquals(10,expression.getValue(is));
+		assertEquals("I",getAst().getExitDescriptor());
+
+		// Access double array
+		expression = parser.parseExpression("[1]");
+		assertEquals(4.0d,expression.getValue(ds));
+		assertCanCompile(expression);
+		assertEquals(4.0d,expression.getValue(ds));
+		assertEquals("D",getAst().getExitDescriptor());
+
+		// Access long array
+		expression = parser.parseExpression("[0]");
+		assertEquals(2L,expression.getValue(ls));
+		assertCanCompile(expression);
+		assertEquals(2L,expression.getValue(ls));
+		assertEquals("J",getAst().getExitDescriptor());
+
+		// Access short array
+		expression = parser.parseExpression("[2]");
+		assertEquals((short)55,expression.getValue(ss));
+		assertCanCompile(expression);
+		assertEquals((short)55,expression.getValue(ss));
+		assertEquals("S",getAst().getExitDescriptor());
+
+		// Access float array
+		expression = parser.parseExpression("[0]");
+		assertEquals(6.0f,expression.getValue(fs));
+		assertCanCompile(expression);
+		assertEquals(6.0f,expression.getValue(fs));
+		assertEquals("F",getAst().getExitDescriptor());
+
+		// Access byte array
+		expression = parser.parseExpression("[2]");
+		assertEquals((byte)4,expression.getValue(bs));
+		assertCanCompile(expression);
+		assertEquals((byte)4,expression.getValue(bs));
+		assertEquals("B",getAst().getExitDescriptor());
+
+		// Access char array
+		expression = parser.parseExpression("[1]");
+		assertEquals('b',expression.getValue(cs));
+		assertCanCompile(expression);
+		assertEquals('b',expression.getValue(cs));
+		assertEquals("C",getAst().getExitDescriptor());
+		
+		// Collections
+		List<String> strings = new ArrayList<String>();
+		strings.add("aaa");
+		strings.add("bbb");
+		strings.add("ccc");
+		expression = parser.parseExpression("[1]");
+		assertEquals("bbb",expression.getValue(strings));
+		assertCanCompile(expression);
+		assertEquals("bbb",expression.getValue(strings));
+		assertEquals("Ljava/lang/String",getAst().getExitDescriptor());
+		
+		List<Integer> ints = new ArrayList<Integer>();
+		ints.add(123);
+		ints.add(456);
+		ints.add(789);
+		expression = parser.parseExpression("[2]");
+		assertEquals(789,expression.getValue(ints));
+		assertCanCompile(expression);
+		assertEquals(789,expression.getValue(ints));
+		assertEquals("Ljava/lang/Integer",getAst().getExitDescriptor());
+		
+		// Maps
+		Map<String,Integer> map1 = new HashMap<String,Integer>();
+		map1.put("aaa", 111);
+		map1.put("bbb", 222);
+		map1.put("ccc", 333);
+		expression = parser.parseExpression("['aaa']");
+		assertEquals(111,expression.getValue(map1));
+		assertCanCompile(expression);
+		assertEquals(111,expression.getValue(map1));
+		assertEquals("Ljava/lang/Integer",getAst().getExitDescriptor());
+		
+		// Object
+		TestClass6 tc = new TestClass6();
+		expression = parser.parseExpression("['orange']");
+		assertEquals("value1",expression.getValue(tc));
+		assertCanCompile(expression);
+		assertEquals("value1",expression.getValue(tc));
+		assertEquals("Ljava/lang/String",getAst().getExitDescriptor());
+		
+		expression = parser.parseExpression("['peach']");
+		assertEquals(34L,expression.getValue(tc));
+		assertCanCompile(expression);
+		assertEquals(34L,expression.getValue(tc));
+		assertEquals("J",getAst().getExitDescriptor());
+
+		// getter
+		expression = parser.parseExpression("['banana']");
+		assertEquals("value3",expression.getValue(tc));
+		assertCanCompile(expression);
+		assertEquals("value3",expression.getValue(tc));
+		assertEquals("Ljava/lang/String",getAst().getExitDescriptor());
+		
+		// list of arrays
+		
+		List<String[]> listOfStringArrays = new ArrayList<String[]>();
+		listOfStringArrays.add(new String[]{"a","b","c"});
+		listOfStringArrays.add(new String[]{"d","e","f"});
+		expression = parser.parseExpression("[1]");
+		assertEquals("d e f",stringify(expression.getValue(listOfStringArrays)));
+		assertCanCompile(expression);
+		assertEquals("d e f",stringify(expression.getValue(listOfStringArrays)));
+		assertEquals("[Ljava/lang/String",getAst().getExitDescriptor());
+
+		List<Integer[]> listOfIntegerArrays = new ArrayList<Integer[]>();
+		listOfIntegerArrays.add(new Integer[]{1,2,3});
+		listOfIntegerArrays.add(new Integer[]{4,5,6});
+		expression = parser.parseExpression("[0]");
+		assertEquals("1 2 3",stringify(expression.getValue(listOfIntegerArrays)));
+		assertCanCompile(expression);
+		assertEquals("1 2 3",stringify(expression.getValue(listOfIntegerArrays)));
+		assertEquals("[Ljava/lang/Integer",getAst().getExitDescriptor());
+
+		expression = parser.parseExpression("[0][1]");
+		assertEquals(2,expression.getValue(listOfIntegerArrays));
+		assertCanCompile(expression);
+		assertEquals(2,expression.getValue(listOfIntegerArrays));
+		assertEquals("Ljava/lang/Integer",getAst().getExitDescriptor());
+		
+		// array of lists
+		List<String>[] stringArrayOfLists = new ArrayList[2];
+		stringArrayOfLists[0] = new ArrayList<String>();
+		stringArrayOfLists[0].add("a");
+		stringArrayOfLists[0].add("b");
+		stringArrayOfLists[0].add("c");
+		stringArrayOfLists[1] = new ArrayList<String>();
+		stringArrayOfLists[1].add("d");
+		stringArrayOfLists[1].add("e");
+		stringArrayOfLists[1].add("f");
+		expression = parser.parseExpression("[1]");
+		assertEquals("d e f",stringify(expression.getValue(stringArrayOfLists)));
+		assertCanCompile(expression);
+		assertEquals("d e f",stringify(expression.getValue(stringArrayOfLists)));
+		assertEquals("Ljava/util/ArrayList",getAst().getExitDescriptor());
+		
+		expression = parser.parseExpression("[1][2]");
+		assertEquals("f",stringify(expression.getValue(stringArrayOfLists)));
+		assertCanCompile(expression);
+		assertEquals("f",stringify(expression.getValue(stringArrayOfLists)));
+		assertEquals("Ljava/lang/String",getAst().getExitDescriptor());
+		
+		// array of arrays
+		String[][] referenceTypeArrayOfArrays = new String[][]{new String[]{"a","b","c"},new String[]{"d","e","f"}};
+		expression = parser.parseExpression("[1]");
+		assertEquals("d e f",stringify(expression.getValue(referenceTypeArrayOfArrays)));
+		assertCanCompile(expression);
+		assertEquals("[Ljava/lang/String",getAst().getExitDescriptor());
+		assertEquals("d e f",stringify(expression.getValue(referenceTypeArrayOfArrays)));
+		assertEquals("[Ljava/lang/String",getAst().getExitDescriptor());
+		
+		expression = parser.parseExpression("[1][2]");
+		assertEquals("f",stringify(expression.getValue(referenceTypeArrayOfArrays)));
+		assertCanCompile(expression);
+		assertEquals("f",stringify(expression.getValue(referenceTypeArrayOfArrays)));
+		assertEquals("Ljava/lang/String",getAst().getExitDescriptor());
+		
+		int[][] primitiveTypeArrayOfArrays = new int[][]{new int[]{1,2,3},new int[]{4,5,6}};
+		expression = parser.parseExpression("[1]");
+		assertEquals("4 5 6",stringify(expression.getValue(primitiveTypeArrayOfArrays)));
+		assertCanCompile(expression);
+		assertEquals("4 5 6",stringify(expression.getValue(primitiveTypeArrayOfArrays)));
+		assertEquals("[I",getAst().getExitDescriptor());
+		
+		expression = parser.parseExpression("[1][2]");
+		assertEquals("6",stringify(expression.getValue(primitiveTypeArrayOfArrays)));
+		assertCanCompile(expression);
+		assertEquals("6",stringify(expression.getValue(primitiveTypeArrayOfArrays)));
+		assertEquals("I",getAst().getExitDescriptor());
+		
+		// list of lists of reference types
+		List<List<String>> listOfListOfStrings = new ArrayList<List<String>>();
+		List<String> list = new ArrayList<String>();
+		list.add("a");
+		list.add("b");
+		list.add("c");
+		listOfListOfStrings.add(list);
+		list = new ArrayList<String>();
+		list.add("d");
+		list.add("e");
+		list.add("f");
+		listOfListOfStrings.add(list);
+		
+		expression = parser.parseExpression("[1]");
+		assertEquals("d e f",stringify(expression.getValue(listOfListOfStrings)));
+		assertCanCompile(expression);
+		assertEquals("Ljava/util/ArrayList",getAst().getExitDescriptor());
+		assertEquals("d e f",stringify(expression.getValue(listOfListOfStrings)));
+		assertEquals("Ljava/util/ArrayList",getAst().getExitDescriptor());
+		
+		expression = parser.parseExpression("[1][2]");
+		assertEquals("f",stringify(expression.getValue(listOfListOfStrings)));
+		assertCanCompile(expression);
+		assertEquals("f",stringify(expression.getValue(listOfListOfStrings)));
+		assertEquals("Ljava/lang/String",getAst().getExitDescriptor());
+		
+		// Map of lists
+		Map<String,List<String>> mapToLists = new HashMap<String,List<String>>();
+		list = new ArrayList<String>();
+		list.add("a");
+		list.add("b");
+		list.add("c");
+		mapToLists.put("foo", list);
+		expression = parser.parseExpression("['foo']");
+		assertEquals("a b c",stringify(expression.getValue(mapToLists)));
+		assertCanCompile(expression);
+		assertEquals("Ljava/util/ArrayList",getAst().getExitDescriptor());
+		assertEquals("a b c",stringify(expression.getValue(mapToLists)));
+		assertEquals("Ljava/util/ArrayList",getAst().getExitDescriptor());
+		
+		expression = parser.parseExpression("['foo'][2]");
+		assertEquals("c",stringify(expression.getValue(mapToLists)));
+		assertCanCompile(expression);
+		assertEquals("c",stringify(expression.getValue(mapToLists)));
+		assertEquals("Ljava/lang/String",getAst().getExitDescriptor());
+		
+		// Map to array
+		Map<String,int[]> mapToIntArray = new HashMap<String,int[]>();
+		mapToIntArray.put("foo",new int[]{1,2,3});
+		expression = parser.parseExpression("['foo']");
+		assertEquals("1 2 3",stringify(expression.getValue(mapToIntArray)));
+		assertCanCompile(expression);
+		assertEquals("[I",getAst().getExitDescriptor());
+		assertEquals("1 2 3",stringify(expression.getValue(mapToIntArray)));
+		assertEquals("[I",getAst().getExitDescriptor());
+		
+		expression = parser.parseExpression("['foo'][2]");
+		assertEquals("3",stringify(expression.getValue(mapToIntArray)));
+		assertCanCompile(expression);
+		assertEquals("3",stringify(expression.getValue(mapToIntArray)));
+		assertEquals("I",getAst().getExitDescriptor());
+		
+		// Map array
+		Map<String,String>[] mapArray = new Map[1];
+		mapArray[0] = new HashMap<String,String>();
+		mapArray[0].put("key", "value1");
+		expression = parser.parseExpression("[0]");
+		assertEquals("{key=value1}",stringify(expression.getValue(mapArray)));
+		assertCanCompile(expression);
+		assertEquals("Ljava/util/Map",getAst().getExitDescriptor());
+		assertEquals("{key=value1}",stringify(expression.getValue(mapArray)));
+		assertEquals("Ljava/util/Map",getAst().getExitDescriptor());
+		
+		expression = parser.parseExpression("[0]['key']");
+		assertEquals("value1",stringify(expression.getValue(mapArray)));
+		assertCanCompile(expression);
+		assertEquals("value1",stringify(expression.getValue(mapArray)));
+		assertEquals("Ljava/lang/String",getAst().getExitDescriptor());
+	}
+	
+	@Test
 	public void mixingItUp_propertyAccessIndexerOpLtTernaryRootNull() throws Exception {
 		Payload payload = new Payload();
-		Expression expression = parser.parseExpression("DR[0].three.four lt 0.1?#root:null");
+		
+		expression = parser.parseExpression("DR[0].three");
 		Object v = expression.getValue(payload);
+		assertEquals("Lorg/springframework/expression/spel/SpelCompilationCoverageTests$Three",getAst().getExitDescriptor());
+		
+		Expression expression = parser.parseExpression("DR[0].three.four lt 0.1d?#root:null");
+		v = expression.getValue(payload);
+		
+		SpelExpression sExpr = (SpelExpression)expression;
+		Ternary ternary = (Ternary)sExpr.getAST();
+		OpLT oplt = (OpLT)ternary.getChild(0);
+		CompoundExpression cExpr = (CompoundExpression)oplt.getLeftOperand();
+		String cExprExitDescriptor = cExpr.getExitDescriptor();
+		assertEquals("D",cExprExitDescriptor);
+		assertEquals("Z",oplt.getExitDescriptor());
+		
 		assertCanCompile(expression);
 		Object vc = expression.getValue(payload);
 		assertEquals(payload,v);
@@ -1028,10 +1968,69 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 		assertNull(vc);
 	}
 	
-	// --- 
+	// helpers
+
+	private SpelNodeImpl getAst() {
+		SpelExpression spelExpression = (SpelExpression)expression;
+		SpelNode ast = spelExpression.getAST();
+		return (SpelNodeImpl)ast;
+	}
+
+	private String stringify(Object object) {
+		StringBuilder s = new StringBuilder();
+		if (object instanceof List) {
+			List ls = (List)object;
+			for (Object l: ls) {
+				s.append(l);
+				s.append(" ");
+			}
+		}
+		else if (object instanceof Object[]) {
+			Object[] os = (Object[])object;
+			for (Object o: os) {
+				s.append(o);
+				s.append(" ");
+			}
+		}
+		else if (object instanceof int[]) {
+			int[] is = (int[])object;
+			for (int i: is) {
+				s.append(i);
+				s.append(" ");
+			}
+		}
+		else {
+			s.append(object.toString());
+		}
+		return s.toString().trim();
+	}
+	
+	private void assertCanCompile(Expression expression) {
+		assertTrue(SpelCompiler.compile(expression));
+	}
+	
+	private void assertCantCompile(Expression expression) {
+		assertFalse(SpelCompiler.compile(expression));
+	}
+	
+	private Expression parse(String expression) {
+		return parser.parseExpression(expression);
+	}
+	
+	private void assertGetValueFail(Expression expression) {
+		try {
+			Object o = expression.getValue();
+			fail("Calling getValue on the expression should have failed but returned "+o);
+		} catch (Exception ex) {
+			// success!
+		}
+	}
+	
+	// test classes
 		
 	public static class Payload {
 		Two[] DR = new Two[]{new Two()};
+		public Two holder = new Two();
 		
 		public Two[] getDR() {
 			return DR;
@@ -1042,6 +2041,9 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 		Three three = new Three();
 		public Three getThree() {
 			return three;
+		}
+		public String toString() {
+			return "instanceof Two";
 		}
 	}
 	
@@ -1066,24 +2068,75 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 		public boolean getB() { return b; }
 	}
 	
-	private void assertCanCompile(Expression expression) {
-		assertTrue(SpelCompiler.compile(expression));
+	public static class TestClass5 {
+		public int i = 0;
+		public String s = null;
+		public static int _i = 0;
+		public static String _s = null;
+		
+		public String field = null;
+		
+		public void reset() {
+			i = 0;
+			_i=0;
+			s = null;
+			_s = null;
+			field = null;
+		}
+		
+		public void one() { i = 1; }
+		
+		public static void two() { _i = 1; }
+		
+		public String three() { return "hello"; }
+		public long four() { return 3277700L; }
+
+		public static String five() { return "hello"; }
+		public static long six() { return 3277700L; }
+		
+		public void seven(String toset) { s = toset; }
+		public static void eight(String toset) { _s = toset; }
+		
+		public void nine(int toset) { i = toset; }
+		public static void ten(int toset) { _i = toset; }
+		
+		public void eleven(String... vargs) { 
+			if (vargs==null) {
+				s = "";
+			}
+			else {
+				s = "";
+				for (String varg: vargs) {
+					s+=varg;
+				}
+			}
+		}
+
+		public void twelve(int... vargs) { 
+			if (vargs==null) {
+				i = 0;
+			}
+			else {
+				i = 0;
+				for (int varg: vargs) {
+					i+=varg;
+				}
+			}
+		}
 	}
 	
-	private void assertCantCompile(Expression expression) {
-		assertFalse(SpelCompiler.compile(expression));
-	}
-	
-	private Expression parse(String expression) {
-		return parser.parseExpression(expression);
-	}
-	
-	private void assertGetValueFail(Expression expression) {
-		try {
-			Object o = expression.getValue();
-			fail("Calling getValue on the expression should have failed but returned "+o);
-		} catch (Exception ex) {
-			// success!
+	public static class TestClass6 {
+		public String orange = "value1";
+		public static String apple = "value2";
+		
+		public long peach = 34L;
+		
+		public String getBanana() {
+			return "value3";
+		}
+
+		public static String getPlum() {
+			return "value4";
 		}
 	}
 	

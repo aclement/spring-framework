@@ -358,40 +358,45 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 	// TODO what to do about compiling the 'write' side? Initially only getValue* uses compiled code.
 	@Override
 	public boolean isCompilable() {
-		return this.cachedReadAccessor !=null &&
-				this.cachedReadAccessor instanceof ReflectivePropertyAccessor.OptimalPropertyAccessor;
+		if (this.cachedReadAccessor == null || 
+				!(this.cachedReadAccessor instanceof ReflectivePropertyAccessor.OptimalPropertyAccessor)) {
+			return false;
+		};
+		ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor;
+		Member member = accessor.member;
 		// TODO host of conditions here that can be gradually loosened, like is the return type not primitive, is the return type not an array, etc, etc.
+		return true;
 	}
 	
 	@Override
 	public boolean needsTarget() {
-		return true;
+		ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor;
+		Member member = accessor.member;
+		return !Modifier.isStatic(member.getModifiers());
 	}
 	
 	@Override
 	public void generateCode(MethodVisitor mv,CodeFlow codeflow) {
 		ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor;
 		Member member = accessor.member;
+		boolean isStatic = Modifier.isStatic(member.getModifiers());
 
 		String descriptor = codeflow.lastDescriptor();
-		if (descriptor == null) {
-			codeflow.loadTarget(mv);
-		}
 		String memberDeclaringClassSlashedDescriptor = member.getDeclaringClass().getName().replace('.','/');
-		if (descriptor == null || !memberDeclaringClassSlashedDescriptor.equals(descriptor.substring(1))) {
-			mv.visitTypeInsn(CHECKCAST, memberDeclaringClassSlashedDescriptor);
+		if (!isStatic) {
+			if (descriptor == null) {
+				codeflow.loadTarget(mv);
+			}
+			if (descriptor == null || !memberDeclaringClassSlashedDescriptor.equals(descriptor.substring(1))) {
+				mv.visitTypeInsn(CHECKCAST, memberDeclaringClassSlashedDescriptor);
+			}
 		}
-		String returnTypeDescriptor = null;
 		if (member instanceof Field) {
-			mv.visitFieldInsn(GETFIELD,memberDeclaringClassSlashedDescriptor,member.getName(),SpelCompiler.getDescriptor(((Field) member).getType()));
-			returnTypeDescriptor = SpelCompiler.toDescriptor(((Field)member).getType());
+			mv.visitFieldInsn(isStatic?GETSTATIC:GETFIELD,memberDeclaringClassSlashedDescriptor,member.getName(),SpelCompiler.getDescriptor(((Field) member).getType()));
 		} else {
-			// TODO assert not static
-			mv.visitMethodInsn(INVOKEVIRTUAL, memberDeclaringClassSlashedDescriptor, member.getName(),SpelCompiler.createDescriptor((Method)member));
-			returnTypeDescriptor = SpelCompiler.toDescriptor(((Method)member).getReturnType());
+			mv.visitMethodInsn(isStatic?INVOKESTATIC:INVOKEVIRTUAL, memberDeclaringClassSlashedDescriptor, member.getName(),SpelCompiler.createDescriptor((Method)member));
 		}
-		codeflow.pushDescriptor(returnTypeDescriptor);
-		// TODO delegate further to the property accessors themselves? allowing users to plug into compilation
+		codeflow.pushDescriptor(exitTypeDescriptor);
 	}
 
 
@@ -415,17 +420,17 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 
 		@Override
 		public TypedValue getValue() {
-			TypedValue result = this.ref.getValueInternal(this.contextObject,this.eContext,this.autoGrowNullReferences);
+			TypedValue value = this.ref.getValueInternal(this.contextObject, this.eContext, this.autoGrowNullReferences);
 			if (ref.cachedReadAccessor instanceof ReflectivePropertyAccessor.OptimalPropertyAccessor) {
-				ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)ref.cachedReadAccessor;
+				ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.ref.cachedReadAccessor;
 				Member member = accessor.member;
 				if (member instanceof Field) {
-					ref.exitTypeDescriptor = SpelCompiler.toDescriptor(((Field)member).getType());
+					this.ref.exitTypeDescriptor = SpelCompiler.toDescriptor(((Field)member).getType());
 				} else {
-					ref.exitTypeDescriptor = SpelCompiler.toDescriptor(((Method)member).getReturnType());
+					this.ref.exitTypeDescriptor = SpelCompiler.toDescriptor(((Method)member).getReturnType());
 				}
 			}
-			return result;
+			return value;
 		}
 
 		@Override

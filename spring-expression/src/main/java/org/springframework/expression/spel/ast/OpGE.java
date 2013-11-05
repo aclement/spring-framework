@@ -15,12 +15,10 @@
  */
 package org.springframework.expression.spel.ast;
 
-import org.springframework.asm.Label;
 import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.support.BooleanTypedValue;
 
 /**
@@ -61,80 +59,11 @@ public class OpGE extends Operator {
 	}
 	
 	public boolean isCompilable() {
-		String leftDesc = getLeftOperand().getExitDescriptor();
-		String rightDesc = getRightOperand().getExitDescriptor();
-		return SpelCompiler.isNumber(leftDesc) && SpelCompiler.isNumber(rightDesc) && leftDesc.equals(rightDesc);
+		return isCompilableOperatorUsingNumerics();
 	}
 	
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
-		getLeftOperand().generateCode(mv, codeflow);
-		String leftDesc = getLeftOperand().getExitDescriptor();
-//		if (getLeftOperand().getExitDescriptor().equals("Ljava/lang/Double")) {
-//			// unbox
-//			Utils.insertUnboxInsns(mv, 'D', false);
-//		}
-		getRightOperand().generateCode(mv, codeflow);
-		String rightDesc = getRightOperand().getExitDescriptor();
-//		if (getLeftOperand().getExitDescriptor().equals("Ljava/lang/Double")) {
-//			// unbox
-//			Utils.insertUnboxInsns( mv, 'D', false);
-//		}
-		if (leftDesc.equals(rightDesc)) {
-			if (leftDesc.equals("D")) {
-				mv.visitInsn(DCMPL);		
-				Label elseTarget = new Label();
-				Label endOfIf = new Label();
-				mv.visitJumpInsn(IFLT, elseTarget);
-				mv.visitInsn(ICONST_1);
-				mv.visitJumpInsn(GOTO,endOfIf);
-				mv.visitLabel(elseTarget);
-				mv.visitInsn(ICONST_0);
-				mv.visitLabel(endOfIf);
-				codeflow.pushDescriptor("Z");				
-			}
-			else if (leftDesc.equals("F")) {
-				mv.visitInsn(FCMPL);		
-				Label elseTarget = new Label();
-				Label endOfIf = new Label();
-				mv.visitJumpInsn(IFLT, elseTarget);
-				mv.visitInsn(ICONST_1);
-				mv.visitJumpInsn(GOTO,endOfIf);
-				mv.visitLabel(elseTarget);
-				mv.visitInsn(ICONST_0);
-				mv.visitLabel(endOfIf);
-				codeflow.pushDescriptor("Z");								
-			}
-			else if (leftDesc.equals("J")) {
-				mv.visitInsn(LCMP);		
-				Label elseTarget = new Label();
-				Label endOfIf = new Label();
-				mv.visitJumpInsn(IFLT, elseTarget);
-				mv.visitInsn(ICONST_1);
-				mv.visitJumpInsn(GOTO,endOfIf);
-				mv.visitLabel(elseTarget);
-				mv.visitInsn(ICONST_0);
-				mv.visitLabel(endOfIf);
-				codeflow.pushDescriptor("Z");												
-			}
-			else if (leftDesc.equals("I")) {
-				Label elseTarget = new Label();
-				Label endOfIf = new Label();
-				mv.visitJumpInsn(IF_ICMPLT,elseTarget);		
-				mv.visitInsn(ICONST_1);
-				mv.visitJumpInsn(GOTO,endOfIf);
-				mv.visitLabel(elseTarget);
-				mv.visitInsn(ICONST_0);
-				mv.visitLabel(endOfIf);
-				codeflow.pushDescriptor("Z");												
-			}
-			else {
-				throw new IllegalStateException("nyi "+leftDesc);
-			}
-		}
-		else {
-			throw new IllegalStateException("nyi "+leftDesc+" "+rightDesc);
-		}
-		
+		generateComparisonCode(mv, codeflow, IFLT, IF_ICMPLT);
 	}
 
 }

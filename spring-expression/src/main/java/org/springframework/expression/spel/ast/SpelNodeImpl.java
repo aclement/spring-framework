@@ -46,10 +46,15 @@ public abstract class SpelNodeImpl implements SpelNode, Opcodes {
 
 	private SpelNodeImpl parent;
 
-	// Indicates the type descriptor for the result of this expression node. This is
-	// set as soon as it is known. For a literal node it is known immediately. For
-	// a property access or method invocation it is known after one evaluation of
-	// that node.
+	/**
+	 *  Indicates the type descriptor for the result of this expression node. This is
+	 * set as soon as it is known. For a literal node it is known immediately. For
+	 * a property access or method invocation it is known after one evaluation of
+	 * that node.
+	 * The descriptor is like the bytecode form but is slightly easier to work with. It
+	 * does not include the trailing semicolon (for non array reference types). Some examples:
+	 * Ljava/lang/String, I, [I
+     */
 	protected String exitTypeDescriptor;
 
 	public SpelNodeImpl(int pos, SpelNodeImpl... operands) {

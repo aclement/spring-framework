@@ -108,20 +108,26 @@ public class Ternary extends SpelNodeImpl {
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
 		// May reach here without it computed if all elements are literals
 		computeExitTypeDescriptor();
+		codeflow.enterCompilationScope();
 		this.children[0].generateCode(mv, codeflow);
+		codeflow.exitCompilationScope();
 		Label elseTarget = new Label();
 		Label endOfIf = new Label();
 		mv.visitJumpInsn(IFEQ, elseTarget);
+		codeflow.enterCompilationScope();
 		this.children[1].generateCode(mv, codeflow);
 		if (!SpelCompiler.isPrimitive(getExitDescriptor())) {
 			CodeFlow.insertBoxInsns(mv, codeflow.lastDescriptor().charAt(0));
 		}
+		codeflow.exitCompilationScope();
 		mv.visitJumpInsn(GOTO, endOfIf);
 		mv.visitLabel(elseTarget);
+		codeflow.enterCompilationScope();
 		this.children[2].generateCode(mv, codeflow);
 		if (!SpelCompiler.isPrimitive(getExitDescriptor())) {
 			CodeFlow.insertBoxInsns(mv, codeflow.lastDescriptor().charAt(0));
 		}
+		codeflow.exitCompilationScope();
 		mv.visitLabel(endOfIf);
 		codeflow.pushDescriptor(getExitDescriptor());
 	}

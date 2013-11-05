@@ -93,6 +93,11 @@ public class CompoundExpression extends SpelNodeImpl {
 //		}
 		return result;
 	}
+	
+	@Override
+	public String getExitDescriptor() {
+		return this.children[this.children.length-1].getExitDescriptor();
+	}
 
 	@Override
 	public void setValue(ExpressionState state, Object value) throws EvaluationException {

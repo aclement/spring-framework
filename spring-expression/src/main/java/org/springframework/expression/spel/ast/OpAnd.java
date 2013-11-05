@@ -85,15 +85,19 @@ public class OpAnd extends Operator {
 		// pseudo: if (!leftOperandValue) { result=false; } else { result=rightOperandValue; }
 		Label elseTarget = new Label();
 		Label endOfIf = new Label();
+		codeflow.enterCompilationScope();
 		getLeftOperand().generateCode(mv, codeflow);
 		codeflow.insertUnboxIfNecessary(mv, 'Z');
+		codeflow.exitCompilationScope();
 		mv.visitJumpInsn(IFNE, elseTarget);
 		mv.visitLdcInsn(0); // FALSE
 		mv.visitJumpInsn(GOTO,endOfIf);
 		mv.visitLabel(elseTarget);
-		codeflow.clearDescriptor();
+//		codeflow.clearDescriptor();
+		codeflow.enterCompilationScope();
 		getRightOperand().generateCode(mv, codeflow);
 		codeflow.insertUnboxIfNecessary(mv, 'Z');
+		codeflow.exitCompilationScope();
 		mv.visitLabel(endOfIf);
 		codeflow.pushDescriptor(this.exitTypeDescriptor);
 	}

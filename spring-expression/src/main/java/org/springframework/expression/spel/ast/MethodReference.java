@@ -16,9 +16,7 @@
 
 package org.springframework.expression.spel.ast;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -40,6 +38,7 @@ import org.springframework.expression.spel.SpelMessage;
 import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.support.ReflectiveMethodExecutor;
+import org.springframework.expression.spel.support.ReflectiveMethodResolver;
 
 /**
  * Expression language AST node that represents a method reference.
@@ -84,7 +83,11 @@ public class MethodReference extends SpelNodeImpl {
 		TypeDescriptor targetType = state.getActiveContextObject().getTypeDescriptor();
 		Object[] arguments = getArguments(state);
 		TypedValue result = getValueInternal(evaluationContext, value, arguments, targetType);
-//		exitTypeDescriptor = SpelCompiler.toDescriptor(result.getTypeDescriptor().getType());
+		if (cachedExecutor.get() instanceof ReflectiveMethodExecutor) {
+			ReflectiveMethodExecutor executor = (ReflectiveMethodExecutor) cachedExecutor.get(); 
+			Method method = executor.getMethod();
+			exitTypeDescriptor = SpelCompiler.toDescriptor(method.getReturnType());
+		}
 		return result;
 	}
 	
@@ -101,7 +104,7 @@ public class MethodReference extends SpelNodeImpl {
 	}
 
 	private TypedValue getValueInternal(EvaluationContext evaluationContext,
-			Object value, TypeDescriptor targetType, Object[] arguments) {
+			Object value, Object[] arguments, TypeDescriptor targetType) {
 
 		List<TypeDescriptor> argumentTypes = getArgumentTypes(arguments);
 		if (value == null) {
@@ -184,7 +187,7 @@ public class MethodReference extends SpelNodeImpl {
 	boolean compiled = false;
 	int hitcount = 0;
 
-	private MethodExecutor getCachedExecutor(TypeDescriptor target, List<TypeDescriptor> argumentTypes) {
+	private MethodExecutor getCachedExecutor(EvaluationContext evaluationContext, Object value, TypeDescriptor target, List<TypeDescriptor> argumentTypes) {
 		List<MethodResolver> methodResolvers = evaluationContext.getMethodResolvers();
 		if (methodResolvers == null || methodResolvers.size() != 1 ||
 				!(methodResolvers.get(0) instanceof ReflectiveMethodResolver)) {
@@ -336,6 +339,11 @@ public class MethodReference extends SpelNodeImpl {
 		}
 	}
 	
+	/**
+	 * A method reference is compilable if it has been resolved to a reflectively accessible method
+	 * and the child nodes (arguments to the method) are also compilable.
+	 */
+	@Override
 	public boolean isCompilable() {
 		if (this.cachedExecutor == null || !(this.cachedExecutor.get() instanceof ReflectiveMethodExecutor)) {
 			return false;
@@ -345,55 +353,43 @@ public class MethodReference extends SpelNodeImpl {
 				return false;
 			}
 		}
+		ReflectiveMethodExecutor executor = (ReflectiveMethodExecutor) this.cachedExecutor.get();
+		Method method = executor.getMethod();
+		if (method.isVarArgs()) {
+			return false;
+		}
+		if (executor.didArgumentConversionOccur()) {
+			return false;
+		}
 		return true;
-		// TODO host of conditions here that can be gradually loosened, like is the return type not primitive, is the return type not an array, etc, etc.
 	}
 	
 	@Override 
 	public void generateCode(MethodVisitor mv,CodeFlow codeflow) {
-			
 		ReflectiveMethodExecutor executor = (ReflectiveMethodExecutor) this.cachedExecutor.get(); 
 		Method method = executor.getMethod();
-
 		boolean isStaticMethod = Modifier.isStatic(method.getModifiers());
-
-//		boolean holdOntoContextObject = false;
-//		for (SpelNodeImpl child: children) {
-//			if (child.needsTarget()) {
-//				holdOntoContextObject = true;
-//			}
-//		}
-		
 		String descriptor = codeflow.lastDescriptor();
 
 		if (descriptor == null && !isStaticMethod) {
 			codeflow.loadTarget(mv);
 		}
-		// #this handling
-//		if (holdOntoContextObject) {
-//			codeflow.storeTarget(mv);
-//		}
-
+		
 		String methodDeclaringClassSlashedDescriptor = method.getDeclaringClass().getName().replace('.','/');
-		if (!Modifier.isStatic(method.getModifiers())) {
+		if (!isStaticMethod) {
 			if (descriptor == null || !descriptor.equals(method.getDeclaringClass())) {
 				mv.visitTypeInsn(CHECKCAST, method.getDeclaringClass().getName().replace('.','/'));
 			}
 		}
 		
-		// TODO delegate further to the method executors themselves, allowing users to plug into compilation
 		for (int c=0;c<children.length;c++) {
 			SpelNodeImpl child = children[c];
-			if (child.needsTarget()) {
-				codeflow.loadRootObject(mv);
-			}
-			codeflow.pushRequested(SpelCompiler.toDescriptor(method.getParameterTypes()[c]));
+			codeflow.enterCompilationScope();
 			child.generateCode(mv, codeflow);
+			codeflow.exitCompilationScope();
 		}
 		mv.visitMethodInsn(isStaticMethod?INVOKESTATIC:INVOKEVIRTUAL,methodDeclaringClassSlashedDescriptor,method.getName(),SpelCompiler.createDescriptor(method));
-		// TODO asc need to pop off everything consumed there from the codeflow stack (doubles/longs count for 2!) 
-		String returnType = SpelCompiler.toDescriptor(method.getReturnType());
-		codeflow.pushDescriptor(returnType);
+		codeflow.pushDescriptor(exitTypeDescriptor);
 	}
 
 }

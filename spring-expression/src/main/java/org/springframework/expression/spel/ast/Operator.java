@@ -16,7 +16,11 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.Label;
+import org.springframework.asm.MethodVisitor;
+import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.standard.SpelCompiler;
+import org.springframework.expression.spel.standard.Utils;
 
 /**
  * Common supertype for operators that operate on either one or two operands. In the case
@@ -80,6 +84,59 @@ public abstract class Operator extends SpelNodeImpl {
 			}
 		}
 		return false;
+	}
+
+
+	/** 
+	 * Numeric comparison operators share very similar generated code, only differing in 
+	 * two comparison instructions.
+	 */
+	protected void generateComparisonCode(MethodVisitor mv, CodeFlow codeflow, int compareInstruction1,
+			int compareInstruction2) {
+		String leftDesc = getLeftOperand().getExitDescriptor();
+		String rightDesc = getRightOperand().getExitDescriptor();
+		
+		boolean unboxLeft = !SpelCompiler.isPrimitive(leftDesc);
+		boolean unboxRight = !SpelCompiler.isPrimitive(rightDesc);
+		char targetType = SpelCompiler.toPrimitiveTargetDesc(leftDesc);
+		
+		getLeftOperand().generateCode(mv, codeflow);
+		if (unboxLeft) {
+			Utils.insertUnboxInsns(mv, targetType, false);
+		}
+	
+		getRightOperand().generateCode(mv, codeflow);
+		if (unboxRight) {
+			Utils.insertUnboxInsns(mv, targetType, false);
+		}
+		// assert: SpelCompiler.boxingCompatible(leftDesc, rightDesc)
+		Label elseTarget = new Label();
+		Label endOfIf = new Label();
+		if (targetType=='D') {
+			mv.visitInsn(DCMPG);
+			mv.visitJumpInsn(compareInstruction1, elseTarget);
+		}
+		else if (targetType=='F') {
+			mv.visitInsn(FCMPG);		
+			mv.visitJumpInsn(compareInstruction1, elseTarget);
+		}
+		else if (targetType=='J') {
+			mv.visitInsn(LCMP);		
+			mv.visitJumpInsn(compareInstruction1, elseTarget);
+		}
+		else if (targetType=='I') {
+			mv.visitJumpInsn(compareInstruction2, elseTarget);		
+		}
+		else {
+			throw new IllegalStateException("Unexpected descriptor "+leftDesc);
+		}
+		// Other numbers are not yet supported (isCompilable will not have returned true)
+		mv.visitInsn(ICONST_1);
+		mv.visitJumpInsn(GOTO,endOfIf);
+		mv.visitLabel(elseTarget);
+		mv.visitInsn(ICONST_0);
+		mv.visitLabel(endOfIf);
+		codeflow.pushDescriptor("Z");	
 	}
 	
 }

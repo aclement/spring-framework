@@ -84,15 +84,19 @@ public class OpOr extends Operator {
 		// pseudo: if (leftOperandValue) { result=true; } else { result=rightOperandValue; }
 		Label elseTarget = new Label();
 		Label endOfIf = new Label();
+		codeflow.enterCompilationScope();
 		getLeftOperand().generateCode(mv, codeflow);
 		codeflow.insertUnboxIfNecessary(mv, 'Z');
+		codeflow.exitCompilationScope();
 		mv.visitJumpInsn(IFEQ, elseTarget);
 		mv.visitLdcInsn(1); // TRUE
 		mv.visitJumpInsn(GOTO,endOfIf);
 		mv.visitLabel(elseTarget);
-		codeflow.clearDescriptor();
+//		codeflow.clearDescriptor();
+		codeflow.enterCompilationScope();
 		getRightOperand().generateCode(mv, codeflow);
 		codeflow.insertUnboxIfNecessary(mv, 'Z');
+		codeflow.exitCompilationScope();
 		mv.visitLabel(endOfIf);
 		codeflow.pushDescriptor(getExitDescriptor());
 	}
