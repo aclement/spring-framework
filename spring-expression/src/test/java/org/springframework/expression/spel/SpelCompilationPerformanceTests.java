@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2013 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package org.springframework.expression.spel;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.springframework.expression.Expression;
 import org.springframework.expression.spel.standard.SpelCompiler;
@@ -25,19 +24,19 @@ import org.springframework.expression.spel.standard.SpelCompiler;
 import static org.junit.Assert.*;
 
 /**
- * Checks the behaviour of the SpelCompiler.
+ * Checks the speed of compiled SpEL expressions.
+ * By default these tests are marked Ignore since they can fail on a busy machine because they
+ * compare relative performance of interpreted vs compiled.
  *
  * @author Andy Clement
  * @since 4.0
  */
-public class SpelCompilationTests extends ExpressionTestCase {
+//@Ignore
+public class SpelCompilationPerformanceTests extends ExpressionTestCase {
 
-	// For tests that compare interpreted vs compiled performance. These
-	// can feasibly fail if a machine is very busy.
-	boolean runComparisonTests = true;
-	int count = 50000; // Number of evaluations that are timed in one run was 5000000
+	int count = 1000000; // Number of evaluations that are timed in one run
 	int iterations = 10; // Number of times to repeat 'count' evaluations (for averaging)
-	private final static boolean debugTests = false;
+	private final static boolean noisyTests = true;
 	
 	Expression expression;
 	
@@ -45,9 +44,6 @@ public class SpelCompilationTests extends ExpressionTestCase {
 	public void setup() {
 		SpelCompiler.reset();
 	}
-	
-	
-	// payload.DR[0].DRFixedSection.duration lt 0.1
 	
 	public static class Payload {
 		Two[] DR = new Two[]{new Two()};
@@ -71,43 +67,67 @@ public class SpelCompilationTests extends ExpressionTestCase {
 		}
 	}
 	
-	@Ignore
 	@Test
 	public void complexExpressionPerformance() throws Exception {
 		Payload payload = new Payload();
 		Expression expression = parser.parseExpression("DR[0].DRFixedSection.duration lt 0.1");		
 		boolean b = false;
+		long iTotal = 0,cTotal = 0;
 		
-		for (int i=0;i<1000000;i++) {
+		// warmup
+		for (int i=0;i<count;i++) {
 			b = expression.getValue(payload,Boolean.TYPE);			
 		}
-		long stime = System.currentTimeMillis();
-		for (int i=0;i<8000000;i++) {
-			b = expression.getValue(payload,Boolean.TYPE);			
+		
+		log("timing interpreted: ");
+		for (int iter=0;iter<iterations;iter++) {
+			long stime = System.currentTimeMillis();
+			for (int i=0;i<count;i++) {
+				b = expression.getValue(payload,Boolean.TYPE);			
+			}
+			long etime = System.currentTimeMillis();
+			long interpretedSpeed = (etime - stime);
+			iTotal+=interpretedSpeed;
+			log(interpretedSpeed+"ms ");
 		}
-		long etime = System.currentTimeMillis();
-		System.out.println("Time for interpreted "+(etime-stime)+"ms");
+		logln();
+		
 		compile(expression);
 		boolean bc = false;
-		stime = System.currentTimeMillis();
-		for (int i=0;i<8000000;i++) {
-			bc = expression.getValue(payload,Boolean.TYPE);			
+		expression.getValue(payload,Boolean.TYPE);
+		log("timing compiled: ");
+		for (int iter=0;iter<iterations;iter++) {
+			long stime = System.currentTimeMillis();
+			for (int i=0;i<count;i++) {
+				bc = expression.getValue(payload,Boolean.TYPE);			
+			}
+			long etime = System.currentTimeMillis();
+			long compiledSpeed = (etime - stime);
+			cTotal+=compiledSpeed;
+			log(compiledSpeed+"ms ");
 		}
-		etime = System.currentTimeMillis();
-		System.out.println("Time for compiled "+(etime-stime)+"ms");
+		logln();
+			
+		reportPerformance("complex expression",iTotal, cTotal);
+
+		// Verify the result
 		assertFalse(b);
+		
+		// Verify the same result for compiled vs interpreted
 		assertEquals(b,bc);
+		
+		// Verify if the input changes, the result changes
 		payload.DR[0].DRFixedSection.duration = 0.04d;
 		bc = expression.getValue(payload,Boolean.TYPE);
 		assertTrue(bc);
 	}
 	
 	public static class HW {
-			public String hello() {
-				return "foobar";
-			}
+		public String hello() {
+			return "foobar";
+		}
 	}
-	@Ignore
+
 	@Test
 	public void compilingMethodReference() throws Exception {
 		long interpretedTotal = 0, compiledTotal = 0;
@@ -122,33 +142,36 @@ public class SpelCompilationTests extends ExpressionTestCase {
 			interpretedResult = expression.getValue(testdata,String.class);
 		}
 		
-		// Interpreter loop
+		log("timing interpreted: ");
 		for (int iter=0;iter<iterations;iter++) {
 			stime = System.currentTimeMillis();		
 			for (int i=0;i<count;i++) {
 				interpretedResult = expression.getValue(testdata,String.class);
 			}
 			etime = System.currentTimeMillis();
-			interpretedTotal+=(etime-stime);
-			log("Elapsed time for method invocation (interpreter) "+(etime-stime)+"ms");
+			long interpretedSpeed = (etime - stime);
+			interpretedTotal+=interpretedSpeed;
+			log(interpretedSpeed+"ms ");
 		}
+		logln();
 		
 		compile(expression);
-
-		for (int i=0;i<count;i++) {
-			interpretedResult = expression.getValue(testdata,String.class);
-		}
+		
+		log("timing compiled: ");
+		expression.getValue(testdata,String.class);
 		for (int iter=0;iter<iterations;iter++) {
 			stime = System.currentTimeMillis();
 			for (int i=0;i<count;i++) {
 				compiledResult = expression.getValue(testdata,String.class);
 			}
 			etime = System.currentTimeMillis();
-			compiledTotal+=(etime-stime);
-			log("Elapsed time for method invocation (compiled) "+(etime-stime)+"ms");
+			long compiledSpeed = (etime - stime);
+			compiledTotal+=compiledSpeed;
+			log(compiledSpeed+"ms ");
 		}
+		logln();
+		
 		assertEquals(interpretedResult,compiledResult);
-		System.out.println(interpretedResult);
 		reportPerformance("method reference", interpretedTotal, compiledTotal);
 		if (compiledTotal>=interpretedTotal) {
 			fail("Compiled version is slower than interpreted!");
@@ -180,7 +203,6 @@ public class SpelCompilationTests extends ExpressionTestCase {
 		}
 	}
 
-	@Ignore
 	@Test
 	public void compilingPropertyReferenceField() throws Exception {
 		long interpretedTotal = 0, compiledTotal = 0, stime, etime;
@@ -188,42 +210,45 @@ public class SpelCompilationTests extends ExpressionTestCase {
 		
 		TestClass2 testdata = new TestClass2();		
 		Expression expression = parser.parseExpression("name");
+		
 		// warmup
 		for (int i=0;i<count;i++) {
 			expression.getValue(testdata,String.class);
 		}
+		
+		log("timing interpreted: ");
 		for (int iter=0;iter<iterations;iter++) {
 			stime = System.currentTimeMillis();		
 			for (int i=0;i<count;i++) {
 				interpretedResult = expression.getValue(testdata,String.class);
 			}
 			etime = System.currentTimeMillis();
-			interpretedTotal+=(etime-stime);
-			log("Elapsed time for method invocation (interpreter) "+(etime-stime)+"ms");
+			long interpretedSpeed = (etime - stime);
+			interpretedTotal+=interpretedSpeed;
+			log(interpretedSpeed+"ms ");
 		}
+		logln();
 
 		compile(expression);
-		
-		for (int i=0;i<count;i++) {
-			expression.getValue(testdata,String.class);
-		}
+
+		log("timing compiled: ");
+		expression.getValue(testdata,String.class);
 		for (int iter=0;iter<iterations;iter++) {
 			stime = System.currentTimeMillis();
 			for (int i=0;i<count;i++) {
 				compiledResult = expression.getValue(testdata,String.class);
 			}
 			etime = System.currentTimeMillis();
-			compiledTotal+=(etime-stime);
-			log("Elapsed time for method invocation (compiled) "+(etime-stime)+"ms");
+			long compiledSpeed = (etime - stime);
+			compiledTotal+=compiledSpeed;
+			log(compiledSpeed+"ms ");
 		}
+		logln();
+		
 		assertEquals(interpretedResult,compiledResult);
-		reportPerformance("property reference (field)",interpretedTotal, compiledTotal);
-		if (compiledTotal>=interpretedTotal) {
-			fail("Compiled version is slower than interpreted!");
-		}		
+		reportPerformance("property reference (field)",interpretedTotal, compiledTotal);	
 	}
 
-	@Ignore
 	@Test
 	public void compilingPropertyReferenceNestedField() throws Exception {
 		long interpretedTotal = 0, compiledTotal = 0, stime, etime;
@@ -232,42 +257,45 @@ public class SpelCompilationTests extends ExpressionTestCase {
 		TestClass2 testdata = new TestClass2();
 		
 		Expression expression = parser.parseExpression("foo.bar.boo");
+
 		// warmup
 		for (int i=0;i<count;i++) {
 			expression.getValue(testdata,String.class);
 		}
+		
+		log("timing interpreted: ");
 		for (int iter=0;iter<iterations;iter++) {
 			stime = System.currentTimeMillis();		
 			for (int i=0;i<count;i++) {
 				interpretedResult = expression.getValue(testdata,String.class);
 			}
 			etime = System.currentTimeMillis();
-			interpretedTotal+=(etime-stime);
-			log("Elapsed time for method invocation (interpreter) "+(etime-stime)+"ms");
+			long interpretedSpeed = (etime - stime);
+			interpretedTotal+=interpretedSpeed;
+			log(interpretedSpeed+"ms ");
 		}
+		logln();
 
 		compile(expression);
 
-		for (int i=0;i<count;i++) {
-			expression.getValue(testdata,String.class);
-		}
+		log("timing compiled: ");
+		expression.getValue(testdata,String.class);
 		for (int iter=0;iter<iterations;iter++) {
 			stime = System.currentTimeMillis();
 			for (int i=0;i<count;i++) {
 				compiledResult = expression.getValue(testdata,String.class);
 			}
 			etime = System.currentTimeMillis();
-			compiledTotal+=(etime-stime);
-			log("Elapsed time for method invocation (compiled) "+(etime-stime)+"ms");
+			long compiledSpeed = (etime - stime);
+			compiledTotal+=compiledSpeed;
+			log(compiledSpeed+"ms ");
 		}
+		logln();
+
 		assertEquals(interpretedResult,compiledResult);
 		reportPerformance("property reference (nested field)",interpretedTotal, compiledTotal);
-		if (compiledTotal>=interpretedTotal) {
-			fail("Compiled version is slower than interpreted!");
-		}		
 	}
 
-	@Ignore
 	@Test
 	public void compilingPropertyReferenceNestedMixedFieldGetter() throws Exception {
 		long interpretedTotal = 0, compiledTotal = 0, stime, etime;
@@ -275,42 +303,44 @@ public class SpelCompilationTests extends ExpressionTestCase {
 		
 		TestClass2 testdata = new TestClass2();		
 		Expression expression = parser.parseExpression("foo.baz.boo");
+		
 		// warmup
 		for (int i=0;i<count;i++) {
 			expression.getValue(testdata,String.class);
 		}
+		log("timing interpreted: ");
 		for (int iter=0;iter<iterations;iter++) {
 			stime = System.currentTimeMillis();		
 			for (int i=0;i<count;i++) {
 				interpretedResult = expression.getValue(testdata,String.class);
 			}
 			etime = System.currentTimeMillis();
-			interpretedTotal+=(etime-stime);
-			log("Elapsed time for method invocation (interpreter) "+(etime-stime)+"ms");
+			long interpretedSpeed = (etime - stime);
+			interpretedTotal+=interpretedSpeed;
+			log(interpretedSpeed+"ms ");
 		}
-		
+		logln();
+
 		compile(expression);
 
-		for (int i=0;i<count;i++) {
-			expression.getValue(testdata,String.class);
-		}
+		log("timing compiled: ");
+		expression.getValue(testdata,String.class);
 		for (int iter=0;iter<iterations;iter++) {
 			stime = System.currentTimeMillis();
 			for (int i=0;i<count;i++) {
 				compiledResult = expression.getValue(testdata,String.class);
 			}
 			etime = System.currentTimeMillis();
-			compiledTotal+=(etime-stime);
-			log("Elapsed time for method invocation (compiled) "+(etime-stime)+"ms");
+			long compiledSpeed = (etime - stime);
+			compiledTotal+=compiledSpeed;
+			log(compiledSpeed+"ms ");
 		}
+		logln();
+
 		assertEquals(interpretedResult,compiledResult);
 		reportPerformance("nested property reference (mixed field/getter)",interpretedTotal, compiledTotal);
-		if (compiledTotal>=interpretedTotal) {
-			fail("Compiled version is slower than interpreted!");
-		}		
 	}
 
-	@Ignore
 	@Test
 	public void compilingNestedMixedFieldPropertyReferenceMethodReference() throws Exception {
 		long interpretedTotal = 0, compiledTotal = 0, stime, etime;
@@ -318,42 +348,46 @@ public class SpelCompilationTests extends ExpressionTestCase {
 		
 		TestClass2 testdata = new TestClass2();		
 		Expression expression = parser.parseExpression("foo.bay().boo");
+
 		// warmup
 		for (int i=0;i<count;i++) {
 			expression.getValue(testdata,String.class);
 		}
+		
+		log("timing interpreted: ");
 		for (int iter=0;iter<iterations;iter++) {
 			stime = System.currentTimeMillis();		
 			for (int i=0;i<count;i++) {
 				interpretedResult = expression.getValue(testdata,String.class);
 			}
 			etime = System.currentTimeMillis();
-			interpretedTotal+=(etime-stime);
-			log("Elapsed time for method invocation (interpreter) "+(etime-stime)+"ms");
+			long interpretedSpeed = (etime - stime);
+			interpretedTotal+=interpretedSpeed;
+			log(interpretedSpeed+"ms ");
 		}
+		logln();
 
 		compile(expression);
 
-		for (int i=0;i<count;i++) {
-			expression.getValue(testdata,String.class);
-		}
+		log("timing compiled: ");
+		expression.getValue(testdata,String.class);
 		for (int iter=0;iter<iterations;iter++) {
 			stime = System.currentTimeMillis();
 			for (int i=0;i<count;i++) {
 				compiledResult = expression.getValue(testdata,String.class);
 			}
-			etime = System.currentTimeMillis();
-			compiledTotal+=(etime-stime);
-			log("Elapsed time for method invocation (compiled) "+(etime-stime)+"ms");
+			etime = System.currentTimeMillis();			
+			long compiledSpeed = (etime - stime);
+			compiledTotal+=compiledSpeed;
+			log(compiledSpeed+"ms ");
+
 		}
+		logln();
+
 		assertEquals(interpretedResult,compiledResult);
-		reportPerformance("nested reference (mixed field/method)",interpretedTotal, compiledTotal);
-		if (compiledTotal>=interpretedTotal) {
-			fail("Compiled version is slower than interpreted!");
-		}		
+		reportPerformance("nested reference (mixed field/method)",interpretedTotal, compiledTotal);	
 	}
 
-	@Ignore
 	@Test
 	public void compilingPropertyReferenceGetter() throws Exception {
 		long interpretedTotal = 0, compiledTotal = 0, stime, etime;
@@ -361,36 +395,43 @@ public class SpelCompilationTests extends ExpressionTestCase {
 
 		TestClass2 testdata = new TestClass2();
 		Expression expression = parser.parseExpression("name2");
+		
 		// warmup
 		for (int i=0;i<count;i++) {
 			expression.getValue(testdata,String.class);
 		}
 		
-		
+		log("timing interpreted: ");		
 		for (int iter=0;iter<iterations;iter++) {
 			stime = System.currentTimeMillis();		
 			for (int i=0;i<count;i++) {
 				interpretedResult = expression.getValue(testdata,String.class);
 			}
 			etime = System.currentTimeMillis();
-			log("Elapsed time for method invocation (interpreter) "+(etime-stime)+"ms");
-			interpretedTotal+=(etime-stime);
+			long interpretedSpeed = (etime - stime);
+			interpretedTotal+=interpretedSpeed;
+			log(interpretedSpeed+"ms ");
 		}
+		logln();
+
 		
 		compile(expression);
 
-		for (int i=0;i<count;i++) {
-			expression.getValue(testdata,String.class);
-		}
+		log("timing compiled: ");
+		expression.getValue(testdata,String.class);
 		for (int iter=0;iter<iterations;iter++) {
 			stime = System.currentTimeMillis();
 			for (int i=0;i<count;i++) {
 				compiledResult = expression.getValue(testdata,String.class);
 			}
 			etime = System.currentTimeMillis();
-			log("Elapsed time for method invocation (compiled) "+(etime-stime)+"ms");
-			compiledTotal+=(etime-stime);
+			long compiledSpeed = (etime - stime);
+			compiledTotal+=compiledSpeed;
+			log(compiledSpeed+"ms ");
+
 		}
+		logln();
+
 		assertEquals(interpretedResult,compiledResult);
 		
 		reportPerformance("property reference (getter)", interpretedTotal, compiledTotal);
@@ -403,18 +444,29 @@ public class SpelCompilationTests extends ExpressionTestCase {
 
 	private void reportPerformance(String title, long interpretedTotal, long compiledTotal) {
 		double averageInterpreted = interpretedTotal/(iterations);
-		double averageCompiled = compiledTotal/(iterations);
-		
-		System.out.println(title+": average per "+count+" interpreted iterations: "+averageInterpreted+"ms");
-		System.out.println(title+": average per "+count+" compiled iterations: "+averageCompiled+"ms");
-		
+		double averageCompiled = compiledTotal/(iterations);		
 		double ratio = (averageCompiled/averageInterpreted)*100.0d;
-		System.out.println(title+": compiled version takes "+((int)ratio)+"% of the interpreted time");
+		logln(">>"+title+": average for "+count+": compiled="+averageCompiled+"ms interpreted="+averageInterpreted+"ms: compiled takes "+((int)ratio)+"% of the interpreted time");
+		if (averageCompiled>averageInterpreted) {
+			fail("Compiled version took longer than interpreted!  CompiledSpeed=~"+averageCompiled+
+					"ms InterpretedSpeed="+averageInterpreted+"ms");
+		}
+		logln();
 	}
 
 	private void log(String message) {
-		if (debugTests) {
-			System.out.println(message);
+		if (noisyTests) {
+			System.out.print(message);
+		}
+	}
+	
+	private void logln(String... message) {
+		if (noisyTests) {
+			if (message!=null && message.length>0) {
+				System.out.println(message[0]);
+			} else {
+				System.out.println();
+			}
 		}
 	}
 

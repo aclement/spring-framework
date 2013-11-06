@@ -16,7 +16,6 @@
 
 package org.springframework.expression.spel;
 
-import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.EvaluationException;
 
 /**

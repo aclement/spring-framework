@@ -65,6 +65,21 @@ What to keep in mind for complete pass:
 - Dont fix the exittypedescriptor, allow it to change over time n
 - need @Override
 
+
+ * Compiler follow on work items:
+ * 
+ * - OpMinus with a single literal operand could be treated as a negative literal. Will save a
+ *   pointless loading of 0 and then a subtract instruction in code gen.
+ * - A TypeReference followed by (what ends up as) a static method invocation can really skip
+ *   code gen for the TypeReference since once that is used to locate the method it is not
+ *   used again.
+ * - The opEq implementation is quite basic. It will compare numbers of the same type (allowing
+ *   them to be their boxed or unboxed variants) or compare object references. It does not
+ *   compile expressions where numbers are of different types and nothing when objects implement
+ *   Comparable.  
+ * - The only kind of compilable VariableReference is #root.
+
+
 	 * 
 	 * TypeReference
 	 * OperatorInstanceOf

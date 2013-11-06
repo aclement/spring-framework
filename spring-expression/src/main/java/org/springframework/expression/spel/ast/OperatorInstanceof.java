@@ -17,6 +17,7 @@
 package org.springframework.expression.spel.ast;
 
 import org.springframework.asm.MethodVisitor;
+import org.springframework.asm.Type;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
@@ -25,7 +26,6 @@ import org.springframework.expression.spel.SpelMessage;
 import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.support.BooleanTypedValue;
 
-import com.sun.xml.internal.ws.org.objectweb.asm.Type;
 
 /**
  * The operator 'instanceof' checks if an object is of the class specified in the right

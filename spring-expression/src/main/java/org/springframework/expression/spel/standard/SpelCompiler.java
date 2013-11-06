@@ -16,50 +16,30 @@
 package org.springframework.expression.spel.standard;
 
 import org.springframework.asm.*;
-import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.Expression;
 import org.springframework.expression.spel.CompiledExpression;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.ast.SpelNodeImpl;
 import org.springframework.util.ClassUtils;
 
-import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-/*
- * Compiler follow on work items:
- * 
- * - OpMinus with a single literal operand could be treated as a negative literal. Will save a
- *   pointless loading of 0 and then a subtract instruction in code gen.
- * - A TypeReference followed by (what ends up as) a static method invocation can really skip
- *   code gen for the TypeReference since once that is used to locate the method it is not
- *   used again.
- * - The opEq implementation is quite basic. It will compare numbers of the same type (allowing
- *   them to be their boxed or unboxed variants) or compare object references. It does not
- *   compile expressions where numbers are of different types and nothing when objects implement
- *   Comparable.  
- * - The only kind of compilable VariableReference is #root.
- * 
- */
-
 /**
  * A SpelCompiler can generate a class that implements an expression. When an expression is
- * evaluated, the generated class will evaluate much faster than using the normal interpreted
- * route. The SpelCompiler is not complete but covers many of the common cases
- * which can really benefit from the accelerated compiled evaluation. The framework is
- * extensible to cover more cases in the future. For absolute maximum speed there is no
- * checking. Once an expression is evaluated once in interpreted mode it is suitable for
- * compilation and that compiled version will base assumptions on what happened during the
- * interpreted run (for example, if a particular type of data came from a map or a particular
- * method was determined to be the getter for property access). This means if, on subsequent
- * invocations of the compiled form, if any of that inferred information is no longer correct,
- * the compiled form of the expression may fail.
+ * evaluated, the generated class for it will evaluate much faster than using the normal interpreted
+ * route. The SpelCompiler is not currently handle all expression types but covers many 
+ * of the common cases. The framework is extensible to cover more cases in the future. 
+ * For absolute maximum speed there is no checking. Once an expression is evaluated once 
+ * in interpreted mode it is suitable for compilation and that compiled version will base 
+ * assumptions on what happened during the interpreted run (for example, if a particular type 
+ * of data came from a map or a particular method was determined to be the getter for 
+ * property access). This means if, on subsequent invocations of the compiled form, if 
+ * any of that inferred information is no longer correct, the compiled form of the expression may fail.
  * 
  * @author Andy Clement
  */
@@ -71,10 +51,11 @@ public class SpelCompiler implements Opcodes {
 	public static boolean dumpCompiledExpression = true;
 	public static boolean verbose = true;
 	public static int hitCountThreshold = DEFAULT_HIT_COUNT_THRESHOLD;
-		
+
+	// TODO verify not leaking classloaders!
 	private static Map<ClassLoader,SpelCompiler> compilers = Collections.synchronizedMap(new WeakHashMap<ClassLoader,SpelCompiler>());
 	
-	private WeakReference<ChildClassLoader> ccl;
+	private ChildClassLoader ccl;
 
 	// counter suffix for generated classes within this SpelCompiler instance
 	private int suffixId;
@@ -114,10 +95,10 @@ public class SpelCompiler implements Opcodes {
 	}
 	
 	private SpelCompiler(ClassLoader classloader) {
-		this.ccl = new WeakReference<ChildClassLoader>(new ChildClassLoader(classloader));
+		this.ccl = new ChildClassLoader(classloader);
 		this.suffixId = 1;
 	}
-	
+		
 	
 	public CompiledExpression compile(SpelNodeImpl ast, ExpressionState expressionState) {
 		if (ast.isCompilable()) {
@@ -178,22 +159,6 @@ public class SpelCompiler implements Opcodes {
 		if (codeflow.lastDescriptor() == "V") {
 			mv.visitInsn(ACONST_NULL);
 		}
-//		// Build result TypedValue
-//		pushCorrectStore(mv, codeflow.lastKnownType(), 3);
-//		mv.visitTypeInsn(NEW, "org/springframework/expression/TypedValue");
-//		mv.visitInsn(DUP);
-//		pushCorrectLoad(mv, codeflow.lastKnownType(), 3);
-//		boxIfNecessary(mv,codeflow.lastKnownType());
-//		// TODO for boolean faster way of sorting out typed value
-//		// TODO asc adjust tdString reference to use constants where possible otherwise call TypeDescriptor factory methods
-//		TypeDescriptor td = ast.getExitType();
-//		// TODO temporary whilst we flesh things out:
-//		if (td==null) {
-//			throw new IllegalStateException("This ast node has no exit type "+ast.getClass()+":"+ast.toString());
-//		}
-//		insertTypeDescriptorLoad(mv,td);
-////		mv.visitFieldInsn(GETSTATIC,"org/springframework/expression/spel/CompiledExpression","tdString","Lorg/springframework/core/convert/TypeDescriptor;");
-//		mv.visitMethodInsn(INVOKESPECIAL,"org/springframework/expression/TypedValue","<init>","(Ljava/lang/Object;Lorg/springframework/core/convert/TypeDescriptor;)V");		
 		mv.visitInsn(ARETURN);
 
 		mv.visitMaxs(0,0); // computed due to COMPUTE_MAXS
@@ -203,35 +168,23 @@ public class SpelCompiler implements Opcodes {
 		if (dumpCompiledExpression) {
 			Utils.dump(ast.toStringAST(),clazzName, data);
 		}
-		ChildClassLoader classloader = ccl.get();
 		if (ccl == null) {
 			throw new IllegalStateException("!");
 		}
-		Class<? extends CompiledExpression> clazz = (Class<? extends CompiledExpression>) classloader.defineClass(clazzName.replaceAll("/","."),data);
+		Class<? extends CompiledExpression> clazz = (Class<? extends CompiledExpression>) ccl.defineClass(clazzName.replaceAll("/","."),data);
 		return clazz;
 	}
 	
-	final static Map<String,String> tdMap;
-	static {
-		tdMap = new HashMap<String,String>();
-		tdMap.put("java.lang.String","tdString");
-		tdMap.put("java.lang.Integer","tdInteger");
-		tdMap.put("java.lang.Character","tdCharacter");
-		tdMap.put("int","tdIntType");
-		tdMap.put("boolean","tdBooleanType");
-		tdMap.put("java.lang.Object","tdObject");
-	}
-
-	private static void insertTypeDescriptorLoad(MethodVisitor mv, TypeDescriptor td) {
-		String name = td.getType().getName();
-		String tdconstant = tdMap.get(name);
-		if (tdconstant!=null) {
-			mv.visitFieldInsn(GETSTATIC,"org/springframework/expression/spel/CompiledExpression",tdconstant,"Lorg/springframework/core/convert/TypeDescriptor;");
-		} else {
-			// TODO asc support the general case!
-			throw new IllegalStateException("nyi for "+name);
-		}
-	}
+//	final static Map<String,String> tdMap;
+//	static {
+//		tdMap = new HashMap<String,String>();
+//		tdMap.put("java.lang.String","tdString");
+//		tdMap.put("java.lang.Integer","tdInteger");
+//		tdMap.put("java.lang.Character","tdCharacter");
+//		tdMap.put("int","tdIntType");
+//		tdMap.put("boolean","tdBooleanType");
+//		tdMap.put("java.lang.Object","tdObject");
+//	}
 
 	public static void boxIfNecessary(MethodVisitor mv, String descriptor) {
 		if (descriptor.length()!=1) {
@@ -271,58 +224,6 @@ public class SpelCompiler implements Opcodes {
 			throw new IllegalArgumentException("Boxing should not be attempted for descriptor '" + ch + "'");
 		}
 	}
-	
-	
-	private static void pushCorrectStore(MethodVisitor mv, Class<?> clazz, int local) {
-		if (clazz.isPrimitive()) {
-			String name = clazz.getName();
-			int len = name.length();
-			switch (len) {
-				case 3:
-					mv.visitVarInsn(ISTORE, local);
-					break;
-				case 7:
-					mv.visitVarInsn(ISTORE,local);
-					break;
-				case 4:
-					if (name.equals("char")) {
-						mv.visitVarInsn(ISTORE, local);	
-						return;
-					}
-					default: 
-						throw new IllegalStateException("nyi for "+name);
-			}
-			
-		} else {
-			mv.visitVarInsn(ASTORE, local);
-		}
-	}
-
-	private static void pushCorrectLoad(MethodVisitor mv, Class<?> clazz, int local) {
-		if (clazz.isPrimitive()) {
-			String name = clazz.getName();
-			int len = name.length();
-			switch (len) {
-				case 3:
-					mv.visitVarInsn(ILOAD, local);
-					break;
-				case 7:					
-					mv.visitVarInsn(ILOAD, local);
-					break;
-				case 4:
-					if (name.equals("char")) {
-						mv.visitVarInsn(ILOAD, local);	
-						return;
-					}
-					default: 
-						throw new IllegalStateException("nyi for "+name);
-			}
-			
-		} else {
-			mv.visitVarInsn(ALOAD, local);
-		}
-	}
-
 
 	/**
 	 * The ChildClassLoader will load the generated dispatchers and executors which change for each reload. Instances of this can be

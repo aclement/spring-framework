@@ -363,7 +363,6 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 			return false;
 		};
 		ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor;
-		Member member = accessor.member;
 		// TODO host of conditions here that can be gradually loosened, like is the return type not primitive, is the return type not an array, etc, etc.
 		return true;
 	}
