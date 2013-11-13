@@ -36,7 +36,6 @@ import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.support.ReflectiveMethodExecutor;
 import org.springframework.expression.spel.support.ReflectiveMethodResolver;
 
@@ -86,7 +85,7 @@ public class MethodReference extends SpelNodeImpl {
 		if (cachedExecutor.get() instanceof ReflectiveMethodExecutor) {
 			ReflectiveMethodExecutor executor = (ReflectiveMethodExecutor) cachedExecutor.get(); 
 			Method method = executor.getMethod();
-			exitTypeDescriptor = SpelCompiler.toDescriptor(method.getReturnType());
+			exitTypeDescriptor = CodeFlow.toDescriptor(method.getReturnType());
 		}
 		return result;
 	}
@@ -97,7 +96,7 @@ public class MethodReference extends SpelNodeImpl {
 			if (cachedExecutor!=null && cachedExecutor.get() instanceof ReflectiveMethodExecutor) {
 				ReflectiveMethodExecutor executor = (ReflectiveMethodExecutor) cachedExecutor.get(); 
 				Method method = executor.getMethod();
-				exitTypeDescriptor = SpelCompiler.toDescriptor(method.getReturnType());
+				exitTypeDescriptor = CodeFlow.toDescriptor(method.getReturnType());
 			}
 		}
 		return exitTypeDescriptor;
@@ -294,7 +293,7 @@ public class MethodReference extends SpelNodeImpl {
 			if (methodReference.cachedExecutor.get() instanceof ReflectiveMethodExecutor) {
 				ReflectiveMethodExecutor executor = (ReflectiveMethodExecutor) methodReference.cachedExecutor.get(); 
 				Method method = executor.getMethod();
-				methodReference.exitTypeDescriptor = SpelCompiler.toDescriptor(method.getReturnType());
+				methodReference.exitTypeDescriptor = CodeFlow.toDescriptor(method.getReturnType());
 			}
 			return result;
 		}
@@ -388,7 +387,7 @@ public class MethodReference extends SpelNodeImpl {
 			child.generateCode(mv, codeflow);
 			codeflow.exitCompilationScope();
 		}
-		mv.visitMethodInsn(isStaticMethod?INVOKESTATIC:INVOKEVIRTUAL,methodDeclaringClassSlashedDescriptor,method.getName(),SpelCompiler.createDescriptor(method));
+		mv.visitMethodInsn(isStaticMethod?INVOKESTATIC:INVOKEVIRTUAL,methodDeclaringClassSlashedDescriptor,method.getName(),CodeFlow.createDescriptor(method));
 		codeflow.pushDescriptor(exitTypeDescriptor);
 	}
 

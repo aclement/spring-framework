@@ -22,7 +22,6 @@ import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
 
 /**
  * Represents a variable reference, eg. #someVar. Note this is different to a *local*
@@ -68,7 +67,7 @@ public class VariableReference extends SpelNodeImpl {
 		}
 		if (this.name.equals(ROOT)) {
 			TypedValue result = state.getRootContextObject();
-			this.exitTypeDescriptor = SpelCompiler.toDescriptorFromObject(result.getValue());
+			this.exitTypeDescriptor = CodeFlow.toDescriptorFromObject(result.getValue());
 			return result;
 		}
 		TypedValue result = state.lookupVariable(this.name);
@@ -133,7 +132,7 @@ public class VariableReference extends SpelNodeImpl {
 	@Override
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
 		mv.visitVarInsn(ALOAD,1);
-		SpelCompiler.insertCheckCast(mv,getExitDescriptor());
+		CodeFlow.insertCheckCast(mv,getExitDescriptor());
 		codeflow.pushDescriptor(getExitDescriptor());
 	}
 

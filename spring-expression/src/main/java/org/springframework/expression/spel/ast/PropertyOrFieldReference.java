@@ -36,7 +36,6 @@ import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.support.ReflectivePropertyAccessor;
 
 /**
@@ -87,9 +86,9 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 			ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)cachedReadAccessor;
 			Member member = accessor.member;
 			if (member instanceof Field) {
-				exitTypeDescriptor = SpelCompiler.toDescriptor(((Field)member).getType());
+				exitTypeDescriptor = CodeFlow.toDescriptor(((Field)member).getType());
 			} else {
-				exitTypeDescriptor = SpelCompiler.toDescriptor(((Method)member).getReturnType());
+				exitTypeDescriptor = CodeFlow.toDescriptor(((Method)member).getReturnType());
 			}
 		}
 		return tv;
@@ -391,9 +390,9 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 			}
 		}
 		if (member instanceof Field) {
-			mv.visitFieldInsn(isStatic?GETSTATIC:GETFIELD,memberDeclaringClassSlashedDescriptor,member.getName(),SpelCompiler.getDescriptor(((Field) member).getType()));
+			mv.visitFieldInsn(isStatic?GETSTATIC:GETFIELD,memberDeclaringClassSlashedDescriptor,member.getName(),CodeFlow.getDescriptor(((Field) member).getType()));
 		} else {
-			mv.visitMethodInsn(isStatic?INVOKESTATIC:INVOKEVIRTUAL, memberDeclaringClassSlashedDescriptor, member.getName(),SpelCompiler.createDescriptor((Method)member));
+			mv.visitMethodInsn(isStatic?INVOKESTATIC:INVOKEVIRTUAL, memberDeclaringClassSlashedDescriptor, member.getName(),CodeFlow.createDescriptor((Method)member));
 		}
 		codeflow.pushDescriptor(exitTypeDescriptor);
 	}
@@ -424,9 +423,9 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 				ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.ref.cachedReadAccessor;
 				Member member = accessor.member;
 				if (member instanceof Field) {
-					this.ref.exitTypeDescriptor = SpelCompiler.toDescriptor(((Field)member).getType());
+					this.ref.exitTypeDescriptor = CodeFlow.toDescriptor(((Field)member).getType());
 				} else {
-					this.ref.exitTypeDescriptor = SpelCompiler.toDescriptor(((Method)member).getReturnType());
+					this.ref.exitTypeDescriptor = CodeFlow.toDescriptor(((Method)member).getReturnType());
 				}
 			}
 			return value;

@@ -23,7 +23,6 @@ import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.support.BooleanTypedValue;
 
 /**
@@ -76,8 +75,8 @@ public class OpOr extends Operator {
 			return false;
 		}
 		return
-				SpelCompiler.isBooleanCompatible(left.getExitDescriptor()) &&
-				SpelCompiler.isBooleanCompatible(right.getExitDescriptor());		
+				CodeFlow.isBooleanCompatible(left.getExitDescriptor()) &&
+				CodeFlow.isBooleanCompatible(right.getExitDescriptor());		
 	}
 	
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
@@ -86,7 +85,7 @@ public class OpOr extends Operator {
 		Label endOfIf = new Label();
 		codeflow.enterCompilationScope();
 		getLeftOperand().generateCode(mv, codeflow);
-		codeflow.insertUnboxIfNecessary(mv, 'Z');
+		codeflow.unboxBooleanIfNecessary(mv);
 		codeflow.exitCompilationScope();
 		mv.visitJumpInsn(IFEQ, elseTarget);
 		mv.visitLdcInsn(1); // TRUE
@@ -95,7 +94,7 @@ public class OpOr extends Operator {
 //		codeflow.clearDescriptor();
 		codeflow.enterCompilationScope();
 		getRightOperand().generateCode(mv, codeflow);
-		codeflow.insertUnboxIfNecessary(mv, 'Z');
+		codeflow.unboxBooleanIfNecessary(mv);
 		codeflow.exitCompilationScope();
 		mv.visitLabel(endOfIf);
 		codeflow.pushDescriptor(getExitDescriptor());

@@ -22,7 +22,6 @@ import org.springframework.expression.EvaluationException;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.standard.Utils;
 
 /**
@@ -82,10 +81,10 @@ public class Elvis extends SpelNodeImpl {
 			if (conditionDescriptor.equals(ifNullValueDescriptor)) {
 				this.exitTypeDescriptor = conditionDescriptor;
 			}
-			else if (conditionDescriptor.equals("Ljava/lang/Object") && !SpelCompiler.isPrimitive(ifNullValueDescriptor)) {
+			else if (conditionDescriptor.equals("Ljava/lang/Object") && !CodeFlow.isPrimitive(ifNullValueDescriptor)) {
 				this.exitTypeDescriptor = ifNullValueDescriptor;
 			}
-			else if (ifNullValueDescriptor.equals("Ljava/lang/Object") && !SpelCompiler.isPrimitive(conditionDescriptor)) {
+			else if (ifNullValueDescriptor.equals("Ljava/lang/Object") && !CodeFlow.isPrimitive(conditionDescriptor)) {
 				this.exitTypeDescriptor = conditionDescriptor;
 			}
 			else {
@@ -120,7 +119,7 @@ public class Elvis extends SpelNodeImpl {
 		mv.visitLabel(elseTarget);
 		mv.visitInsn(POP);
 		this.children[1].generateCode(mv, codeflow);
-		if (!SpelCompiler.isPrimitive(getExitDescriptor())) {
+		if (!CodeFlow.isPrimitive(getExitDescriptor())) {
 			Utils.insertBoxInsns(mv, codeflow.lastDescriptor().charAt(0));
 		}
 		mv.visitLabel(endOfIf);

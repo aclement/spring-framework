@@ -24,7 +24,6 @@ import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
 
 /**
  * Represents a ternary expression, for example: "someCheck()?true:false".
@@ -78,10 +77,10 @@ public class Ternary extends SpelNodeImpl {
 			if (leftDescriptor.equals(rightDescriptor)) {
 				this.exitTypeDescriptor = leftDescriptor;
 			}
-			else if (leftDescriptor.equals("Ljava/lang/Object") && !SpelCompiler.isPrimitive(rightDescriptor)) {
+			else if (leftDescriptor.equals("Ljava/lang/Object") && !CodeFlow.isPrimitive(rightDescriptor)) {
 				this.exitTypeDescriptor = rightDescriptor;
 			}
-			else if (rightDescriptor.equals("Ljava/lang/Object") && !SpelCompiler.isPrimitive(leftDescriptor)) {
+			else if (rightDescriptor.equals("Ljava/lang/Object") && !CodeFlow.isPrimitive(leftDescriptor)) {
 				this.exitTypeDescriptor = leftDescriptor;
 			}
 			else {
@@ -99,7 +98,7 @@ public class Ternary extends SpelNodeImpl {
 		if (!(condition.isCompilable() && left.isCompilable() && right.isCompilable())) {
 			return false;
 		}
-		return SpelCompiler.isBooleanCompatible(condition.exitTypeDescriptor) &&
+		return CodeFlow.isBooleanCompatible(condition.exitTypeDescriptor) &&
 				left.getExitDescriptor()!=null && 
 				right.getExitDescriptor()!=null;
 	}
@@ -116,7 +115,7 @@ public class Ternary extends SpelNodeImpl {
 		mv.visitJumpInsn(IFEQ, elseTarget);
 		codeflow.enterCompilationScope();
 		this.children[1].generateCode(mv, codeflow);
-		if (!SpelCompiler.isPrimitive(getExitDescriptor())) {
+		if (!CodeFlow.isPrimitive(getExitDescriptor())) {
 			CodeFlow.insertBoxInsns(mv, codeflow.lastDescriptor().charAt(0));
 		}
 		codeflow.exitCompilationScope();
@@ -124,7 +123,7 @@ public class Ternary extends SpelNodeImpl {
 		mv.visitLabel(elseTarget);
 		codeflow.enterCompilationScope();
 		this.children[2].generateCode(mv, codeflow);
-		if (!SpelCompiler.isPrimitive(getExitDescriptor())) {
+		if (!CodeFlow.isPrimitive(getExitDescriptor())) {
 			CodeFlow.insertBoxInsns(mv, codeflow.lastDescriptor().charAt(0));
 		}
 		codeflow.exitCompilationScope();

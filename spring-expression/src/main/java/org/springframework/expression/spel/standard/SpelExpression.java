@@ -53,7 +53,7 @@ public class SpelExpression implements Expression {
 	private EvaluationContext defaultContext;
 
 	private boolean attemptedCompile = false;
-	
+
 	private int hitcount = 0;
 
 	/**

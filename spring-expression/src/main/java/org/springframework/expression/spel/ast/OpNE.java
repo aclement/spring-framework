@@ -21,7 +21,6 @@ import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.standard.Utils;
 import org.springframework.expression.spel.support.BooleanTypedValue;
 
@@ -82,9 +81,9 @@ public class OpNE extends Operator {
 		}
 		String leftdesc = left.getExitDescriptor();
 		String rightdesc = right.getExitDescriptor();
-		if ((SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(leftdesc) ||
-				SpelCompiler.isPrimitiveOrUnboxableSupportedNumber(rightdesc))) {
-			if (!SpelCompiler.boxingCompatible(leftdesc, rightdesc)) {
+		if ((CodeFlow.isPrimitiveOrUnboxableSupportedNumberOrBoolean(leftdesc) ||
+				CodeFlow.isPrimitiveOrUnboxableSupportedNumber(rightdesc))) {
+			if (!CodeFlow.boxingCompatible(leftdesc, rightdesc)) {
 				return false;
 			}
 		}
@@ -97,13 +96,13 @@ public class OpNE extends Operator {
 		String rightDesc = getRightOperand().getExitDescriptor();
 		Label elseTarget = new Label();
 		Label endOfIf = new Label();
-		boolean leftPrim = SpelCompiler.isPrimitive(leftDesc);
-		boolean rightPrim = SpelCompiler.isPrimitive(rightDesc);
+		boolean leftPrim = CodeFlow.isPrimitive(leftDesc);
+		boolean rightPrim = CodeFlow.isPrimitive(rightDesc);
 
-		if ((SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(leftDesc) || 
-			 SpelCompiler.isPrimitiveOrUnboxableSupportedNumberOrBoolean(rightDesc)) && 
-			 SpelCompiler.boxingCompatible(leftDesc,rightDesc)) {
-			char targetType = SpelCompiler.toPrimitiveTargetDesc(leftDesc);
+		if ((CodeFlow.isPrimitiveOrUnboxableSupportedNumberOrBoolean(leftDesc) || 
+			 CodeFlow.isPrimitiveOrUnboxableSupportedNumberOrBoolean(rightDesc)) && 
+			 CodeFlow.boxingCompatible(leftDesc,rightDesc)) {
+			char targetType = CodeFlow.toPrimitiveTargetDesc(leftDesc);
 			
 			getLeftOperand().generateCode(mv, codeflow);
 			if (!leftPrim) {

@@ -22,7 +22,6 @@ import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.ast.SpelNodeImpl;
 import org.springframework.util.ClassUtils;
 
-import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Collections;
@@ -60,18 +59,6 @@ public class SpelCompiler implements Opcodes {
 	// counter suffix for generated classes within this SpelCompiler instance
 	private int suffixId;
 	
-	public static SpelCompiler getCompiler() {
-		ClassLoader classloader = ClassUtils.getDefaultClassLoader();
-		synchronized (compilers) {
-			SpelCompiler compiler = compilers.get(classloader);
-			if (compiler == null) {
-				compiler = new SpelCompiler(classloader);
-				compilers.put(classloader,compiler);
-			}
-			return compiler;
-		}
-	}
-	
 	static {
 		try {
 			String compilationFlag = System.getProperty("spel.compiler","false").toLowerCase();
@@ -94,18 +81,29 @@ public class SpelCompiler implements Opcodes {
 		}
 	}
 	
+	public static SpelCompiler getCompiler() {
+		ClassLoader classloader = ClassUtils.getDefaultClassLoader();
+		synchronized (compilers) {
+			SpelCompiler compiler = compilers.get(classloader);
+			if (compiler == null) {
+				compiler = new SpelCompiler(classloader);
+				compilers.put(classloader,compiler);
+			}
+			return compiler;
+		}
+	}
+	
 	private SpelCompiler(ClassLoader classloader) {
 		this.ccl = new ChildClassLoader(classloader);
 		this.suffixId = 1;
 	}
 		
-	
-	public CompiledExpression compile(SpelNodeImpl ast, ExpressionState expressionState) {
-		if (ast.isCompilable()) {
+	public CompiledExpression compile(SpelNodeImpl expression, ExpressionState expressionState) {
+		if (expression.isCompilable()) {
 			if (verbose) {
-				System.out.println("SpEL: compiling "+ast.toStringAST());
+				System.out.println("SpEL: compiling "+expression.toStringAST());
 			}
-			Class<? extends CompiledExpression> clazz = createExpressionClass(ast,expressionState);
+			Class<? extends CompiledExpression> clazz = createExpressionClass(expression);
 			try {
 				CompiledExpression instance = clazz.newInstance();
 				return instance;
@@ -118,7 +116,7 @@ public class SpelCompiler implements Opcodes {
 			}
 		} else {
 			if (verbose) {
-				System.out.println("SpEL: unable to compile "+ast.toString());
+				System.out.println("SpEL: unable to compile "+expression.toString());
 			}
 		}
 		return null;
@@ -128,16 +126,17 @@ public class SpelCompiler implements Opcodes {
 		return suffixId++;
 	}
 
+	/**
+	 * Generate the class that encapsulates the compiled expression and define it.
+	 */
 	@SuppressWarnings("unchecked")
-	private Class<? extends CompiledExpression> createExpressionClass(SpelNodeImpl ast,
-			ExpressionState expressionState) {
+	private Class<? extends CompiledExpression> createExpressionClass(SpelNodeImpl expressionToCompile) {
 		
-		String clazzName = "spel/Ex"+getNextSuffix();
-		
-		ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);//|ClassWriter.COMPUTE_FRAMES);
+		String clazzName = "spel/Ex"+getNextSuffix();		
+		ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS|ClassWriter.COMPUTE_FRAMES);
 		cw.visit(V1_5,ACC_PUBLIC,clazzName,null,"org/springframework/expression/spel/CompiledExpression",null);
 
-		// Create default ctor
+		// Create default constructor
 		MethodVisitor mv = cw.visitMethod(ACC_PUBLIC,"<init>","()V",null,null);
 		mv.visitCode();
 		mv.visitVarInsn(ALOAD, 0);
@@ -146,15 +145,13 @@ public class SpelCompiler implements Opcodes {
 		mv.visitMaxs(1, 1);
 		mv.visitEnd();
 		
-
-		// TODO asc move class names to field class literal refs
-//		mv = cw.visitMethod(ACC_PUBLIC, "getValueInternal", "(Lorg/springframework/expression/spel/ExpressionState;)Lorg/springframework/expression/TypedValue;", null, new String[]{"org/springframework/expression/EvaluationException"});
+		// Create getValue() method
 		mv = cw.visitMethod(ACC_PUBLIC, "getValue", "(Ljava/lang/Object;)Ljava/lang/Object;", null, new String[]{"org/springframework/expression/EvaluationException"});
 		mv.visitCode();
 			
 		CodeFlow codeflow = new CodeFlow();
-		ast.generateCode(mv,codeflow);
-		boxIfNecessary(mv,codeflow.lastDescriptor());
+		expressionToCompile.generateCode(mv,codeflow);
+		CodeFlow.boxIfNecessary(mv,codeflow.lastDescriptor());
 
 		if (codeflow.lastDescriptor() == "V") {
 			mv.visitInsn(ACONST_NULL);
@@ -166,64 +163,12 @@ public class SpelCompiler implements Opcodes {
 		cw.visitEnd();
 		byte[] data = cw.toByteArray();
 		if (dumpCompiledExpression) {
-			Utils.dump(ast.toStringAST(),clazzName, data);
-		}
-		if (ccl == null) {
-			throw new IllegalStateException("!");
+			Utils.dump(expressionToCompile.toStringAST(),clazzName, data);
 		}
 		Class<? extends CompiledExpression> clazz = (Class<? extends CompiledExpression>) ccl.defineClass(clazzName.replaceAll("/","."),data);
 		return clazz;
 	}
 	
-//	final static Map<String,String> tdMap;
-//	static {
-//		tdMap = new HashMap<String,String>();
-//		tdMap.put("java.lang.String","tdString");
-//		tdMap.put("java.lang.Integer","tdInteger");
-//		tdMap.put("java.lang.Character","tdCharacter");
-//		tdMap.put("int","tdIntType");
-//		tdMap.put("boolean","tdBooleanType");
-//		tdMap.put("java.lang.Object","tdObject");
-//	}
-
-	public static void boxIfNecessary(MethodVisitor mv, String descriptor) {
-		if (descriptor.length()!=1) {
-			return;
-		}
-		char ch = descriptor.charAt(0);
-		switch (ch) {
-		case 'I':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;");
-			break;
-		case 'C':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Character", "valueOf", "(C)Ljava/lang/Character;");
-			break;
-		case 'J':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;");
-			break;
-		case 'Z':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Z)Ljava/lang/Boolean;");
-			break;
-		case 'F':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;");
-			break;
-		case 'S':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Short", "valueOf", "(S)Ljava/lang/Short;");
-			break;
-		case 'D':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Double", "valueOf", "(D)Ljava/lang/Double;");
-			break;
-		case 'B':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Byte", "valueOf", "(B)Ljava/lang/Byte;");
-			break;
-		case 'V':
-		case '[':
-			// does not need boxing
-			break;
-		default:
-			throw new IllegalArgumentException("Boxing should not be attempted for descriptor '" + ch + "'");
-		}
-	}
 
 	/**
 	 * The ChildClassLoader will load the generated dispatchers and executors which change for each reload. Instances of this can be
@@ -250,94 +195,17 @@ public class SpelCompiler implements Opcodes {
 
 	}
 
-	public static String createDescriptor(Method method) {
-		Class<?>[] params = method.getParameterTypes();
-		StringBuilder s = new StringBuilder();
-		s.append("(");
-		for (int i = 0, max = params.length; i < max; i++) {
-			appendDescriptor(params[i], s);
-		}
-		s.append(")");
-		appendDescriptor(method.getReturnType(), s);
-		return s.toString();
-	}
-	
-	public static void appendDescriptor(Class<?> p, StringBuilder s) {
-		if (p.isArray()) {
-			while (p.isArray()) {
-				s.append("[");
-				p = p.getComponentType();
-			}
-		}
-		if (p.isPrimitive()) {
-			if (p == Void.TYPE) {
-				s.append('V');
-			} else if (p == Integer.TYPE) {
-				s.append('I');
-			} else if (p == Boolean.TYPE) {
-				s.append('Z');
-			} else if (p == Character.TYPE) {
-				s.append('C');
-			} else if (p == Long.TYPE) {
-				s.append('J');
-			} else if (p == Double.TYPE) {
-				s.append('D');
-			} else if (p == Float.TYPE) {
-				s.append('F');
-			} else if (p == Byte.TYPE) {
-				s.append('B');
-			} else if (p == Short.TYPE) {
-				s.append('S');
-			}
-		} else {
-			s.append("L");
-			s.append(p.getName().replace('.', '/'));
-			s.append(";");
-		}
-	}
-	
-	public static String getDescriptor(Class<?> p) {
-		StringBuilder s= new StringBuilder();
-		if (p.isArray()) {
-			while (p.isArray()) {
-				s.append("[");
-				p = p.getComponentType();
-			}
-		}
-		if (p.isPrimitive()) {
-			if (p == Void.TYPE) {
-				s.append('V');
-			} else if (p == Integer.TYPE) {
-				s.append('I');
-			} else if (p == Boolean.TYPE) {
-				s.append('Z');
-			} else if (p == Character.TYPE) {
-				s.append('C');
-			} else if (p == Long.TYPE) {
-				s.append('J');
-			} else if (p == Double.TYPE) {
-				s.append('D');
-			} else if (p == Float.TYPE) {
-				s.append('F');
-			} else if (p == Byte.TYPE) {
-				s.append('B');
-			} else if (p == Short.TYPE) {
-				s.append('S');
-			}
-		} else {
-			s.append("L");
-			s.append(p.getName().replace('.', '/'));
-			s.append(";");
-		}
-		return s.toString();
-	}
-
 	public static void reset() {
 		compilerActive=false;
 		hitCountThreshold=DEFAULT_HIT_COUNT_THRESHOLD;
 	}
 	
-	// For testing, forces a compile
+	/**
+	 * Request that an attempt is made to compile the specified expression. It may fail if components
+	 * of the expression are not suitable for compilation or the data types involved are not suitable
+	 * for compilation. 
+	 * @return true if the expression was successfully compiled
+	 */
 	public static boolean compile(Expression expression) {
 		if (expression instanceof SpelExpression) {
 			SpelExpression spelExpression = (SpelExpression)expression;
@@ -347,249 +215,14 @@ public class SpelCompiler implements Opcodes {
 		return false;
 	}
 	
+	/**
+	 * Request to revert to the interpreter for expression evaluation. Any compiled form is discarded
+	 * but can be recreated by later recompiling again. 
+	 */
 	public static void revertToInterpreted(Expression expression) {
 		if (expression instanceof SpelExpression) {
 			SpelExpression spelExpression = (SpelExpression)expression;
 			spelExpression.compiledAst = null;
 		}
-	}
-
-	public static String toDescriptor(Class<?> type) {
-		String name = type.getName();
-		if (type.isPrimitive() ) {
-			switch (name.length()) {
-				case 3:
-					return "I";
-				case 4:
-					if (name.equals("long")) {
-						return "J";
-					}
-					else if (name.equals("char")) {
-						return "C";
-					}
-					else if (name.equals("byte")) {
-						return "B";
-					}
-					else if (name.equals("void")) {
-						return "V";
-					}
-				case 5:
-					if (name.equals("float")) {
-						return "F";
-					}
-					else if (name.equals("short")) {
-						return "S";
-					}
-				case 6:
-					if (name.equals("double")) {
-						return "D";
-					}
-				case 7:
-					if (name.equals("boolean")) {
-						return "Z";
-					}
-				default:
-					throw new IllegalStateException("nyi "+name);
-			}
-		} else {
-			if (name.charAt(0)!='[') {
-				return new StringBuilder("L").append(type.getName().replace('.', '/')).toString();
-			} else {
-				if (name.endsWith(";")) {
-					return name.substring(0,name.length()-1).replace('.','/');					
-				} else {
-					return name; // primitive
-				}
-			}
-		}
-	}
-
-	public static String toDescriptorFromObject(Object value) {
-		if (value == null) {
-			return "Ljava/lang/Object";
-		} else {
-			return toDescriptor(value.getClass());
-		}
-	}
-
-	public static void insertUnboxIfNecessary(MethodVisitor mv, CodeFlow codeflow,char desiredPrimitiveType) {
-		String ld = codeflow.lastDescriptor();
-		switch (desiredPrimitiveType) {
-			case 'Z':
-				if (ld.equals("Ljava/lang/Boolean")) {
-					mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Boolean", "booleanValue", "()Z");
-				} else if (!ld.equals("Z")) {
-					throw new IllegalStateException("not unboxable to boolean:"+codeflow.lastDescriptor());
-				}
-				break;
-			default:
-				throw new IllegalStateException("nyi "+desiredPrimitiveType);
-		}
-	}
-	
-	public static boolean isPrimitiveArray(String descriptor) {
-		boolean primitive = true;
-		for (int i=0,max=descriptor.length();i<max;i++) {
-			char ch = descriptor.charAt(i);
-			if (ch=='[') {
-				continue;
-			} 
-			primitive = (ch!='L');
-			break;
-		}
-		return primitive;
-	}
-
-	public static void insertCheckCast(MethodVisitor mv, String exitTypeDescriptor) {
-		if (exitTypeDescriptor.length()!=1) {
-			if (exitTypeDescriptor.charAt(0)=='[') {
-				if (isPrimitiveArray(exitTypeDescriptor)) {
-					mv.visitTypeInsn(CHECKCAST, exitTypeDescriptor);					
-				}
-				else {
-					mv.visitTypeInsn(CHECKCAST, exitTypeDescriptor+";");
-				}
-			} else {
-				// This is chopping off the 'L' to leave us with "java/lang/String"
-				mv.visitTypeInsn(CHECKCAST, exitTypeDescriptor.substring(1));
-			}
-		}
-	}
-
-	public static boolean isPrimitive(String descriptor) {
-		return descriptor!=null && descriptor.length()==1;
-	}
-	
-	public static char toPrimitiveTargetDesc(String descriptor) {
-		if (descriptor.length()==1) {
-			return descriptor.charAt(0);
-		}
-		if (descriptor.equals("Ljava/lang/Double")) {
-			return 'D';
-		} else if (descriptor.equals("Ljava/lang/Integer")) {
-			return 'I';
-		} else if (descriptor.equals("Ljava/lang/Float")) {
-			return 'F';
-		} else if (descriptor.equals("Ljava/lang/Long")) {
-			return 'J';
-		} else if (descriptor.equals("Ljava/lang/Boolean")) {
-			return 'Z';
-		} else {
-			throw new IllegalStateException("No primitive for '"+descriptor+"'");
-		}
-	}
-
-	public static boolean isPrimitiveOrUnboxableSupportedNumber(String descriptor) {
-		if (descriptor==null) {
-			return false;
-		}
-		if (descriptor.length()==1) {
-			return "DFJI".indexOf(descriptor.charAt(0))!=-1;
-		}
-		if (descriptor.startsWith("Ljava/lang/")) {
-			if (descriptor.equals("Ljava/lang/Double") || descriptor.equals("Ljava/lang/Integer") || 
-				descriptor.equals("Ljava/lang/Float") || descriptor.equals("Ljava/lang/Long")) {
-				return true;
-			}
-		}
-		return false;
-	}
-	
-	public static boolean isPrimitiveOrUnboxableSupportedNumberOrBoolean(String descriptor) {
-		if (descriptor==null) {
-			return false;
-		}
-		if (descriptor.length()==1) {
-			return "DFJZI".indexOf(descriptor.charAt(0))!=-1;
-		}
-		if (descriptor.startsWith("Ljava/lang/")) {
-			if (descriptor.equals("Ljava/lang/Double") || descriptor.equals("Ljava/lang/Integer") || 
-				descriptor.equals("Ljava/lang/Float") || descriptor.equals("Ljava/lang/Long") ||
-				descriptor.equals("Ljava/lang/Boolean")) {
-				return true;
-			}
-		}
-		return false;
-	}
-	
-	
-
-	public static boolean isBooleanCompatible(String descriptor) {
-		return descriptor!=null && ( descriptor.equals("Z") || descriptor.equals("Ljava/lang/Boolean"));
-	}
-	
-	public static boolean isDoubleCompatible(String descriptor) {
-		return descriptor!=null && (descriptor.equals("D") || descriptor.equals("Ljava/lang/Double"));
-	}
-
-	public static boolean isNumber(String desc) {
-		if (desc==null) {
-			return false;
-		}
-		if (desc.length()==1) {
-			return "IDFJ".indexOf(desc.charAt(0))!=-1;
-		}
-		return desc.equals("Ljava/lang/Double") || desc.equals("Ljava/lang/Integer") || desc.equals("Ljava/lang/Float") || desc.equals("Ljava/lang/Long");				
-	}
-
-	/**
-	 * return true if you can get (via boxing) from one descriptor to the other. Assumes
-	 * at least one of is a boxable type.
-	 */
-	public static boolean boxingCompatible(String desc1, String desc2) {
-		if (desc1.equals(desc2)) {
-			return true;
-		}
-		if (desc1.length()==1) {
-			if (desc1.equals("D")) {
-				return desc2.equals("Ljava/lang/Double");
-			}
-			else if (desc1.equals("F")) {
-				return desc2.equals("Ljava/lang/Float");
-			}
-			else if (desc1.equals("J")) {
-				return desc2.equals("Ljava/lang/Long");
-			}
-			else if (desc1.equals("I")) {
-				return desc2.equals("Ljava/lang/Integer");
-			}
-			else if (desc1.equals("Z")) {
-				return desc2.equals("Ljava/lang/Boolean");
-			}
-		}
-		else if (desc2.length()==1) {
-			if (desc2.equals("D")) {
-				return desc1.equals("Ljava/lang/Double");
-			}
-			else if (desc2.equals("F")) {
-				return desc1.equals("Ljava/lang/Float");
-			}
-			else if (desc2.equals("J")) {
-				return desc1.equals("Ljava/lang/Long");
-			}
-			else if (desc2.equals("I")) {
-				return desc1.equals("Ljava/lang/Integer");
-			}			
-			else if (desc2.equals("Z")) {
-				return desc1.equals("Ljava/lang/Boolean");
-			}
-		}
-		return false;
-	}
-
-	public static boolean isDouble(String desc) {
-		return desc.equals("D") || desc.equals("Ljava/lang/Double");
-	}
-
-	public static boolean isFloat(String desc) {
-		return desc.equals("F") || desc.equals("Ljava/lang/Float");
-	}
-	
-	public static boolean isInteger(String desc) {
-		return desc.equals("I") || desc.equals("Ljava/lang/Integer");
-	}
-	
-	public static boolean isLong(String desc) {
-		return desc.equals("J") || desc.equals("Ljava/lang/Long");
 	}
 }

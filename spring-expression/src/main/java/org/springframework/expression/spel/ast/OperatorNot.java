@@ -23,7 +23,6 @@ import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.support.BooleanTypedValue;
 
 /**
@@ -67,13 +66,13 @@ public class OperatorNot extends SpelNodeImpl { // Not is a unary operator so do
 	@Override
 	public boolean isCompilable() {
 		SpelNodeImpl child = this.children[0];
-		return child.isCompilable() && SpelCompiler.isBooleanCompatible(child.getExitDescriptor());
+		return child.isCompilable() && CodeFlow.isBooleanCompatible(child.getExitDescriptor());
 	}
 	
 	@Override
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
 		this.children[0].generateCode(mv, codeflow);
-		codeflow.insertUnboxIfNecessary(mv, 'Z');
+		codeflow.unboxBooleanIfNecessary(mv);
 		Label elseTarget = new Label();
 		Label endOfIf = new Label();
 		mv.visitJumpInsn(IFNE,elseTarget);		

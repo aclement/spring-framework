@@ -19,7 +19,6 @@ package org.springframework.expression.spel.ast;
 import org.springframework.asm.Label;
 import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.standard.Utils;
 
 /**
@@ -78,8 +77,8 @@ public abstract class Operator extends SpelNodeImpl {
 		// Supported operand types for equals (at the moment)
 		String leftDesc = left.getExitDescriptor();
 		String rightDesc= right.getExitDescriptor();
-		if (SpelCompiler.isPrimitiveOrUnboxableSupportedNumber(leftDesc) && SpelCompiler.isPrimitiveOrUnboxableSupportedNumber(rightDesc)) {
-			if (SpelCompiler.boxingCompatible(leftDesc, rightDesc)) {
+		if (CodeFlow.isPrimitiveOrUnboxableSupportedNumber(leftDesc) && CodeFlow.isPrimitiveOrUnboxableSupportedNumber(rightDesc)) {
+			if (CodeFlow.boxingCompatible(leftDesc, rightDesc)) {
 				return true;
 			}
 		}
@@ -96,9 +95,9 @@ public abstract class Operator extends SpelNodeImpl {
 		String leftDesc = getLeftOperand().getExitDescriptor();
 		String rightDesc = getRightOperand().getExitDescriptor();
 		
-		boolean unboxLeft = !SpelCompiler.isPrimitive(leftDesc);
-		boolean unboxRight = !SpelCompiler.isPrimitive(rightDesc);
-		char targetType = SpelCompiler.toPrimitiveTargetDesc(leftDesc);
+		boolean unboxLeft = !CodeFlow.isPrimitive(leftDesc);
+		boolean unboxRight = !CodeFlow.isPrimitive(rightDesc);
+		char targetType = CodeFlow.toPrimitiveTargetDesc(leftDesc);
 		
 		getLeftOperand().generateCode(mv, codeflow);
 		if (unboxLeft) {

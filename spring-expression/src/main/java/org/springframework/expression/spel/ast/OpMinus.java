@@ -22,7 +22,6 @@ import org.springframework.expression.Operation;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.standard.Utils;
 
 /**
@@ -151,13 +150,13 @@ public class OpMinus extends Operator {
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
 		getLeftOperand().generateCode(mv, codeflow);
 		String leftdesc = getLeftOperand().getExitDescriptor();
-		if (!SpelCompiler.isPrimitive(leftdesc)) {
+		if (!CodeFlow.isPrimitive(leftdesc)) {
 			Utils.insertUnboxInsns(mv, this.exitTypeDescriptor.charAt(0), false);
 		}	
 		if (this.children.length>1) {
 			getRightOperand().generateCode(mv, codeflow);
 			String rightdesc = getRightOperand().getExitDescriptor();
-			if (!SpelCompiler.isPrimitive(rightdesc)) {
+			if (!CodeFlow.isPrimitive(rightdesc)) {
 				Utils.insertUnboxInsns(mv, this.exitTypeDescriptor.charAt(0), false);
 			}
 			switch (this.exitTypeDescriptor.charAt(0)) {

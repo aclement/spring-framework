@@ -36,7 +36,6 @@ import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
 import org.springframework.expression.spel.standard.CodeFlow;
-import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.support.ReflectivePropertyAccessor;
 
 /**
@@ -160,7 +159,7 @@ public class Indexer extends SpelNodeImpl {
 		@Override
 		public TypedValue getValue() {
 			Object value = this.map.get(this.key);
-			exitTypeDescriptor = SpelCompiler.toDescriptorFromObject(value);
+			exitTypeDescriptor = CodeFlow.toDescriptorFromObject(value);
 			return new TypedValue(value,
 					this.mapEntryTypeDescriptor.getMapValueTypeDescriptor(value));
 		}
@@ -229,9 +228,9 @@ public class Indexer extends SpelNodeImpl {
 								ReflectivePropertyAccessor.OptimalPropertyAccessor optimalAccessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)accessor;
 								Member member = optimalAccessor.member;
 								if (member instanceof Field) {
-									Indexer.this.exitTypeDescriptor = SpelCompiler.toDescriptor(((Field)member).getType());
+									Indexer.this.exitTypeDescriptor = CodeFlow.toDescriptor(((Field)member).getType());
 								} else {
-									Indexer.this.exitTypeDescriptor = SpelCompiler.toDescriptor(((Method)member).getReturnType());
+									Indexer.this.exitTypeDescriptor = CodeFlow.toDescriptor(((Method)member).getReturnType());
 								}
 							}
 							TypedValue value = accessor.read(this.evaluationContext, this.targetObject, this.name);
@@ -317,7 +316,7 @@ public class Indexer extends SpelNodeImpl {
 			growCollectionIfNecessary();
 			if (this.collection instanceof List) {
 				Object o = ((List) this.collection).get(this.index);
-				exitTypeDescriptor = SpelCompiler.toDescriptorFromObject(o);
+				exitTypeDescriptor = CodeFlow.toDescriptorFromObject(o);
 				return new TypedValue(o, this.collectionEntryTypeDescriptor.elementTypeDescriptor(o));
 			}
 			int pos = 0;
@@ -626,7 +625,7 @@ public class Indexer extends SpelNodeImpl {
 			Object[] array = (Object[]) ctx;
 			checkAccess(array.length, idx);
 			Object retValue = array[idx];
-			this.exitTypeDescriptor = SpelCompiler.toDescriptor(arrayComponentType);//FromObject(retValue);
+			this.exitTypeDescriptor = CodeFlow.toDescriptor(arrayComponentType);//FromObject(retValue);
 			return retValue;
 		}
 	}
@@ -708,7 +707,7 @@ public class Indexer extends SpelNodeImpl {
 				mv.visitInsn(CALOAD);
 			}
 			else { 
-				mv.visitTypeInsn(CHECKCAST,"["+exitTypeDescriptor+(SpelCompiler.isPrimitiveArray(exitTypeDescriptor)?"":";"));//depthPlusOne(exitTypeDescriptor)+"Ljava/lang/Object;");
+				mv.visitTypeInsn(CHECKCAST,"["+exitTypeDescriptor+(CodeFlow.isPrimitiveArray(exitTypeDescriptor)?"":";"));//depthPlusOne(exitTypeDescriptor)+"Ljava/lang/Object;");
 				SpelNodeImpl index = this.children[0];
 				index.generateCode(mv, codeflow);
 				mv.visitInsn(AALOAD);
@@ -718,13 +717,13 @@ public class Indexer extends SpelNodeImpl {
 			mv.visitTypeInsn(CHECKCAST,"java/util/List");
 			this.children[0].generateCode(mv, codeflow);
 			mv.visitMethodInsn(INVOKEINTERFACE,"java/util/List","get","(I)Ljava/lang/Object;");
-			SpelCompiler.insertCheckCast(mv,exitTypeDescriptor);
+			CodeFlow.insertCheckCast(mv,exitTypeDescriptor);
 		}
 		else if (this.indexedType == IndexedType.map) {
 			mv.visitTypeInsn(CHECKCAST,"java/util/Map");
 			this.children[0].generateCode(mv, codeflow);
 			mv.visitMethodInsn(INVOKEINTERFACE,"java/util/Map","get","(Ljava/lang/Object;)Ljava/lang/Object;");
-			SpelCompiler.insertCheckCast(mv,exitTypeDescriptor);
+			CodeFlow.insertCheckCast(mv,exitTypeDescriptor);
 		} 
 		else if (this.indexedType == IndexedType.object) {
 			ReflectivePropertyAccessor.OptimalPropertyAccessor accessor =
@@ -743,9 +742,9 @@ public class Indexer extends SpelNodeImpl {
 				}
 			}
 			if (member instanceof Field) {
-				mv.visitFieldInsn(isStatic?GETSTATIC:GETFIELD,memberDeclaringClassSlashedDescriptor,member.getName(),SpelCompiler.getDescriptor(((Field) member).getType()));
+				mv.visitFieldInsn(isStatic?GETSTATIC:GETFIELD,memberDeclaringClassSlashedDescriptor,member.getName(),CodeFlow.getDescriptor(((Field) member).getType()));
 			} else {
-				mv.visitMethodInsn(isStatic?INVOKESTATIC:INVOKEVIRTUAL, memberDeclaringClassSlashedDescriptor, member.getName(),SpelCompiler.createDescriptor((Method)member));
+				mv.visitMethodInsn(isStatic?INVOKESTATIC:INVOKEVIRTUAL, memberDeclaringClassSlashedDescriptor, member.getName(),CodeFlow.createDescriptor((Method)member));
 			}
 		} 
 		codeflow.pushDescriptor(exitTypeDescriptor);
