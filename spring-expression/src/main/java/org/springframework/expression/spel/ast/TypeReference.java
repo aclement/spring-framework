@@ -97,7 +97,7 @@ public class TypeReference extends SpelNodeImpl {
 	
 	@Override
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
-		// TODO ASC Future optimization - if followed by a static method call, skip generating code here
+		// TODO Future optimization - if followed by a static method call, skip generating code here
 		if (type.isPrimitive()) {
 			if (type == Integer.TYPE) {
 				mv.visitFieldInsn(GETSTATIC, "java/lang/Integer", "TYPE", "Ljava/lang/Class;");

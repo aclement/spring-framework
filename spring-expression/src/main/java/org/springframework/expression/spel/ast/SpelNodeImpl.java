@@ -192,7 +192,7 @@ public abstract class SpelNodeImpl implements SpelNode, Opcodes {
 	 * @return true if this node can be compiled to bytecode
 	 */
 	public boolean isCompilable() {
-		System.out.println(this.getClass().getName()+" is not compilable");
+//		System.out.println(this.getClass().getName()+" is not compilable");
 		return false;
 	}
 

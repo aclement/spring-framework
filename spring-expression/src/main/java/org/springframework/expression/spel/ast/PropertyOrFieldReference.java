@@ -354,18 +354,23 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 		return resolvers;
 	}
 	
-	// TODO what to do about compiling the 'write' side? Initially only getValue* uses compiled code.
 	@Override
 	public boolean isCompilable() {
 		if (this.cachedReadAccessor == null || 
 				!(this.cachedReadAccessor instanceof ReflectivePropertyAccessor.OptimalPropertyAccessor)) {
 			return false;
 		};
-		ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor;
-		// TODO host of conditions here that can be gradually loosened, like is the return type not primitive, is the return type not an array, etc, etc.
+		Member member = ((ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor).member;
+		System.out.println("Member "+member+"  m="+Integer.toHexString(member.getModifiers())+" c="+Integer.toHexString(member.getDeclaringClass().getModifiers()));
+		if (!Modifier.isPublic(member.getModifiers()) || !Modifier.isPublic(member.getDeclaringClass().getModifiers())) {
+			System.out.println("Not public "+member);
+			return false;
+		}
+		// TODO [spelcompiler] sufficient condition checking here?
 		return true;
 	}
 	
+	// TODO [spelcompiler] needstarget used?
 	@Override
 	public boolean needsTarget() {
 		ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor;

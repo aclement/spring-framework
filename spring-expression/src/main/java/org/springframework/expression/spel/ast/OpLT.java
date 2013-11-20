@@ -41,7 +41,6 @@ public class OpLT extends Operator {
 			throws EvaluationException {
 		Object left = getLeftOperand().getValueInternal(state).getValue();
 		Object right = getRightOperand().getValueInternal(state).getValue();
-		// TODO could leave all of these to the comparator - just seems quicker to do some here
 		if (left instanceof Number && right instanceof Number) {
 			Number leftNumber = (Number) left;
 			Number rightNumber = (Number) right;

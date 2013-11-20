@@ -71,6 +71,7 @@ public class VariableReference extends SpelNodeImpl {
 			return result;
 		}
 		TypedValue result = state.lookupVariable(this.name);
+		this.exitTypeDescriptor = CodeFlow.toDescriptorFromObject(result.getValue());
 		// a null value will mean either the value was null or the variable was not found
 		return result;
 	}
@@ -126,12 +127,19 @@ public class VariableReference extends SpelNodeImpl {
 
 	@Override
 	public boolean isCompilable() {
-		return this.name.equals(ROOT) && getExitDescriptor()!=null;
+		return //this.name.equals(ROOT) && 
+				getExitDescriptor()!=null;
 	}
 	
 	@Override
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
-		mv.visitVarInsn(ALOAD,1);
+		if (this.name.equals(ROOT)) {
+			mv.visitVarInsn(ALOAD,1);
+		} else {
+			mv.visitVarInsn(ALOAD, 2);
+			mv.visitLdcInsn(name);
+			mv.visitMethodInsn(INVOKEINTERFACE, "org/springframework/expression/EvaluationContext", "lookupVariable", "(Ljava/lang/String;)Ljava/lang/Object;");
+		}
 		CodeFlow.insertCheckCast(mv,getExitDescriptor());
 		codeflow.pushDescriptor(getExitDescriptor());
 	}

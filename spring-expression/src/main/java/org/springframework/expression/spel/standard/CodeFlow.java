@@ -16,6 +16,8 @@
 
 package org.springframework.expression.spel.standard;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Stack;
@@ -123,6 +125,17 @@ public class CodeFlow implements Opcodes {
 		}
 		s.append(")");
 		CodeFlow.appendDescriptor(method.getReturnType(), s);
+		return s.toString();
+	}
+
+	public static String createDescriptor(Constructor ctor) {
+		Class<?>[] params = ctor.getParameterTypes();
+		StringBuilder s = new StringBuilder();
+		s.append("(");
+		for (int i = 0, max = params.length; i < max; i++) {
+			CodeFlow.appendDescriptor(params[i], s);
+		}
+		s.append(")V");
 		return s.toString();
 	}
 
@@ -441,6 +454,26 @@ public class CodeFlow implements Opcodes {
 		default:
 			throw new IllegalArgumentException("Boxing should not be attempted for descriptor '" + ch + "'");
 		}
+	}
+
+	public static String[] toParamDescriptors(Method m) {
+		Class<?>[] parameterTypes = m.getParameterTypes();
+		int parameterCount = m.getParameterCount();
+		String[] parameters = new String[parameterCount];
+		for (int p=0;p<parameterCount;p++) {
+			parameters[p] = CodeFlow.toDescriptor(parameterTypes[p]);
+		}
+		return parameters;
+	}
+	
+	public static String[] toParamDescriptors(Constructor c) {
+		Class<?>[] parameterTypes = c.getParameterTypes();
+		int parameterCount = c.getParameterCount();
+		String[] parameters = new String[parameterCount];
+		for (int p=0;p<parameterCount;p++) {
+			parameters[p] = CodeFlow.toDescriptor(parameterTypes[p]);
+		}
+		return parameters;
 	}
 
 }

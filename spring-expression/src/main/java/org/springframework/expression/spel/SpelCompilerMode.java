@@ -16,22 +16,23 @@
 
 package org.springframework.expression.spel;
 
-import org.springframework.expression.EvaluationContext;
-import org.springframework.expression.EvaluationException;
-
 /**
- * Base superclass for compiled expressions. Each generated compiled expression class will
- * extend this class and implement one of the getValue() methods.
+ * Captures the possible configuration settings for a compiler that can be
+ * used when evaluating expressions.
  * 
  * @author Andy Clement
  */
-public abstract class CompiledExpression {
+public enum SpelCompilerMode {
+	// The compiler is switched off, this is the default.
+	off,
 	
-	public CompiledExpression() {
-	}
+	// Expressions are compiled as soon as possible (usually after 1 interpreted run).
+	// If a compiled expression fails it will throw an exception.
+	immediate,
 	
-	public Object getValue(Object target, EvaluationContext context) throws EvaluationException {
-		throw new IllegalStateException("should never be invoked");
-	}
-
+	// Expression evaluate switches between interpreted and compiled over time.
+	// After a number of runs the expression gets compiled. If it later fails that
+	// will be caught internally and we'll switch back to the interpreted version
+	// and compile it again later.
+	mixed 
 }

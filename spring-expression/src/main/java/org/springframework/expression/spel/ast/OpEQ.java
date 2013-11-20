@@ -133,9 +133,47 @@ public class OpEQ extends Operator {
 		} else {
 			getLeftOperand().generateCode(mv, codeflow);
 			getRightOperand().generateCode(mv, codeflow);
-			// TODO calls equals but also allow for null
+			Label leftNotNull = new Label();
+			mv.visitInsn(DUP_X1); // Dup right on the top of the stack
+			mv.visitJumpInsn(IFNONNULL,leftNotNull);
+				// Right is null!
+				mv.visitInsn(SWAP);
+				mv.visitInsn(POP); // remove it
+				Label rightNotNull = new Label();
+				mv.visitJumpInsn(IFNONNULL, rightNotNull);
+					// Left is null too
+					mv.visitInsn(ICONST_1);
+				mv.visitJumpInsn(GOTO, endOfIf);
+					mv.visitLabel(rightNotNull);
+					mv.visitInsn(ICONST_0);
+				mv.visitJumpInsn(GOTO,endOfIf);
+			
+			
+			mv.visitLabel(leftNotNull);
+			mv.visitMethodInsn(INVOKEVIRTUAL,"java/lang/Object","equals","(Ljava/lang/Object;)Z");
+			mv.visitLabel(endOfIf);
+			codeflow.pushDescriptor("Z");
+			return;
+			// box?
+			// box?
+			// TODO [spelcompiler] calls equals but also allow for null
 			// return left==null?right==null:left.equals(right);
-			mv.visitJumpInsn(IF_ACMPNE, elseTarget);
+//	        7: ifnonnull     22
+//	        10: aload_2
+//	        11: ifnonnull     18
+//	        14: iconst_1
+//	        15: goto          27
+//	        18: iconst_0
+//	        19: goto          27
+//	        22: aload_1
+//	        23: aload_2
+//	        24: invokevirtual #9                  // Method java/lang/Object.equals:(Ljava/lang/Object;)Z
+//	        27: istore_3
+//	        28: iload_3
+//			java/lang/String.equals:(Ljava/lang/Object;)Z
+			
+			
+			// mv.visitJumpInsn(IF_ACMPNE, elseTarget);
 		}
 		mv.visitInsn(ICONST_1);
 		mv.visitJumpInsn(GOTO,endOfIf);

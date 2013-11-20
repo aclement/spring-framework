@@ -21,9 +21,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.StringTokenizer;
 
-import org.junit.Before;
 import org.junit.Test;
+import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.Expression;
 import org.springframework.expression.spel.ast.CompoundExpression;
 import org.springframework.expression.spel.ast.OpLT;
@@ -45,11 +46,6 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 	
 	private Expression expression;
 	private SpelNodeImpl ast;
-	
-	@Before
-	public void setup() {
-		SpelCompiler.reset();
-	}
 	
 	/*
 	 * Future work:
@@ -568,6 +564,84 @@ What to keep in mind for complete pass:
 	}
 	
 	@Test
+	public void constructorReference() throws Exception {
+		// simple ctor
+		expression = parser.parseExpression("new String('123')");
+		assertEquals("123",expression.getValue());
+		assertCanCompile(expression);
+		assertEquals("123",expression.getValue());
+
+		String testclass8 = "org.springframework.expression.spel.SpelCompilationCoverageTests$TestClass8"; 
+		// multi arg ctor that includes primitives
+		expression = parser.parseExpression("new "+testclass8+"(42,'123',4.0d,true)");
+		assertEquals(testclass8,expression.getValue().getClass().getName());
+		assertCanCompile(expression);
+		Object o = expression.getValue();
+		assertEquals(testclass8,o.getClass().getName());
+		TestClass8 tc8 = (TestClass8)o;
+		assertEquals(42,tc8.i);
+		assertEquals("123",tc8.s);
+		assertEquals(4.0d,tc8.d,0.5d);
+		assertEquals(true,tc8.z);
+		
+		// no-arg ctor
+		expression = parser.parseExpression("new "+testclass8+"()");
+		assertEquals(testclass8,expression.getValue().getClass().getName());
+		assertCanCompile(expression);
+		o = expression.getValue();
+		assertEquals(testclass8,o.getClass().getName());
+		
+		// pass primitive to reference type ctor
+		expression = parser.parseExpression("new "+testclass8+"(42)");
+		assertEquals(testclass8,expression.getValue().getClass().getName());
+		assertCanCompile(expression);
+		o = expression.getValue();
+		assertEquals(testclass8,o.getClass().getName());
+		tc8 = (TestClass8)o;
+		assertEquals(42,tc8.i);
+
+		// private class, can't compile it
+		String testclass9 = "org.springframework.expression.spel.SpelCompilationCoverageTests$TestClass9"; 
+		expression = parser.parseExpression("new "+testclass9+"(42)");
+		assertEquals(testclass9,expression.getValue().getClass().getName());
+		assertCantCompile(expression);
+	}
+	
+	@Test
+	public void variableReference_userDefined() throws Exception {
+		EvaluationContext ctx = new StandardEvaluationContext();
+		ctx.setVariable("target", "abc");
+		expression = parser.parseExpression("#target");
+		assertEquals("abc",expression.getValue(ctx));
+		assertCanCompile(expression);
+		assertEquals("abc",expression.getValue(ctx));	
+		ctx.setVariable("target", "123");
+		assertEquals("123",expression.getValue(ctx));	
+		ctx.setVariable("target", 42);
+		try {
+			assertEquals(42,expression.getValue(ctx));
+			fail();
+		} catch (SpelEvaluationException see) {
+			assertTrue(see.getCause() instanceof ClassCastException);
+		}
+	
+		ctx.setVariable("target", "abc");
+		expression = parser.parseExpression("#target.charAt(0)");
+		assertEquals('a',expression.getValue(ctx));
+		assertCanCompile(expression);
+		assertEquals('a',expression.getValue(ctx));	
+		ctx.setVariable("target", "1");
+		assertEquals('1',expression.getValue(ctx));	
+		ctx.setVariable("target", 42);
+		try {
+			assertEquals('4',expression.getValue(ctx));
+			fail();
+		} catch (SpelEvaluationException see) {
+			assertTrue(see.getCause() instanceof ClassCastException);
+		}
+	}
+	
+	@Test
 	public void opLt() throws Exception {
 		expression = parse("3.0d < 4.0d");
 		assertCanCompile(expression);
@@ -791,6 +865,26 @@ What to keep in mind for complete pass:
 
 	@Test
 	public void opEq() throws Exception {
+		
+		TestClass7 tc7 = new TestClass7();
+		expression = parse("property == 'UK'");
+		assertTrue((Boolean)expression.getValue(tc7));
+		TestClass7.property = null;
+		assertFalse((Boolean)expression.getValue(tc7));
+		assertCanCompile(expression);
+		TestClass7.reset();
+		assertTrue((Boolean)expression.getValue(tc7));
+		TestClass7.property = "UK";
+		assertTrue((Boolean)expression.getValue(tc7));
+		TestClass7.reset();
+		TestClass7.property = null;
+		assertFalse((Boolean)expression.getValue(tc7));
+		expression = parse("property == null");
+		assertTrue((Boolean)expression.getValue(tc7));
+		assertCanCompile(expression);
+		assertTrue((Boolean)expression.getValue(tc7));
+		
+		
 		expression = parse("3.0d == 4.0d");
 		assertCanCompile(expression);
 		assertFalse((Boolean)expression.getValue());
@@ -1339,7 +1433,6 @@ What to keep in mind for complete pass:
 		assertEquals(-2.0f,expression.getValue());
 	}
 	
-	// TODO method reference needsTarget thing?
 	@Test
 	public void methodReference() throws Exception {
 		TestClass5 tc = new TestClass5();
@@ -1477,6 +1570,34 @@ What to keep in mind for complete pass:
 		String resultC = expression.getValue(new TestClass1(),String.class);
 		assertEquals("bc",resultI);
 		assertEquals("bc",resultC);
+		
+		// Converting from an int to a Number
+		expression = parser.parseExpression("takeNumber(123)");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertEquals("123",tc.s);
+		tc.reset();
+		assertCanCompile(expression); // The generated code should include boxing of the int to a Number
+		expression.getValue(tc);
+		assertEquals("123",tc.s);
+
+		// Passing a subtype
+		expression = parser.parseExpression("takeNumber(T(Integer).valueOf(42))");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertEquals("42",tc.s);
+		tc.reset();
+		assertCanCompile(expression); // The generated code should include boxing of the int to a Number
+		expression.getValue(tc);
+		assertEquals("42",tc.s);
+
+		// Passing a subtype
+		expression = parser.parseExpression("takeString(T(Integer).valueOf(42))");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertEquals("42",tc.s);
+		tc.reset();
+		assertCantCompile(expression); // method takes a string and we are passing an Integer
 	}
 		
 	
@@ -1494,12 +1615,11 @@ What to keep in mind for complete pass:
 		assertCanCompile(expression);
 		assertEquals(2,expression.getValue(is));
 		
-		// Throws CCE
 		try {
 			assertEquals(2,expression.getValue(strings));
 			fail();
-		} catch (ClassCastException cce) {
-			// success
+		} catch (SpelEvaluationException see) {
+			assertTrue(see.getCause() instanceof ClassCastException);
 		}
 		SpelCompiler.revertToInterpreted(expression);
 		assertEquals("b",expression.getValue(strings));
@@ -1507,8 +1627,6 @@ What to keep in mind for complete pass:
 		assertEquals("b",expression.getValue(strings));
 		
 		
-		
-		// TODO method with changing parameter types (change reference type)
 		tc.field = "foo";
 		expression = parser.parseExpression("seven(field)");
 		assertCantCompile(expression);
@@ -1519,11 +1637,34 @@ What to keep in mind for complete pass:
 		tc.field="bar";
 		expression.getValue(tc);
 		
+		// method with changing parameter types (change reference type)
+		tc.obj = "foo";
+		expression = parser.parseExpression("seven(obj)");
+		assertCantCompile(expression);
+		expression.getValue(tc);
+		assertEquals("foo",tc.s);
+		assertCanCompile(expression);
+		tc.reset();
+		tc.obj=new Integer(42);
+		try {
+			expression.getValue(tc);
+			fail();
+		} catch (SpelEvaluationException see) {
+			assertTrue(see.getCause() instanceof ClassCastException);
+		}
 		
-		// TODO method with changing target
 		
-		// TODO method with changing parameter types (reference to primitive, primitive to reference)
-		
+		// method with changing target
+		expression = parser.parseExpression("#root.charAt(0)");
+		assertEquals('a',expression.getValue("abc"));
+		assertCanCompile(expression);
+		try {
+			expression.getValue(new Integer(42));
+			fail();
+		} catch (SpelEvaluationException see) {
+			// java.lang.Integer cannot be cast to java.lang.String
+			assertTrue(see.getCause() instanceof ClassCastException);
+		}		
 	}
 	
 	@Test
@@ -2089,6 +2230,8 @@ What to keep in mind for complete pass:
 		public static int _i = 0;
 		public static String _s = null;
 		
+		public Object obj = null;
+		
 		public String field = null;
 		
 		public void reset() {
@@ -2110,6 +2253,10 @@ What to keep in mind for complete pass:
 		public static long six() { return 3277700L; }
 		
 		public void seven(String toset) { s = toset; }
+//		public void seven(Number n) { s = n.toString(); }
+		
+		public void takeNumber(Number n) { s = n.toString(); }
+		public void takeString(String s) { this.s = s; }
 		public static void eight(String toset) { _s = toset; }
 		
 		public void nine(int toset) { i = toset; }
@@ -2153,6 +2300,54 @@ What to keep in mind for complete pass:
 		public static String getPlum() {
 			return "value4";
 		}
+	}
+	
+	public static class TestClass7 {
+		public static String property;
+		static {
+			String s = "UK 123";
+			StringTokenizer st = new StringTokenizer(s);
+			property = st.nextToken();
+		}
+		
+		public static void reset() {
+			String s = "UK 123";
+			StringTokenizer st = new StringTokenizer(s);
+			property = st.nextToken();
+		}
+		
+	}
+
+	public static class TestClass8 {
+		public int i;
+		public String s;
+		public double d;
+		public boolean z;
+		
+		public TestClass8(int i, String s, double d, boolean z) {
+			this.i = i;
+			this.s = s;
+			this.d = d;
+			this.z = z;
+		}
+		
+		public TestClass8() {
+			
+		}
+		
+		public TestClass8(Integer i) {
+			this.i = i;
+		}
+		
+		@SuppressWarnings("unused")
+		private TestClass8(String a, String b) {
+			this.s = a+b;
+		}
+	}
+	
+	@SuppressWarnings("unused")
+	private static class TestClass9 {
+		public TestClass9(int i) {}
 	}
 	
 }

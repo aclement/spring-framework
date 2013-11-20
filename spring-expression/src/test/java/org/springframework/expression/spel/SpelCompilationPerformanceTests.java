@@ -16,7 +16,6 @@
 
 package org.springframework.expression.spel;
 
-import org.junit.Before;
 import org.junit.Test;
 import org.springframework.expression.Expression;
 import org.springframework.expression.spel.standard.SpelCompiler;
@@ -34,16 +33,11 @@ import static org.junit.Assert.*;
 //@Ignore
 public class SpelCompilationPerformanceTests extends ExpressionTestCase {
 
-	int count = 1000000; // Number of evaluations that are timed in one run
+	int count = 50000; // Number of evaluations that are timed in one run
 	int iterations = 10; // Number of times to repeat 'count' evaluations (for averaging)
 	private final static boolean noisyTests = true;
 	
 	Expression expression;
-	
-	@Before
-	public void setup() {
-		SpelCompiler.reset();
-	}
 	
 	public static class Payload {
 		Two[] DR = new Two[]{new Two()};

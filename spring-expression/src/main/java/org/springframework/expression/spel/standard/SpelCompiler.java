@@ -18,7 +18,7 @@ package org.springframework.expression.spel.standard;
 import org.springframework.asm.*;
 import org.springframework.expression.Expression;
 import org.springframework.expression.spel.CompiledExpression;
-import org.springframework.expression.spel.ExpressionState;
+import org.springframework.expression.spel.SpelParserConfiguration;
 import org.springframework.expression.spel.ast.SpelNodeImpl;
 import org.springframework.util.ClassUtils;
 
@@ -29,29 +29,41 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * A SpelCompiler can generate a class that implements an expression. When an expression is
- * evaluated, the generated class for it will evaluate much faster than using the normal interpreted
- * route. The SpelCompiler is not currently handle all expression types but covers many 
+ * A SpelCompiler will take a regular parsed expression and create (and load) a class containing
+ * bytecode that does the same thing as that expression. The compiled form of an
+ * expression will evaluate far faster than the interpreted form.
+ * <p>
+ * The SpelCompiler is not currently handling all expression types but covers many 
  * of the common cases. The framework is extensible to cover more cases in the future. 
- * For absolute maximum speed there is no checking. Once an expression is evaluated once 
- * in interpreted mode it is suitable for compilation and that compiled version will base 
- * assumptions on what happened during the interpreted run (for example, if a particular type 
- * of data came from a map or a particular method was determined to be the getter for 
- * property access). This means if, on subsequent invocations of the compiled form, if 
- * any of that inferred information is no longer correct, the compiled form of the expression may fail.
+ * For absolute maximum speed there is *no checking* in the compiled code. The compiled
+ * version of the expression uses information learned during interpreted runs of the 
+ * expression when it generates the bytecode. For example if it knows that a particular
+ * property dereference always seems to return a Map then it will generate bytecode 
+ * that expects the result of the property dereference to be a Map. This ensures 
+ * maximal performance but should the dereference result in something other than a map,
+ * the compiled expression will fail - like a ClassCastException would occur if 
+ * passing types of an unexpected type in a regular Java program.
+ * <p>
+ * Due to the lack of checking there are likely some expressions that should
+ * never be compiled, for example if an expression is continuously dealing with different
+ * types of data. Due to these cases the compiler is something that must be selectively
+ * turned on for an associated SpelExpressionParser (through the {@link SpelParserConfiguration}
+ * object), it is not on by default.
+ * <p>
+ * Individual expressions can be compiled by calling <tt>SpelCompiler.compile(expression)</tt>.
  * 
  * @author Andy Clement
  */
 public class SpelCompiler implements Opcodes {
-	
-	public static int DEFAULT_HIT_COUNT_THRESHOLD = 100;
-	
-	public static boolean compilerActive = false;
-	public static boolean dumpCompiledExpression = true;
-	public static boolean verbose = true;
-	public static int hitCountThreshold = DEFAULT_HIT_COUNT_THRESHOLD;
 
-	// TODO verify not leaking classloaders!
+	public static int DEFAULT_INTERPRETED_COUNT_THRESHOLD = 100;
+	
+	// Once an expression is evaluated the threshold number of times, it will be a candidate for compilation
+	public static int interpretedCountThreshold = DEFAULT_INTERPRETED_COUNT_THRESHOLD;
+
+	public static boolean verbose = true;
+	
+	// TODO [spelcompiler] verify not leaking classloaders!
 	private static Map<ClassLoader,SpelCompiler> compilers = Collections.synchronizedMap(new WeakHashMap<ClassLoader,SpelCompiler>());
 	
 	private ChildClassLoader ccl;
@@ -59,28 +71,15 @@ public class SpelCompiler implements Opcodes {
 	// counter suffix for generated classes within this SpelCompiler instance
 	private int suffixId;
 	
-	static {
-		try {
-			String compilationFlag = System.getProperty("spel.compiler","false").toLowerCase();
-			if (compilationFlag.equals("true")) {
-				compilerActive = true;
-				System.out.println("SpelCompiler: switched ON");
-			}
-			String threshold = System.getProperty("spel.compiler.hitcount");
-			if (threshold!=null) {
-				DEFAULT_HIT_COUNT_THRESHOLD = Integer.parseInt(threshold);
-				hitCountThreshold = DEFAULT_HIT_COUNT_THRESHOLD;
-				System.out.println("SpelCompiler: threshold for compilation = "+DEFAULT_HIT_COUNT_THRESHOLD);
-			}
-			String verbose = System.getProperty("spel.compiler.verbose");
-			if (verbose!=null) {
-				SpelCompiler.verbose = verbose.equalsIgnoreCase("true");
-			}
-		} catch (Exception e) {
-			// security exception...
-		}
-	}
 	
+	
+	/**
+	 * Factory method for compiler instances. The returned SpelCompiler will
+	 * attach a class loader as the child of the default class loader and this
+	 * child will be used to load compiled expressions.
+	 *  
+	 * @return a SpelCompiler instance
+	 */
 	public static SpelCompiler getCompiler() {
 		ClassLoader classloader = ClassUtils.getDefaultClassLoader();
 		synchronized (compilers) {
@@ -93,12 +92,24 @@ public class SpelCompiler implements Opcodes {
 		}
 	}
 	
+	
 	private SpelCompiler(ClassLoader classloader) {
 		this.ccl = new ChildClassLoader(classloader);
 		this.suffixId = 1;
 	}
-		
-	public CompiledExpression compile(SpelNodeImpl expression, ExpressionState expressionState) {
+
+	/**
+	 * Attempt compilation of the supplied expression. A check is
+	 * made to see if it is compilable before compilation proceeds. The
+	 * check involves visiting all the nodes in the expression Ast and
+	 * ensuring enough state is known about them that bytecode can
+	 * be generated for them.
+	 * 
+	 * @param expression the expression to compile
+	 * @return an instance of the class implementing the compiled expression, or null
+	 * if compilation is not possible
+	 */
+	public CompiledExpression compile(SpelNodeImpl expression) {
 		if (expression.isCompilable()) {
 			if (verbose) {
 				System.out.println("SpEL: compiling "+expression.toStringAST());
@@ -116,7 +127,7 @@ public class SpelCompiler implements Opcodes {
 			}
 		} else {
 			if (verbose) {
-				System.out.println("SpEL: unable to compile "+expression.toString());
+				System.out.println("SpEL: unable to compile "+expression.toStringAST());
 			}
 		}
 		return null;
@@ -132,6 +143,7 @@ public class SpelCompiler implements Opcodes {
 	@SuppressWarnings("unchecked")
 	private Class<? extends CompiledExpression> createExpressionClass(SpelNodeImpl expressionToCompile) {
 		
+		// Create class outline 'spel/ExNNN extends org.springframework.expression.spel.CompiledExpression'
 		String clazzName = "spel/Ex"+getNextSuffix();		
 		ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS|ClassWriter.COMPUTE_FRAMES);
 		cw.visit(V1_5,ACC_PUBLIC,clazzName,null,"org/springframework/expression/spel/CompiledExpression",null);
@@ -146,71 +158,57 @@ public class SpelCompiler implements Opcodes {
 		mv.visitEnd();
 		
 		// Create getValue() method
-		mv = cw.visitMethod(ACC_PUBLIC, "getValue", "(Ljava/lang/Object;)Ljava/lang/Object;", null, new String[]{"org/springframework/expression/EvaluationException"});
+		mv = cw.visitMethod(ACC_PUBLIC, "getValue", "(Ljava/lang/Object;Lorg/springframework/expression/EvaluationContext;)Ljava/lang/Object;", null, 
+				new String[]{"org/springframework/expression/EvaluationException"});
 		mv.visitCode();
-			
+		
 		CodeFlow codeflow = new CodeFlow();
 		expressionToCompile.generateCode(mv,codeflow);
 		CodeFlow.boxIfNecessary(mv,codeflow.lastDescriptor());
-
 		if (codeflow.lastDescriptor() == "V") {
 			mv.visitInsn(ACONST_NULL);
 		}
 		mv.visitInsn(ARETURN);
 
-		mv.visitMaxs(0,0); // computed due to COMPUTE_MAXS
+		mv.visitMaxs(0,0); // not supplied due to COMPUTE_MAXS
 		mv.visitEnd();
 		cw.visitEnd();
 		byte[] data = cw.toByteArray();
-		if (dumpCompiledExpression) {
-			Utils.dump(expressionToCompile.toStringAST(),clazzName, data);
-		}
+		// TODO [spelcompiler] no dump!
+		Utils.dump(expressionToCompile.toStringAST(),clazzName, data);
 		Class<? extends CompiledExpression> clazz = (Class<? extends CompiledExpression>) ccl.defineClass(clazzName.replaceAll("/","."),data);
 		return clazz;
 	}
 	
 
 	/**
-	 * The ChildClassLoader will load the generated dispatchers and executors which change for each reload. Instances of this can be
-	 * discarded which will cause 'old' dispatchers/executors to be candidates for GC too (avoiding memory leaks when lots of reloads
-	 * occur).
+	 * ChildClassLoader loads the generated compiled expression classes
 	 */
 	public static class ChildClassLoader extends URLClassLoader {
 
 		private static URL[] NO_URLS = new URL[0];
-		private int definedCount = 0;
 
 		public ChildClassLoader(ClassLoader classloader) {
 			super(NO_URLS, classloader);
 		}
 
 		public Class<?> defineClass(String name, byte[] bytes) {
-			definedCount++;
 			return super.defineClass(name, bytes, 0, bytes.length);
 		}
 
-		public int getDefinedCount() {
-			return definedCount;
-		}
-
 	}
 
-	public static void reset() {
-		compilerActive=false;
-		hitCountThreshold=DEFAULT_HIT_COUNT_THRESHOLD;
-	}
 	
 	/**
 	 * Request that an attempt is made to compile the specified expression. It may fail if components
 	 * of the expression are not suitable for compilation or the data types involved are not suitable
-	 * for compilation. 
+	 * for compilation.
 	 * @return true if the expression was successfully compiled
 	 */
 	public static boolean compile(Expression expression) {
 		if (expression instanceof SpelExpression) {
 			SpelExpression spelExpression = (SpelExpression)expression;
-			spelExpression.compiledAst = SpelCompiler.getCompiler().compile((SpelNodeImpl)spelExpression.getAST(), null);
-			return spelExpression.compiledAst !=null;
+			return spelExpression.compileExpression();
 		}
 		return false;
 	}
@@ -222,7 +220,7 @@ public class SpelCompiler implements Opcodes {
 	public static void revertToInterpreted(Expression expression) {
 		if (expression instanceof SpelExpression) {
 			SpelExpression spelExpression = (SpelExpression)expression;
-			spelExpression.compiledAst = null;
+			spelExpression.revertToInterpreted();
 		}
 	}
 }

@@ -32,7 +32,7 @@ import org.springframework.util.ReflectionUtils;
  * @author Juergen Hoeller
  * @since 3.0
  */
-class ReflectiveConstructorExecutor implements ConstructorExecutor {
+public class ReflectiveConstructorExecutor implements ConstructorExecutor {
 
 	private final Constructor<?> ctor;
 
@@ -41,7 +41,6 @@ class ReflectiveConstructorExecutor implements ConstructorExecutor {
 	// When the constructor was found, we will have determined if arguments need to be converted for it
 	// to be invoked. Conversion won't be cheap so let's only do it if necessary.
 	private final int[] argsRequiringConversion;
-
 
 	public ReflectiveConstructorExecutor(Constructor<?> ctor, int[] argsRequiringConversion) {
 		this.ctor = ctor;
@@ -71,6 +70,10 @@ class ReflectiveConstructorExecutor implements ConstructorExecutor {
 		catch (Exception ex) {
 			throw new AccessException("Problem invoking constructor: " + this.ctor, ex);
 		}
+	}
+
+	public Constructor<?> getConstructor() {
+		return this.ctor;
 	}
 
 }

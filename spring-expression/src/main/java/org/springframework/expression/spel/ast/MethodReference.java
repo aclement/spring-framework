@@ -354,9 +354,12 @@ public class MethodReference extends SpelNodeImpl {
 		}
 		ReflectiveMethodExecutor executor = (ReflectiveMethodExecutor) this.cachedExecutor.get();
 		Method method = executor.getMethod();
-		if (method.isVarArgs()) {
+		if (!Modifier.isPublic(method.getModifiers()) || !Modifier.isPublic(method.getDeclaringClass().getModifiers())) {
 			return false;
 		}
+		if (method.isVarArgs()) {
+			return false;
+		}		
 		if (executor.didArgumentConversionOccur()) {
 			return false;
 		}
@@ -380,15 +383,24 @@ public class MethodReference extends SpelNodeImpl {
 				mv.visitTypeInsn(CHECKCAST, method.getDeclaringClass().getName().replace('.','/'));
 			}
 		}
-		
+		String[] paramDescriptors = CodeFlow.toParamDescriptors(method);
 		for (int c=0;c<children.length;c++) {
 			SpelNodeImpl child = children[c];
 			codeflow.enterCompilationScope();
 			child.generateCode(mv, codeflow);
+			// Check if need to box it for the method reference?
+			if (CodeFlow.isPrimitive(codeflow.lastDescriptor()) && (paramDescriptors[c].charAt(0)=='L')) {
+				CodeFlow.insertBoxInsns(mv, codeflow.lastDescriptor().charAt(0));
+			}
+			else if (!codeflow.lastDescriptor().equals(paramDescriptors[c])) {
+				// This would be unnecessary in the case of subtyping (e.g. method takes a Number but passed in is an Integer)
+				CodeFlow.insertCheckCast(mv, paramDescriptors[c]);
+			}
 			codeflow.exitCompilationScope();
 		}
 		mv.visitMethodInsn(isStaticMethod?INVOKESTATIC:INVOKEVIRTUAL,methodDeclaringClassSlashedDescriptor,method.getName(),CodeFlow.createDescriptor(method));
 		codeflow.pushDescriptor(exitTypeDescriptor);
 	}
+	
 
 }

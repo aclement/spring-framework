@@ -112,7 +112,7 @@ public class ReflectivePropertyAccessor implements PropertyAccessor {
 		}
 		Class<?> type = (target instanceof Class ? (Class<?>) target : target.getClass());
 
-		// TODO spel compiler dealing with this length special?
+		// TODO [spelcompiler] spel compiler dealing with this length special?
 		if (type.isArray() && name.equals("length")) {
 			if (target instanceof Class) {
 				throw new AccessException("Cannot access length on array class itself");
