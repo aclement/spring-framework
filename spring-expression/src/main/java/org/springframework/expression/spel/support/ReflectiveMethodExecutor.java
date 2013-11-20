@@ -31,7 +31,7 @@ import org.springframework.util.ReflectionUtils;
  * @author Juergen Hoeller
  * @since 3.0
  */
-class ReflectiveMethodExecutor implements MethodExecutor {
+public class ReflectiveMethodExecutor implements MethodExecutor {
 
 	private final Method method;
 
@@ -40,7 +40,12 @@ class ReflectiveMethodExecutor implements MethodExecutor {
 	// When the method was found, we will have determined if arguments need to be converted for it
 	// to be invoked. Conversion won't be cheap so let's only do it if necessary.
 	private final int[] argsRequiringConversion;
+	
+	private boolean argumentConversionOccurred = false;
 
+	public Method getMethod() {
+		return this.method;
+	}
 
 	public ReflectiveMethodExecutor(Method theMethod, int[] argumentsRequiringConversion) {
 		this.method = theMethod;
@@ -53,13 +58,17 @@ class ReflectiveMethodExecutor implements MethodExecutor {
 		}
 		this.argsRequiringConversion = argumentsRequiringConversion;
 	}
+	
+	public boolean didArgumentConversionOccur() {
+		return this.argumentConversionOccurred;
+	}
 
 
 	@Override
 	public TypedValue execute(EvaluationContext context, Object target, Object... arguments) throws AccessException {
 		try {
 			if (arguments != null) {
-				ReflectionHelper.convertArguments(
+				this.argumentConversionOccurred = ReflectionHelper.convertArguments(
 						context.getTypeConverter(), arguments, this.method,
 						this.argsRequiringConversion, this.varargsPosition);
 			}

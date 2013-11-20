@@ -16,10 +16,13 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.Operation;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
+import org.springframework.expression.spel.standard.CodeFlow;
+import org.springframework.expression.spel.standard.Utils;
 
 /**
  * Implements division operator.
@@ -43,20 +46,77 @@ public class OpDivide extends Operator {
 			Number op1 = (Number) operandOne;
 			Number op2 = (Number) operandTwo;
 			if (op1 instanceof Double || op2 instanceof Double) {
+				if (op1 instanceof Double && op2 instanceof Double) {
+					this.exitTypeDescriptor = "D";
+				}
 				return new TypedValue(op1.doubleValue() / op2.doubleValue());
 			}
 			else if (op1 instanceof Float || op2 instanceof Float) {
+				if (op1 instanceof Float && op2 instanceof Float) {
+					this.exitTypeDescriptor = "F";
+				}
 				return new TypedValue(op1.floatValue() / op2.floatValue());
 			}
 			else if (op1 instanceof Long || op2 instanceof Long) {
+				if (op1 instanceof Long && op2 instanceof Long) {
+					this.exitTypeDescriptor = "J";
+				}
 				return new TypedValue(op1.longValue() / op2.longValue());
 			}
 			else {
+				if (op1 instanceof Integer && op2 instanceof Integer) {
+					this.exitTypeDescriptor = "I";
+				}
 				// TODO what about non-int result of the division?
 				return new TypedValue(op1.intValue() / op2.intValue());
 			}
 		}
 		return state.operate(Operation.DIVIDE, operandOne, operandTwo);
+	}
+	
+	@Override
+	public boolean isCompilable() {
+		if (!getLeftOperand().isCompilable()) {
+			return false;
+		}
+		if (this.children.length>1) {
+			 if (!getRightOperand().isCompilable()) {
+				 return false;
+			 }
+		}
+		return this.exitTypeDescriptor!=null;
+	}
+	
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		getLeftOperand().generateCode(mv, codeflow);
+		String leftdesc = getLeftOperand().getExitDescriptor();
+		if (!CodeFlow.isPrimitive(leftdesc)) {
+			Utils.insertUnboxInsns(mv, this.exitTypeDescriptor.charAt(0), false);
+		}
+		if (this.children.length>1) {
+			getRightOperand().generateCode(mv, codeflow);
+			String rightdesc = getRightOperand().getExitDescriptor();
+			if (!CodeFlow.isPrimitive(rightdesc)) {
+				Utils.insertUnboxInsns(mv, this.exitTypeDescriptor.charAt(0), false);
+			}
+			switch (this.exitTypeDescriptor.charAt(0)) {
+				case 'I':
+					mv.visitInsn(IDIV);
+					break;
+				case 'J':
+					mv.visitInsn(LDIV);
+					break;
+				case 'F': 
+					mv.visitInsn(FDIV);
+					break;
+				case 'D':
+					mv.visitInsn(DDIV);
+					break;				
+				default:
+					throw new IllegalStateException("Unrecognized exit descriptor: '"+this.exitTypeDescriptor+"'");			
+			}
+		}
+		codeflow.pushDescriptor(this.exitTypeDescriptor);
 	}
 
 }

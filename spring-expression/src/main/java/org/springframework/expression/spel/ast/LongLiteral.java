@@ -16,7 +16,9 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.TypedValue;
+import org.springframework.expression.spel.standard.CodeFlow;
 
 /**
  * Expression language AST node that represents a long integer literal.
@@ -32,12 +34,23 @@ public class LongLiteral extends Literal {
 	LongLiteral(String payload, int pos, long value) {
 		super(payload, pos);
 		this.value = new TypedValue(value);
+		this.exitTypeDescriptor = "J";
 	}
-
 
 	@Override
 	public TypedValue getLiteralValue() {
 		return this.value;
+	}
+	
+	@Override
+	public boolean isCompilable() {
+		return true;
+	}
+	
+	@Override
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		mv.visitLdcInsn(this.value.getValue());
+		codeflow.pushDescriptor(getExitDescriptor());
 	}
 
 }

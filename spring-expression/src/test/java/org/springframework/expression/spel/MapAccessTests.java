@@ -71,6 +71,7 @@ public class MapAccessTests extends ExpressionTestCase {
 		assertEquals("samstag", value);
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testGetValue(){
 

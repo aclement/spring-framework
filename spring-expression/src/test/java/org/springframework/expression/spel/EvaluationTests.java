@@ -58,7 +58,7 @@ import org.springframework.expression.spel.testresources.TestPerson;
  * @since 3.0
  */
 public class EvaluationTests extends ExpressionTestCase {
-
+	
 	@Test
 	public void testCreateListsOnAttemptToIndexNull01() throws EvaluationException, ParseException {
 		ExpressionParser parser = new SpelExpressionParser(new SpelParserConfiguration(true, true));
@@ -585,7 +585,7 @@ public class EvaluationTests extends ExpressionTestCase {
 		exp = parser.parseExpression("NuLl");
 		assertNull(exp.getValue());
 	}
-
+	
 	/**
 	 * Verifies behavior requested in SPR-9621.
 	 */

@@ -16,6 +16,11 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.Label;
+import org.springframework.asm.MethodVisitor;
+import org.springframework.expression.spel.standard.CodeFlow;
+import org.springframework.expression.spel.standard.Utils;
+
 /**
  * Common supertype for operators that operate on either one or two operands. In the case
  * of multiply or divide there would be two operands, but for unary plus or minus, there
@@ -63,4 +68,74 @@ public abstract class Operator extends SpelNodeImpl {
 		return sb.toString();
 	}
 
+	protected boolean isCompilableOperatorUsingNumerics() {
+		SpelNodeImpl left = getLeftOperand();
+		SpelNodeImpl right= getRightOperand();
+		if (!left.isCompilable() || !right.isCompilable()) {
+			return false;
+		}
+		// Supported operand types for equals (at the moment)
+		String leftDesc = left.getExitDescriptor();
+		String rightDesc= right.getExitDescriptor();
+		if (CodeFlow.isPrimitiveOrUnboxableSupportedNumber(leftDesc) && CodeFlow.isPrimitiveOrUnboxableSupportedNumber(rightDesc)) {
+			if (CodeFlow.boxingCompatible(leftDesc, rightDesc)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+
+	/** 
+	 * Numeric comparison operators share very similar generated code, only differing in 
+	 * two comparison instructions.
+	 */
+	protected void generateComparisonCode(MethodVisitor mv, CodeFlow codeflow, int compareInstruction1,
+			int compareInstruction2) {
+		String leftDesc = getLeftOperand().getExitDescriptor();
+		String rightDesc = getRightOperand().getExitDescriptor();
+		
+		boolean unboxLeft = !CodeFlow.isPrimitive(leftDesc);
+		boolean unboxRight = !CodeFlow.isPrimitive(rightDesc);
+		char targetType = CodeFlow.toPrimitiveTargetDesc(leftDesc);
+		
+		getLeftOperand().generateCode(mv, codeflow);
+		if (unboxLeft) {
+			Utils.insertUnboxInsns(mv, targetType, false);
+		}
+	
+		getRightOperand().generateCode(mv, codeflow);
+		if (unboxRight) {
+			Utils.insertUnboxInsns(mv, targetType, false);
+		}
+		// assert: SpelCompiler.boxingCompatible(leftDesc, rightDesc)
+		Label elseTarget = new Label();
+		Label endOfIf = new Label();
+		if (targetType=='D') {
+			mv.visitInsn(DCMPG);
+			mv.visitJumpInsn(compareInstruction1, elseTarget);
+		}
+		else if (targetType=='F') {
+			mv.visitInsn(FCMPG);		
+			mv.visitJumpInsn(compareInstruction1, elseTarget);
+		}
+		else if (targetType=='J') {
+			mv.visitInsn(LCMP);		
+			mv.visitJumpInsn(compareInstruction1, elseTarget);
+		}
+		else if (targetType=='I') {
+			mv.visitJumpInsn(compareInstruction2, elseTarget);		
+		}
+		else {
+			throw new IllegalStateException("Unexpected descriptor "+leftDesc);
+		}
+		// Other numbers are not yet supported (isCompilable will not have returned true)
+		mv.visitInsn(ICONST_1);
+		mv.visitJumpInsn(GOTO,endOfIf);
+		mv.visitLabel(elseTarget);
+		mv.visitInsn(ICONST_0);
+		mv.visitLabel(endOfIf);
+		codeflow.pushDescriptor("Z");	
+	}
+	
 }

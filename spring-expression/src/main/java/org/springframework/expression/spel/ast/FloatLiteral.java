@@ -16,12 +16,15 @@
 
 package org.springframework.expression.spel.ast;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.TypedValue;
+import org.springframework.expression.spel.standard.CodeFlow;
 
 /**
  * Expression language AST node that represents a float literal.
  *
  * @author Satyapal Reddy
+ * @author Andy Clement
  * @since 3.2
  */
 public class FloatLiteral extends Literal {
@@ -31,11 +34,23 @@ public class FloatLiteral extends Literal {
 	FloatLiteral(String payload, int pos, float value) {
 		super(payload, pos);
 		this.value = new TypedValue(value);
+		this.exitTypeDescriptor = "F";
 	}
 
 
 	@Override
 	public TypedValue getLiteralValue() {
 		return this.value;
+	}
+
+	@Override
+	public boolean isCompilable() {
+		return true;
+	}
+	
+	@Override
+	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
+		mv.visitLdcInsn(this.value.getValue());
+		codeflow.pushDescriptor(getExitDescriptor());
 	}
 }

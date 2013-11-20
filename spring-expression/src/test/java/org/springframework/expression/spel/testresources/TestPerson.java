@@ -3,6 +3,14 @@ package org.springframework.expression.spel.testresources;
 public class TestPerson {
 		private String name;
 		private TestAddress address;
+		
+		public TestPerson() {
+			this("Santa Claus");
+		}
+		
+		public TestPerson(String name) {
+			this.name = name;
+		}
 
 		public String getName() {
 			return name;

@@ -16,11 +16,16 @@
 
 package org.springframework.expression.spel.ast;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.asm.MethodVisitor;
 import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.AccessException;
 import org.springframework.expression.EvaluationContext;
@@ -30,6 +35,7 @@ import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
+import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.support.ReflectivePropertyAccessor;
 
 /**
@@ -66,7 +72,6 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 		return this.name;
 	}
 
-
 	@Override
 	public ValueRef getValueRef(ExpressionState state) throws EvaluationException {
 		return new AccessorLValue(this, state.getActiveContextObject(), state.getEvaluationContext(),
@@ -75,14 +80,40 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 
 	@Override
 	public TypedValue getValueInternal(ExpressionState state) throws EvaluationException {
-		return getValueInternal(state.getActiveContextObject(), state.getEvaluationContext(),
-				state.getConfiguration().isAutoGrowNullReferences());
+		TypedValue tv = getValueInternal(state.getActiveContextObject(), state.getEvaluationContext(), state.getConfiguration().isAutoGrowNullReferences());
+		if (cachedReadAccessor instanceof ReflectivePropertyAccessor.OptimalPropertyAccessor) {
+			ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)cachedReadAccessor;
+			Member member = accessor.member;
+			if (member instanceof Field) {
+				exitTypeDescriptor = CodeFlow.toDescriptor(((Field)member).getType());
+			} else {
+				exitTypeDescriptor = CodeFlow.toDescriptor(((Method)member).getReturnType());
+			}
+		}
+		return tv;
+	}
+
+	@Override
+	public String getExitDescriptor() {
+//		if (this.exitTypeDescriptor == null) {
+//			if (this.cachedReadAccessor instanceof ReflectivePropertyAccessor.OptimalPropertyAccessor) {
+//				ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor;
+//				Member member = accessor.member;
+//				if (member instanceof Field) {
+//					exitTypeDescriptor = SpelCompiler.toDescriptor(((Field)member).getType());
+//				} else {
+//					exitTypeDescriptor = SpelCompiler.toDescriptor(((Method)member).getReturnType());
+//				}
+//			}
+//		}
+		return exitTypeDescriptor;
 	}
 
 	private TypedValue getValueInternal(TypedValue contextObject, EvaluationContext eContext,
 			boolean isAutoGrowNullReferences) throws EvaluationException {
 
 		TypedValue result = readProperty(contextObject, eContext, this.name);
+		
 
 		// Dynamically create the objects if the user has requested that optional behavior
 		if (result.getValue() == null && isAutoGrowNullReferences &&
@@ -321,6 +352,54 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 		resolvers.addAll(generalAccessors);
 		return resolvers;
 	}
+	
+	@Override
+	public boolean isCompilable() {
+		if (this.cachedReadAccessor == null || 
+				!(this.cachedReadAccessor instanceof ReflectivePropertyAccessor.OptimalPropertyAccessor)) {
+			return false;
+		};
+		Member member = ((ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor).member;
+		System.out.println("Member "+member+"  m="+Integer.toHexString(member.getModifiers())+" c="+Integer.toHexString(member.getDeclaringClass().getModifiers()));
+		if (!Modifier.isPublic(member.getModifiers()) || !Modifier.isPublic(member.getDeclaringClass().getModifiers())) {
+			System.out.println("Not public "+member);
+			return false;
+		}
+		// TODO [spelcompiler] sufficient condition checking here?
+		return true;
+	}
+	
+	// TODO [spelcompiler] needstarget used?
+	@Override
+	public boolean needsTarget() {
+		ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor;
+		Member member = accessor.member;
+		return !Modifier.isStatic(member.getModifiers());
+	}
+	
+	@Override
+	public void generateCode(MethodVisitor mv,CodeFlow codeflow) {
+		ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor;
+		Member member = accessor.member;
+		boolean isStatic = Modifier.isStatic(member.getModifiers());
+
+		String descriptor = codeflow.lastDescriptor();
+		String memberDeclaringClassSlashedDescriptor = member.getDeclaringClass().getName().replace('.','/');
+		if (!isStatic) {
+			if (descriptor == null) {
+				codeflow.loadTarget(mv);
+			}
+			if (descriptor == null || !memberDeclaringClassSlashedDescriptor.equals(descriptor.substring(1))) {
+				mv.visitTypeInsn(CHECKCAST, memberDeclaringClassSlashedDescriptor);
+			}
+		}
+		if (member instanceof Field) {
+			mv.visitFieldInsn(isStatic?GETSTATIC:GETFIELD,memberDeclaringClassSlashedDescriptor,member.getName(),CodeFlow.getDescriptor(((Field) member).getType()));
+		} else {
+			mv.visitMethodInsn(isStatic?INVOKESTATIC:INVOKEVIRTUAL, memberDeclaringClassSlashedDescriptor, member.getName(),CodeFlow.createDescriptor((Method)member));
+		}
+		codeflow.pushDescriptor(exitTypeDescriptor);
+	}
 
 
 	private static class AccessorLValue implements ValueRef {
@@ -343,7 +422,17 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 
 		@Override
 		public TypedValue getValue() {
-			return this.ref.getValueInternal(this.contextObject, this.eContext, this.autoGrowNullReferences);
+			TypedValue value = this.ref.getValueInternal(this.contextObject, this.eContext, this.autoGrowNullReferences);
+			if (ref.cachedReadAccessor instanceof ReflectivePropertyAccessor.OptimalPropertyAccessor) {
+				ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.ref.cachedReadAccessor;
+				Member member = accessor.member;
+				if (member instanceof Field) {
+					this.ref.exitTypeDescriptor = CodeFlow.toDescriptor(((Field)member).getType());
+				} else {
+					this.ref.exitTypeDescriptor = CodeFlow.toDescriptor(((Method)member).getReturnType());
+				}
+			}
+			return value;
 		}
 
 		@Override
