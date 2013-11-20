@@ -360,9 +360,7 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 			return false;
 		};
 		Member member = ((ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor).member;
-		System.out.println("Member "+member+"  m="+Integer.toHexString(member.getModifiers())+" c="+Integer.toHexString(member.getDeclaringClass().getModifiers()));
 		if (!Modifier.isPublic(member.getModifiers()) || !Modifier.isPublic(member.getDeclaringClass().getModifiers())) {
-			System.out.println("Not public "+member);
 			return false;
 		}
 		// TODO [spelcompiler] sufficient condition checking here?
