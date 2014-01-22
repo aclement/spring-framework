@@ -28,6 +28,7 @@ import java.util.Map;
 import org.springframework.asm.MethodVisitor;
 import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.AccessException;
+import org.springframework.expression.CompilablePropertyAccessor;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.PropertyAccessor;
@@ -81,14 +82,15 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 	@Override
 	public TypedValue getValueInternal(ExpressionState state) throws EvaluationException {
 		TypedValue tv = getValueInternal(state.getActiveContextObject(), state.getEvaluationContext(), state.getConfiguration().isAutoGrowNullReferences());
-		if (cachedReadAccessor instanceof ReflectivePropertyAccessor.OptimalPropertyAccessor) {
-			ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)cachedReadAccessor;
-			Member member = accessor.member;
-			if (member instanceof Field) {
-				exitTypeDescriptor = CodeFlow.toDescriptor(((Field)member).getType());
-			} else {
-				exitTypeDescriptor = CodeFlow.toDescriptor(((Method)member).getReturnType());
-			}
+		if (cachedReadAccessor instanceof CompilablePropertyAccessor) {
+			CompilablePropertyAccessor accessor = (CompilablePropertyAccessor)cachedReadAccessor;
+			exitTypeDescriptor = CodeFlow.toDescriptor(accessor.getPropertyType());
+//			Member member = accessor.member;
+//			if (member instanceof Field) {
+//				exitTypeDescriptor = CodeFlow.toDescriptor(((Field)member).getType());
+//			} else {
+//				exitTypeDescriptor = CodeFlow.toDescriptor(((Method)member).getReturnType());
+//			}
 		}
 		return tv;
 	}
@@ -355,47 +357,18 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 	
 	@Override
 	public boolean isCompilable() {
-		if (this.cachedReadAccessor == null || 
-				!(this.cachedReadAccessor instanceof ReflectivePropertyAccessor.OptimalPropertyAccessor)) {
-			return false;
-		};
-		Member member = ((ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor).member;
-		if (!Modifier.isPublic(member.getModifiers()) || !Modifier.isPublic(member.getDeclaringClass().getModifiers())) {
+		if (this.cachedReadAccessor == null) {
 			return false;
 		}
-		// TODO [spelcompiler] sufficient condition checking here?
-		return true;
-	}
-	
-	// TODO [spelcompiler] needstarget used?
-	@Override
-	public boolean needsTarget() {
-		ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor;
-		Member member = accessor.member;
-		return !Modifier.isStatic(member.getModifiers());
+		if (this.cachedReadAccessor instanceof CompilablePropertyAccessor) {
+			return ((CompilablePropertyAccessor)this.cachedReadAccessor).isCompilable();
+		}
+		return false;
 	}
 	
 	@Override
 	public void generateCode(MethodVisitor mv,CodeFlow codeflow) {
-		ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.cachedReadAccessor;
-		Member member = accessor.member;
-		boolean isStatic = Modifier.isStatic(member.getModifiers());
-
-		String descriptor = codeflow.lastDescriptor();
-		String memberDeclaringClassSlashedDescriptor = member.getDeclaringClass().getName().replace('.','/');
-		if (!isStatic) {
-			if (descriptor == null) {
-				codeflow.loadTarget(mv);
-			}
-			if (descriptor == null || !memberDeclaringClassSlashedDescriptor.equals(descriptor.substring(1))) {
-				mv.visitTypeInsn(CHECKCAST, memberDeclaringClassSlashedDescriptor);
-			}
-		}
-		if (member instanceof Field) {
-			mv.visitFieldInsn(isStatic?GETSTATIC:GETFIELD,memberDeclaringClassSlashedDescriptor,member.getName(),CodeFlow.getDescriptor(((Field) member).getType()));
-		} else {
-			mv.visitMethodInsn(isStatic?INVOKESTATIC:INVOKEVIRTUAL, memberDeclaringClassSlashedDescriptor, member.getName(),CodeFlow.createDescriptor((Method)member));
-		}
+		((CompilablePropertyAccessor)this.cachedReadAccessor).generateCode(this, mv, codeflow);
 		codeflow.pushDescriptor(exitTypeDescriptor);
 	}
 
@@ -421,14 +394,15 @@ public class PropertyOrFieldReference extends SpelNodeImpl {
 		@Override
 		public TypedValue getValue() {
 			TypedValue value = this.ref.getValueInternal(this.contextObject, this.eContext, this.autoGrowNullReferences);
-			if (ref.cachedReadAccessor instanceof ReflectivePropertyAccessor.OptimalPropertyAccessor) {
-				ReflectivePropertyAccessor.OptimalPropertyAccessor accessor = (ReflectivePropertyAccessor.OptimalPropertyAccessor)this.ref.cachedReadAccessor;
-				Member member = accessor.member;
-				if (member instanceof Field) {
-					this.ref.exitTypeDescriptor = CodeFlow.toDescriptor(((Field)member).getType());
-				} else {
-					this.ref.exitTypeDescriptor = CodeFlow.toDescriptor(((Method)member).getReturnType());
-				}
+			if (ref.cachedReadAccessor instanceof CompilablePropertyAccessor) {
+				CompilablePropertyAccessor accessor = (CompilablePropertyAccessor)this.ref.cachedReadAccessor;
+				this.ref.exitTypeDescriptor = CodeFlow.toDescriptor(accessor.getPropertyType());
+//				Member member = accessor.member;
+//				if (member instanceof Field) {
+//					this.ref.exitTypeDescriptor = CodeFlow.toDescriptor(((Field)member).getType());
+//				} else {
+//					this.ref.exitTypeDescriptor = CodeFlow.toDescriptor(((Method)member).getReturnType());
+//				}
 			}
 			return value;
 		}

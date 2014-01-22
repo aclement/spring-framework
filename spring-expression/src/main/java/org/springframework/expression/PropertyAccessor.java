@@ -16,6 +16,9 @@
 
 package org.springframework.expression;
 
+import org.springframework.asm.MethodVisitor;
+import org.springframework.expression.spel.standard.CodeFlow;
+
 
 /**
  * A property accessor is able to read (and possibly write) to object properties. The

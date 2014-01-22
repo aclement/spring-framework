@@ -196,10 +196,6 @@ public abstract class SpelNodeImpl implements SpelNode, Opcodes {
 		return false;
 	}
 
-	public boolean needsTarget() {
-		return false;
-	}
-
 	/**
 	 * Generate the bytecode for this node into the supplied visitor. Context info about
 	 * the current expression being compiled is available in the codeflow object. For
