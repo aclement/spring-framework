@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,12 @@ package org.springframework.context.annotation;
 
 import java.io.FileNotFoundException;
 import java.util.Iterator;
-
 import javax.inject.Inject;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
 import org.springframework.beans.factory.BeanDefinitionStoreException;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.MutablePropertySources;
@@ -125,18 +125,6 @@ public class PropertySourceAnnotationTests {
 	}
 
 	/**
-	 * Corner bug reported in SPR-9127.
-	 */
-	@Test
-	public void withNameAndMultipleResourceLocations() {
-		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
-		ctx.register(ConfigWithNameAndMultipleResourceLocations.class);
-		ctx.refresh();
-		assertThat(ctx.getEnvironment().containsProperty("from.p1"), is(true));
-		assertThat(ctx.getEnvironment().containsProperty("from.p2"), is(true));
-	}
-
-	/**
 	 * SPR-10820
 	 */
 	@Test
@@ -153,6 +141,24 @@ public class PropertySourceAnnotationTests {
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
 		ctx.register(ConfigWithEmptyResourceLocations.class);
 		ctx.refresh();
+	}
+
+	@Test
+	public void withNameAndMultipleResourceLocations() {
+		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(ConfigWithNameAndMultipleResourceLocations.class);
+		assertThat(ctx.getEnvironment().containsProperty("from.p1"), is(true));
+		assertThat(ctx.getEnvironment().containsProperty("from.p2"), is(true));
+		// p2 should 'win' as it was registered last
+		assertThat(ctx.getEnvironment().getProperty("testbean.name"), equalTo("p2TestBean"));
+	}
+
+	@Test
+	public void withMultipleResourceLocations() {
+		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(ConfigWithMultipleResourceLocations.class);
+		assertThat(ctx.getEnvironment().containsProperty("from.p1"), is(true));
+		assertThat(ctx.getEnvironment().containsProperty("from.p2"), is(true));
+		// p2 should 'win' as it was registered last
+		assertThat(ctx.getEnvironment().getProperty("testbean.name"), equalTo("p2TestBean"));
 	}
 
 	@Test
@@ -250,6 +256,7 @@ public class PropertySourceAnnotationTests {
 	static class ConfigWithNameAndMultipleResourceLocations {
 	}
 
+
 	@Configuration
 	@PropertySource(
 			value = {
@@ -268,6 +275,7 @@ public class PropertySourceAnnotationTests {
 	static class ConfigWithPropertySources {
 	}
 
+
 	@Configuration
 	@PropertySources({
 		@PropertySource(name = "psName", value="classpath:org/springframework/context/annotation/p1.properties"),
@@ -282,13 +290,16 @@ public class PropertySourceAnnotationTests {
 	@PropertySources({
 		@PropertySource(name = "psName", value="classpath:org/springframework/context/annotation/p1.properties"),
 		@PropertySource(name = "psName", value="classpath:org/springframework/context/annotation/missing.properties", ignoreResourceNotFound=true),
+		@PropertySource(name = "psName", value="classpath:${myPath}/missing.properties", ignoreResourceNotFound=true),
 		@PropertySource(name = "psName", value="classpath:org/springframework/context/annotation/p2.properties")
 	})
 	static class ConfigWithIgnoredPropertySource {
 	}
 
+
 	@Configuration
 	@PropertySource(value = {})
 	static class ConfigWithEmptyResourceLocations {
 	}
+
 }

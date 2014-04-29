@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,15 +26,14 @@ import org.junit.runners.Parameterized;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.socket.adapter.TextWebSocketHandlerAdapter;
-import org.springframework.web.socket.adapter.WebSocketHandlerAdapter;
-import org.springframework.web.socket.client.endpoint.StandardWebSocketClient;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
+import org.springframework.web.socket.handler.AbstractWebSocketHandler;
+import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.client.jetty.JettyWebSocketClient;
-import org.springframework.web.socket.server.DefaultHandshakeHandler;
-import org.springframework.web.socket.server.config.EnableWebSocket;
-import org.springframework.web.socket.server.config.WebSocketConfigurer;
-import org.springframework.web.socket.server.config.WebSocketHandlerRegistry;
-import org.springframework.web.socket.support.WebSocketHttpHeaders;
+import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
+import org.springframework.web.socket.config.annotation.EnableWebSocket;
+import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
+import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
 import static org.junit.Assert.*;
 
@@ -50,7 +49,8 @@ public class WebSocketIntegrationTests extends  AbstractWebSocketIntegrationTest
 	public static Iterable<Object[]> arguments() {
 		return Arrays.asList(new Object[][]{
 				{new JettyWebSocketTestServer(), new JettyWebSocketClient()},
-				{new TomcatWebSocketTestServer(), new StandardWebSocketClient()}
+				{new TomcatWebSocketTestServer(), new StandardWebSocketClient()},
+				{new UndertowTestServer(), new JettyWebSocketClient()}
 		});
 	};
 
@@ -67,7 +67,7 @@ public class WebSocketIntegrationTests extends  AbstractWebSocketIntegrationTest
 		headers.setSecWebSocketProtocol("foo");
 
 		WebSocketSession session = this.webSocketClient.doHandshake(
-				new WebSocketHandlerAdapter(), headers, new URI(getWsBaseUrl() + "/ws")).get();
+				new AbstractWebSocketHandler() {}, headers, new URI(getWsBaseUrl() + "/ws")).get();
 
 		assertEquals("foo", session.getAcceptedProtocol());
 	}
@@ -92,7 +92,7 @@ public class WebSocketIntegrationTests extends  AbstractWebSocketIntegrationTest
 		}
 	}
 
-	private static class TestServerWebSocketHandler extends TextWebSocketHandlerAdapter {
+	private static class TestServerWebSocketHandler extends TextWebSocketHandler {
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import org.springframework.asm.Type;
 import org.springframework.core.annotation.AnnotationAttributes;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.MethodMetadata;
-import org.springframework.util.CollectionUtils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
@@ -42,19 +41,26 @@ import org.springframework.util.MultiValueMap;
  * @author Mark Fisher
  * @author Costin Leau
  * @author Phillip Webb
+ * @author Sam Brannen
  * @since 2.5
  */
 public class AnnotationMetadataReadingVisitor extends ClassMetadataReadingVisitor implements AnnotationMetadata {
 
 	protected final ClassLoader classLoader;
 
-	protected final Set<String> annotationSet = new LinkedHashSet<String>();
+	protected final Set<String> annotationSet = new LinkedHashSet<String>(4);
 
 	protected final Map<String, Set<String>> metaAnnotationMap = new LinkedHashMap<String, Set<String>>(4);
 
-	protected final MultiValueMap<String, AnnotationAttributes> attributeMap = new LinkedMultiValueMap<String, AnnotationAttributes>(4);
+	/**
+	 * Declared as a {@link LinkedMultiValueMap} instead of a {@link MultiValueMap}
+	 * to ensure that the hierarchical ordering of the entries is preserved.
+	 * @see AnnotationReadingVisitorUtils#getMergedAnnotationAttributes(LinkedMultiValueMap, String)
+	 */
+	protected final LinkedMultiValueMap<String, AnnotationAttributes> attributesMap = new LinkedMultiValueMap<String, AnnotationAttributes>(
+		4);
 
-	protected final MultiValueMap<String, MethodMetadata> methodMetadataMap = new LinkedMultiValueMap<String, MethodMetadata>();
+	protected final Set<MethodMetadata> methodMetadataSet = new LinkedHashSet<MethodMetadata>(4);
 
 
 	public AnnotationMetadataReadingVisitor(ClassLoader classLoader) {
@@ -64,14 +70,14 @@ public class AnnotationMetadataReadingVisitor extends ClassMetadataReadingVisito
 
 	@Override
 	public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
-		return new MethodMetadataReadingVisitor(name, access, this.getClassName(), this.classLoader, this.methodMetadataMap);
+		return new MethodMetadataReadingVisitor(name, access, getClassName(), this.classLoader, this.methodMetadataSet);
 	}
 
 	@Override
 	public AnnotationVisitor visitAnnotation(final String desc, boolean visible) {
 		String className = Type.getType(desc).getClassName();
 		this.annotationSet.add(className);
-		return new AnnotationAttributesReadingVisitor(className, this.attributeMap, this.metaAnnotationMap, this.classLoader);
+		return new AnnotationAttributesReadingVisitor(className, this.attributesMap, this.metaAnnotationMap, this.classLoader);
 	}
 
 
@@ -103,7 +109,7 @@ public class AnnotationMetadataReadingVisitor extends ClassMetadataReadingVisito
 
 	@Override
 	public boolean isAnnotated(String annotationType) {
-		return this.attributeMap.containsKey(annotationType);
+		return this.attributesMap.containsKey(annotationType);
 	}
 
 	@Override
@@ -113,8 +119,8 @@ public class AnnotationMetadataReadingVisitor extends ClassMetadataReadingVisito
 
 	@Override
 	public AnnotationAttributes getAnnotationAttributes(String annotationType, boolean classValuesAsString) {
-		List<AnnotationAttributes> attributes = this.attributeMap.get(annotationType);
-		AnnotationAttributes raw = (attributes == null ? null : attributes.get(0));
+		AnnotationAttributes raw = AnnotationReadingVisitorUtils.getMergedAnnotationAttributes(
+				this.attributesMap, annotationType);
 		return AnnotationReadingVisitorUtils.convertClassValues(this.classLoader, raw, classValuesAsString);
 	}
 
@@ -126,7 +132,7 @@ public class AnnotationMetadataReadingVisitor extends ClassMetadataReadingVisito
 	@Override
 	public MultiValueMap<String, Object> getAllAnnotationAttributes(String annotationType, boolean classValuesAsString) {
 		MultiValueMap<String, Object> allAttributes = new LinkedMultiValueMap<String, Object>();
-		List<AnnotationAttributes> attributes = this.attributeMap.get(annotationType);
+		List<AnnotationAttributes> attributes = this.attributesMap.get(annotationType);
 		if (attributes == null) {
 			return null;
 		}
@@ -141,17 +147,22 @@ public class AnnotationMetadataReadingVisitor extends ClassMetadataReadingVisito
 
 	@Override
 	public boolean hasAnnotatedMethods(String annotationType) {
-		return this.methodMetadataMap.containsKey(annotationType);
+		for (MethodMetadata methodMetadata : this.methodMetadataSet) {
+			if (methodMetadata.isAnnotated(annotationType)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@Override
 	public Set<MethodMetadata> getAnnotatedMethods(String annotationType) {
-		List<MethodMetadata> list = this.methodMetadataMap.get(annotationType);
-		if (CollectionUtils.isEmpty(list)) {
-			return new LinkedHashSet<MethodMetadata>(0);
+		Set<MethodMetadata> annotatedMethods = new LinkedHashSet<MethodMetadata>(4);
+		for (MethodMetadata methodMetadata : this.methodMetadataSet) {
+			if (methodMetadata.isAnnotated(annotationType)) {
+				annotatedMethods.add(methodMetadata);
+			}
 		}
-		Set<MethodMetadata> annotatedMethods = new LinkedHashSet<MethodMetadata>(list.size());
-		annotatedMethods.addAll(list);
 		return annotatedMethods;
 	}
 

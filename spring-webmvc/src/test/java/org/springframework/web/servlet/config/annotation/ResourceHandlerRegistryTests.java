@@ -16,8 +16,11 @@
 
 package org.springframework.web.servlet.config.annotation;
 
+import java.util.Arrays;
+
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 import org.springframework.mock.web.test.MockHttpServletRequest;
 import org.springframework.mock.web.test.MockHttpServletResponse;
 import org.springframework.mock.web.test.MockServletContext;
@@ -25,6 +28,7 @@ import org.springframework.web.context.support.GenericWebApplicationContext;
 import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.servlet.handler.SimpleUrlHandlerMapping;
 import org.springframework.web.servlet.resource.ResourceHttpRequestHandler;
+import org.springframework.web.servlet.resource.ResourceResolver;
 
 import static org.junit.Assert.*;
 
@@ -89,6 +93,16 @@ public class ResourceHandlerRegistryTests {
 		assertFalse(registry.hasMappingForPattern("/whatever"));
 	}
 
+	@Test
+	public void resourceResolversAndTransformers() {
+		ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
+		registry.setResourceResolvers(resolver);
+
+		SimpleUrlHandlerMapping hm = (SimpleUrlHandlerMapping) registry.getHandlerMapping();
+		ResourceHttpRequestHandler handler = (ResourceHttpRequestHandler) hm.getUrlMap().values().iterator().next();
+
+		assertEquals(Arrays.asList(resolver), handler.getResourceResolvers());
+	}
 
 	private ResourceHttpRequestHandler getHandler(String pathPattern) {
 		SimpleUrlHandlerMapping handlerMapping = (SimpleUrlHandlerMapping) registry.getHandlerMapping();

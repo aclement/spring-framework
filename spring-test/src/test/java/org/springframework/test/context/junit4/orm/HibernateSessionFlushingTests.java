@@ -22,7 +22,6 @@ import static org.springframework.test.transaction.TransactionTestUtils.assertIn
 
 import org.hibernate.SessionFactory;
 import org.hibernate.exception.ConstraintViolationException;
-import org.hibernate.exception.GenericJDBCException;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -109,7 +108,7 @@ public class HibernateSessionFlushingTests extends AbstractTransactionalJUnit4Sp
 		// finally flushed (i.e., in production code)
 	}
 
-	@Test(expected = GenericJDBCException.class)
+	@Test(expected = ConstraintViolationException.class)
 	public void updateSamWithNullDriversLicenseWithSessionFlush() {
 		updateSamWithNullDriversLicense();
 		// Manual flush is required to avoid false positive in test

@@ -31,7 +31,7 @@ import static org.junit.Assert.*;
  * @since 4.0
  */
 //@Ignore
-public class SpelCompilationPerformanceTests extends ExpressionTestCase {
+public class SpelCompilationPerformanceTests extends AbstractExpressionTests {
 
 	int count = 50000; // Number of evaluations that are timed in one run
 	int iterations = 10; // Number of times to repeat 'count' evaluations (for averaging)

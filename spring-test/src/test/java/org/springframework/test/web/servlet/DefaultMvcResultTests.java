@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,11 @@
  */
 package org.springframework.test.web.servlet;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
-import javax.servlet.AsyncContext;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 
-import static org.mockito.BDDMockito.*;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Test fixture for {@link DefaultMvcResult}.
@@ -33,84 +28,23 @@ import static org.mockito.BDDMockito.*;
  */
 public class DefaultMvcResultTests {
 
-	private static final long DEFAULT_TIMEOUT = 10000L;
-
 	private DefaultMvcResult mvcResult;
-
-	private CountDownLatch countDownLatch;
-
 
 	@Before
 	public void setup() {
-		ExtendedMockHttpServletRequest request = new ExtendedMockHttpServletRequest();
-		request.setAsyncStarted(true);
-
-		this.countDownLatch = mock(CountDownLatch.class);
-
+		MockHttpServletRequest request = new MockHttpServletRequest();
 		this.mvcResult = new DefaultMvcResult(request, null);
-		this.mvcResult.setAsyncResultLatch(this.countDownLatch);
 	}
 
 	@Test
-	public void getAsyncResultWithTimeout() throws Exception {
-		long timeout = 1234L;
-		given(this.countDownLatch.await(timeout, TimeUnit.MILLISECONDS)).willReturn(true);
-		this.mvcResult.getAsyncResult(timeout);
-		verify(this.countDownLatch).await(timeout, TimeUnit.MILLISECONDS);
+	public void getAsyncResultSuccess() throws Exception {
+		this.mvcResult.setAsyncResult("Foo");
+		assertEquals("Foo", this.mvcResult.getAsyncResult());
 	}
 
-	@Test
-	public void getAsyncResultWithTimeoutNegativeOne() throws Exception {
-		given(this.countDownLatch.await(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS)).willReturn(true);
-		this.mvcResult.getAsyncResult(-1);
-		verify(this.countDownLatch).await(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
-	}
-
-	@Test
-	public void getAsyncResultWithoutTimeout() throws Exception {
-		given(this.countDownLatch.await(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS)).willReturn(true);
-		this.mvcResult.getAsyncResult();
-		verify(this.countDownLatch).await(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
-	}
-
-	@Test
-	public void getAsyncResultWithTimeoutZero() throws Exception {
+	@Test(expected = IllegalStateException.class)
+	public void getAsyncResultFailure() throws Exception {
 		this.mvcResult.getAsyncResult(0);
-		verifyZeroInteractions(this.countDownLatch);
-	}
-
-	@Test(expected=IllegalStateException.class)
-	public void getAsyncResultAndTimeOut() throws Exception {
-		this.mvcResult.getAsyncResult(-1);
-		verify(this.countDownLatch).await(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
-	}
-
-
-	private static class ExtendedMockHttpServletRequest extends MockHttpServletRequest {
-
-		private boolean asyncStarted;
-		private AsyncContext asyncContext;
-
-		public ExtendedMockHttpServletRequest() {
-			super();
-			this.asyncContext = mock(AsyncContext.class);
-			given(this.asyncContext.getTimeout()).willReturn(new Long(DEFAULT_TIMEOUT));
-		}
-
-		@Override
-		public void setAsyncStarted(boolean asyncStarted) {
-			this.asyncStarted = asyncStarted;
-		}
-
-		@Override
-		public boolean isAsyncStarted() {
-			return this.asyncStarted;
-		}
-
-		@Override
-		public AsyncContext getAsyncContext() {
-			return asyncContext;
-		}
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,6 @@
  */
 package org.springframework.test.web.servlet.request;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-
 import java.security.Principal;
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,16 +28,18 @@ import javax.servlet.http.Cookie;
 
 import org.junit.Before;
 import org.junit.Test;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.mock.web.MockServletContext;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.util.FileCopyUtils;
 import org.springframework.web.servlet.FlashMap;
 import org.springframework.web.servlet.support.SessionFlashMapManager;
+
+import static org.junit.Assert.*;
 
 /**
  * Tests building a MockHttpServletRequest with {@link MockHttpServletRequestBuilder}.
@@ -265,6 +262,28 @@ public class MockHttpServletRequestBuilderTests {
 		assertEquals("text/html", contentType);
 		assertEquals(1, contentTypes.size());
 		assertEquals("text/html", contentTypes.get(0));
+	}
+
+	// SPR-11308
+
+	@Test
+	public void contentTypeViaHeader() throws Exception {
+		this.builder.header("Content-Type", MediaType.TEXT_HTML_VALUE);
+		MockHttpServletRequest request = this.builder.buildRequest(this.servletContext);
+		String contentType = request.getContentType();
+
+		assertEquals("text/html", contentType);
+	}
+
+	// SPR-11308
+
+	@Test
+	public void contentTypeViaMultipleHeaderValues() throws Exception {
+		this.builder.header("Content-Type", MediaType.TEXT_HTML_VALUE, MediaType.ALL_VALUE);
+		MockHttpServletRequest request = this.builder.buildRequest(this.servletContext);
+		String contentType = request.getContentType();
+
+		assertEquals("text/html, */*", contentType);
 	}
 
 	@Test

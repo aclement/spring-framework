@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,6 @@
 
 package org.springframework.web.servlet.config.annotation;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -27,6 +23,7 @@ import java.util.List;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 import org.springframework.mock.web.test.MockHttpServletRequest;
 import org.springframework.mock.web.test.MockHttpServletResponse;
 import org.springframework.ui.ModelMap;
@@ -39,6 +36,8 @@ import org.springframework.web.servlet.handler.MappedInterceptor;
 import org.springframework.web.servlet.handler.WebRequestHandlerInterceptorAdapter;
 import org.springframework.web.servlet.i18n.LocaleChangeInterceptor;
 import org.springframework.web.servlet.theme.ThemeChangeInterceptor;
+
+import static org.junit.Assert.*;
 
 /**
  * Test fixture with a {@link InterceptorRegistry}, two {@link HandlerInterceptor}s and two
@@ -114,6 +113,15 @@ public class InterceptorRegistryTests {
 		assertEquals(2, interceptors.size());
 		verifyAdaptedInterceptor(interceptors.get(0), webRequestInterceptor1);
 		verifyAdaptedInterceptor(interceptors.get(1), webRequestInterceptor2);
+	}
+
+	@Test
+	public void addInterceptorsWithCustomPathMatcher() {
+		PathMatcher pathMatcher = Mockito.mock(PathMatcher.class);
+		registry.addInterceptor(interceptor1).addPathPatterns("/path1/**").pathMatcher(pathMatcher);
+
+		MappedInterceptor mappedInterceptor = (MappedInterceptor) registry.getInterceptors().get(0);
+		assertSame(pathMatcher, mappedInterceptor.getPathMatcher());
 	}
 
 	@Test

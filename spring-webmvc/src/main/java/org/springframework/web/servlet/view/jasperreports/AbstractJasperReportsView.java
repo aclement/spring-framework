@@ -217,7 +217,7 @@ public abstract class AbstractJasperReportsView extends AbstractUrlBasedView {
 	 * <p>The name specified in the list should correspond to an attribute in the
 	 * model Map, and to a sub-report data source parameter in your report file.
 	 * If you pass in {@code JRDataSource} objects as model attributes,
-	 * specifing this list of keys is not required.
+	 * specifying this list of keys is not required.
 	 * <p>If you specify a list of sub-report data keys, it is required to also
 	 * specify a {@code reportDataKey} for the main report, to avoid confusion
 	 * between the data source objects for the various reports involved.
@@ -314,7 +314,7 @@ public abstract class AbstractJasperReportsView extends AbstractUrlBasedView {
 						"'reportDataKey' for main report is required when specifying a value for 'subReportDataKeys'");
 			}
 			this.subReports = new HashMap<String, JasperReport>(this.subReportUrls.size());
-			for (Enumeration urls = this.subReportUrls.propertyNames(); urls.hasMoreElements();) {
+			for (Enumeration<?> urls = this.subReportUrls.propertyNames(); urls.hasMoreElements();) {
 				String key = (String) urls.nextElement();
 				String path = this.subReportUrls.getProperty(key);
 				Resource resource = getApplicationContext().getResource(path);
@@ -434,7 +434,7 @@ public abstract class AbstractJasperReportsView extends AbstractUrlBasedView {
 		String fieldName = fqFieldName.substring(index + 1);
 
 		try {
-			Class cls = ClassUtils.forName(className, getApplicationContext().getClassLoader());
+			Class<?> cls = ClassUtils.forName(className, getApplicationContext().getClassLoader());
 			Field field = cls.getField(fieldName);
 
 			if (JRExporterParameter.class.isAssignableFrom(field.getType())) {
@@ -536,7 +536,7 @@ public abstract class AbstractJasperReportsView extends AbstractUrlBasedView {
 	 * {@link #renderReport} method that should be implemented by the subclass.
 	 * @param model the model map, as passed in for view rendering. Must contain
 	 * a report data value that can be converted to a {@code JRDataSource},
-	 * acccording to the rules of the {@link #fillReport} method.
+	 * according to the rules of the {@link #fillReport} method.
 	 */
 	@Override
 	protected void renderMergedOutputModel(
@@ -644,7 +644,7 @@ public abstract class AbstractJasperReportsView extends AbstractUrlBasedView {
 			}
 		}
 		else {
-			Collection values = model.values();
+			Collection<?> values = model.values();
 			jrDataSource = CollectionUtils.findValueOfType(values, JRDataSource.class);
 			if (jrDataSource == null) {
 				JRDataSourceProvider provider = CollectionUtils.findValueOfType(values, JRDataSourceProvider.class);
@@ -712,7 +712,7 @@ public abstract class AbstractJasperReportsView extends AbstractUrlBasedView {
 	 */
 	private void populateHeaders(HttpServletResponse response) {
 		// Apply the headers to the response.
-		for (Enumeration en = this.headers.propertyNames(); en.hasMoreElements();) {
+		for (Enumeration<?> en = this.headers.propertyNames(); en.hasMoreElements();) {
 			String key = (String) en.nextElement();
 			response.addHeader(key, this.headers.getProperty(key));
 		}
@@ -802,8 +802,8 @@ public abstract class AbstractJasperReportsView extends AbstractUrlBasedView {
 	 * <p>Default value types are: {@code java.util.Collection} and {@code Object} array.
 	 * @return the value types in prioritized order
 	 */
-	protected Class[] getReportDataTypes() {
-		return new Class[] {Collection.class, Object[].class};
+	protected Class<?>[] getReportDataTypes() {
+		return new Class<?>[] {Collection.class, Object[].class};
 	}
 
 
@@ -820,12 +820,12 @@ public abstract class AbstractJasperReportsView extends AbstractUrlBasedView {
 
 	/**
 	 * Subclasses should implement this method to perform the actual rendering process.
-	 * <p>Note that the content type has not been set yet: Implementors should build
+	 * <p>Note that the content type has not been set yet: Implementers should build
 	 * a content type String and set it via {@code response.setContentType}.
 	 * If necessary, this can include a charset clause for a specific encoding.
 	 * The latter will only be necessary for textual output onto a Writer, and only
 	 * in case of the encoding being specified in the JasperReports exporter parameters.
-	 * <p><b>WARNING:</b> Implementors should not use {@code response.setCharacterEncoding}
+	 * <p><b>WARNING:</b> Implementers should not use {@code response.setCharacterEncoding}
 	 * unless they are willing to depend on Servlet API 2.4 or higher. Prefer a
 	 * concatenated content type String with a charset clause instead.
 	 * @param populatedReport the populated {@code JasperPrint} to render

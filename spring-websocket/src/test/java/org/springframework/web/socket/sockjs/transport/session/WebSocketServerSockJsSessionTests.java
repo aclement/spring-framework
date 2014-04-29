@@ -28,19 +28,19 @@ import org.junit.Test;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketHandler;
+import org.springframework.web.socket.sockjs.transport.SockJsServiceConfig;
 import org.springframework.web.socket.sockjs.transport.session.WebSocketServerSockJsSessionTests.TestWebSocketServerSockJsSession;
-import org.springframework.web.socket.support.TestWebSocketSession;
+import org.springframework.web.socket.handler.TestWebSocketSession;
 
 import static org.junit.Assert.*;
-import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Test fixture for {@link WebSocketServerSockJsSession}.
+ * Unit tests for {@link WebSocketServerSockJsSession}.
  *
  * @author Rossen Stoyanchev
  */
-public class WebSocketServerSockJsSessionTests extends BaseAbstractSockJsSessionTests<TestWebSocketServerSockJsSession> {
+public class WebSocketServerSockJsSessionTests extends AbstractSockJsSessionTests<TestWebSocketServerSockJsSession> {
 
 	private TestWebSocketSession webSocketSession;
 

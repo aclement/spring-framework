@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import org.springframework.expression.spel.standard.Utils;
 import org.springframework.expression.spel.support.BooleanTypedValue;
 
 /**
- * Implements equality operator.
+ * Implements the equality operator.
  *
  * @author Andy Clement
  * @since 3.0
@@ -37,35 +37,11 @@ public class OpEQ extends Operator {
 		this.exitTypeDescriptor = "Z";
 	}
 
-
 	@Override
-	public BooleanTypedValue getValueInternal(ExpressionState state)
-			throws EvaluationException {
+	public BooleanTypedValue getValueInternal(ExpressionState state) throws EvaluationException {
 		Object left = getLeftOperand().getValueInternal(state).getValue();
 		Object right = getRightOperand().getValueInternal(state).getValue();
-		if (left instanceof Number && right instanceof Number) {
-			Number op1 = (Number) left;
-			Number op2 = (Number) right;
-			if (op1 instanceof Double || op2 instanceof Double) {
-				return BooleanTypedValue.forValue(op1.doubleValue() == op2.doubleValue());
-			}
-			else if (op1 instanceof Float || op2 instanceof Float) {
-				return BooleanTypedValue.forValue(op1.floatValue() == op2.floatValue());
-			}
-			else if (op1 instanceof Long || op2 instanceof Long) {
-				return BooleanTypedValue.forValue(op1.longValue() == op2.longValue());
-			}
-			else {
-				return BooleanTypedValue.forValue(op1.intValue() == op2.intValue());
-			}
-		}
-		if (left != null && (left instanceof Comparable)) {
-			return BooleanTypedValue.forValue(state.getTypeComparator().compare(left,
-					right) == 0);
-		}
-		else {
-			return BooleanTypedValue.forValue(left == right);
-		}
+		return BooleanTypedValue.forValue(equalityCheck(state, left, right));
 	}
 	
 	// This check is different to the one in the other numeric operators (OpLt/etc)
@@ -150,7 +126,7 @@ public class OpEQ extends Operator {
 			
 			
 			mv.visitLabel(leftNotNull);
-			mv.visitMethodInsn(INVOKEVIRTUAL,"java/lang/Object","equals","(Ljava/lang/Object;)Z");
+			mv.visitMethodInsn(INVOKEVIRTUAL,"java/lang/Object","equals","(Ljava/lang/Object;)Z",false);
 			mv.visitLabel(endOfIf);
 			codeflow.pushDescriptor("Z");
 			return;

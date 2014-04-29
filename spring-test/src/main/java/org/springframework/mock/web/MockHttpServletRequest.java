@@ -348,6 +348,10 @@ public class MockHttpServletRequest implements HttpServletRequest {
 		return (this.content != null ? this.content.length : -1);
 	}
 
+	public long getContentLengthLong() {
+		return getContentLength();
+	}
+
 	public void setContentType(String contentType) {
 		this.contentType = contentType;
 		if (contentType != null) {
@@ -647,6 +651,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
 	}
 
 	@Override
+	@Deprecated
 	public String getRealPath(String path) {
 		return this.servletContext.getRealPath(path);
 	}
@@ -998,6 +1003,20 @@ public class MockHttpServletRequest implements HttpServletRequest {
 		return getSession(true);
 	}
 
+	/**
+	 * The implementation of this (Servlet 3.1+) method calls
+	 * {@link MockHttpSession#changeSessionId()} if the session is a mock session.
+	 * Otherwise it simply returns the current session id.
+	 * @since 4.0.3
+	 */
+	public String changeSessionId() {
+		Assert.isTrue(this.session != null, "The request does not have a session");
+		if (this.session instanceof MockHttpSession) {
+			return ((MockHttpSession) session).changeSessionId();
+		}
+		return this.session.getId();
+	}
+
 	public void setRequestedSessionIdValid(boolean requestedSessionIdValid) {
 		this.requestedSessionIdValid = requestedSessionIdValid;
 	}
@@ -1026,6 +1045,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
 	}
 
 	@Override
+	@Deprecated
 	public boolean isRequestedSessionIdFromUrl() {
 		return isRequestedSessionIdFromURL();
 	}

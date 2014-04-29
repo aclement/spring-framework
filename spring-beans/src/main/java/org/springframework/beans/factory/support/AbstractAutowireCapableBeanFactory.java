@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -135,21 +135,21 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	 * Dependency types to ignore on dependency check and autowire, as Set of
 	 * Class objects: for example, String. Default is none.
 	 */
-	private final Set<Class> ignoredDependencyTypes = new HashSet<Class>();
+	private final Set<Class<?>> ignoredDependencyTypes = new HashSet<Class<?>>();
 
 	/**
 	 * Dependency interfaces to ignore on dependency check and autowire, as Set of
 	 * Class objects. By default, only the BeanFactory interface is ignored.
 	 */
-	private final Set<Class> ignoredDependencyInterfaces = new HashSet<Class>();
+	private final Set<Class<?>> ignoredDependencyInterfaces = new HashSet<Class<?>>();
 
 	/** Cache of unfinished FactoryBean instances: FactoryBean name --> BeanWrapper */
 	private final Map<String, BeanWrapper> factoryBeanInstanceCache =
 			new ConcurrentHashMap<String, BeanWrapper>(16);
 
 	/** Cache of filtered PropertyDescriptors: bean Class -> PropertyDescriptor array */
-	private final Map<Class, PropertyDescriptor[]> filteredPropertyDescriptorsCache =
-			new ConcurrentHashMap<Class, PropertyDescriptor[]>(64);
+	private final Map<Class<?>, PropertyDescriptor[]> filteredPropertyDescriptorsCache =
+			new ConcurrentHashMap<Class<?>, PropertyDescriptor[]>(64);
 
 
 	/**
@@ -523,7 +523,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 				logger.debug("Eagerly caching bean '" + beanName +
 						"' to allow for resolving potential circular references");
 			}
-			addSingletonFactory(beanName, new ObjectFactory() {
+			addSingletonFactory(beanName, new ObjectFactory<Object>() {
 				@Override
 				public Object getObject() throws BeansException {
 					return getEarlyBeanReference(beanName, mbd, bean);
@@ -657,10 +657,10 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 
 		// If all factory methods have the same return type, return that type.
 		// Can't clearly figure out exact method due to type converting / autowiring!
+		Class<?> commonType = null;
 		boolean cache = false;
 		int minNrOfArgs = mbd.getConstructorArgumentValues().getArgumentCount();
 		Method[] candidates = ReflectionUtils.getUniqueDeclaredMethods(factoryClass);
-		Set<Class<?>> returnTypes = new HashSet<Class<?>>(1);
 		for (Method factoryMethod : candidates) {
 			if (Modifier.isStatic(factoryMethod.getModifiers()) == isStatic &&
 					factoryMethod.getName().equals(mbd.getFactoryMethodName()) &&
@@ -694,7 +694,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 								factoryMethod, args, getBeanClassLoader());
 						if (returnType != null) {
 							cache = true;
-							returnTypes.add(returnType);
+							commonType = ClassUtils.determineCommonAncestor(returnType, commonType);
 						}
 					}
 					catch (Throwable ex) {
@@ -704,18 +704,17 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 					}
 				}
 				else {
-					returnTypes.add(factoryMethod.getReturnType());
+					commonType = ClassUtils.determineCommonAncestor(factoryMethod.getReturnType(), commonType);
 				}
 			}
 		}
 
-		if (returnTypes.size() == 1) {
+		if (commonType != null) {
 			// Clear return type found: all factory methods return same type.
-			Class<?> result = returnTypes.iterator().next();
 			if (cache) {
-				mbd.resolvedFactoryMethodReturnType = result;
+				mbd.resolvedFactoryMethodReturnType = commonType;
 			}
-			return result;
+			return commonType;
 		}
 		else {
 			// Ambiguous return types found: return null to indicate "not determinable".
@@ -740,30 +739,36 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		final Holder objectType = new Holder();
 		String factoryBeanName = mbd.getFactoryBeanName();
 		final String factoryMethodName = mbd.getFactoryMethodName();
-		if (factoryBeanName != null && factoryMethodName != null) {
-			// Try to obtain the FactoryBean's object type without instantiating it at all.
-			BeanDefinition fbDef = getBeanDefinition(factoryBeanName);
-			if (fbDef instanceof AbstractBeanDefinition && ((AbstractBeanDefinition) fbDef).hasBeanClass()) {
-				Class<?> fbClass = ((AbstractBeanDefinition) fbDef).getBeanClass();
-				if (ClassUtils.isCglibProxyClass(fbClass)) {
-					// CGLIB subclass methods hide generic parameters. look at the superclass.
-					fbClass = fbClass.getSuperclass();
-				}
-				// Find the given factory method, taking into account that in the case of
-				// @Bean methods, there may be parameters present.
-				ReflectionUtils.doWithMethods(fbClass,
-						new ReflectionUtils.MethodCallback() {
-							@Override
-							public void doWith(Method method) throws IllegalArgumentException, IllegalAccessException {
-								if (method.getName().equals(factoryMethodName) &&
-										FactoryBean.class.isAssignableFrom(method.getReturnType())) {
-									objectType.value = GenericTypeResolver.resolveReturnTypeArgument(method, FactoryBean.class);
+
+		if (factoryBeanName != null) {
+			if (factoryMethodName != null) {
+				// Try to obtain the FactoryBean's object type without instantiating it at all.
+				BeanDefinition fbDef = getBeanDefinition(factoryBeanName);
+				if (fbDef instanceof AbstractBeanDefinition && ((AbstractBeanDefinition) fbDef).hasBeanClass()) {
+					// CGLIB subclass methods hide generic parameters; look at the original user class.
+					Class<?> fbClass = ClassUtils.getUserClass(((AbstractBeanDefinition) fbDef).getBeanClass());
+					// Find the given factory method, taking into account that in the case of
+					// @Bean methods, there may be parameters present.
+					ReflectionUtils.doWithMethods(fbClass,
+							new ReflectionUtils.MethodCallback() {
+								@Override
+								public void doWith(Method method) throws IllegalArgumentException, IllegalAccessException {
+									if (method.getName().equals(factoryMethodName) &&
+											FactoryBean.class.isAssignableFrom(method.getReturnType())) {
+										objectType.value = GenericTypeResolver.resolveReturnTypeArgument(method, FactoryBean.class);
+									}
 								}
-							}
-						});
-				if (objectType.value != null) {
-					return objectType.value;
+							});
+					if (objectType.value != null) {
+						return objectType.value;
+					}
 				}
+			}
+			// If not resolvable above and the referenced factory bean doesn't exist yet,
+			// exit here - we don't want to force the creation of another bean just to
+			// obtain a FactoryBean's object type...
+			if (!isBeanEligibleForMetadataCaching(factoryBeanName)) {
+				return null;
 			}
 		}
 
@@ -821,11 +826,11 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	 * @return the FactoryBean instance, or {@code null} to indicate
 	 * that we couldn't obtain a shortcut FactoryBean instance
 	 */
-	private FactoryBean getSingletonFactoryBeanForTypeCheck(String beanName, RootBeanDefinition mbd) {
+	private FactoryBean<?> getSingletonFactoryBeanForTypeCheck(String beanName, RootBeanDefinition mbd) {
 		synchronized (getSingletonMutex()) {
 			BeanWrapper bw = this.factoryBeanInstanceCache.get(beanName);
 			if (bw != null) {
-				return (FactoryBean) bw.getWrappedInstance();
+				return (FactoryBean<?>) bw.getWrappedInstance();
 			}
 			if (isSingletonCurrentlyInCreation(beanName)) {
 				return null;
@@ -845,7 +850,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 				// Finished partial creation of this bean.
 				afterSingletonCreation(beanName);
 			}
-			FactoryBean fb = getFactoryBean(beanName, instance);
+			FactoryBean<?> fb = getFactoryBean(beanName, instance);
 			if (bw != null) {
 				this.factoryBeanInstanceCache.put(beanName, bw);
 			}
@@ -862,7 +867,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	 * @return the FactoryBean instance, or {@code null} to indicate
 	 * that we couldn't obtain a shortcut FactoryBean instance
 	 */
-	private FactoryBean getNonSingletonFactoryBeanForTypeCheck(String beanName, RootBeanDefinition mbd) {
+	private FactoryBean<?> getNonSingletonFactoryBeanForTypeCheck(String beanName, RootBeanDefinition mbd) {
 		if (isPrototypeCurrentlyInCreation(beanName)) {
 			return null;
 		}
@@ -1005,7 +1010,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		}
 
 		// Need to determine the constructor...
-		Constructor[] ctors = determineConstructorsFromBeanPostProcessors(beanClass, beanName);
+		Constructor<?>[] ctors = determineConstructorsFromBeanPostProcessors(beanClass, beanName);
 		if (ctors != null ||
 				mbd.getResolvedAutowireMode() == RootBeanDefinition.AUTOWIRE_CONSTRUCTOR ||
 				mbd.hasConstructorArgumentValues() || !ObjectUtils.isEmpty(args))  {
@@ -1025,14 +1030,14 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	 * @throws org.springframework.beans.BeansException in case of errors
 	 * @see org.springframework.beans.factory.config.SmartInstantiationAwareBeanPostProcessor#determineCandidateConstructors
 	 */
-	protected Constructor[] determineConstructorsFromBeanPostProcessors(Class<?> beanClass, String beanName)
+	protected Constructor<?>[] determineConstructorsFromBeanPostProcessors(Class<?> beanClass, String beanName)
 			throws BeansException {
 
 		if (beanClass != null && hasInstantiationAwareBeanPostProcessors()) {
 			for (BeanPostProcessor bp : getBeanPostProcessors()) {
 				if (bp instanceof SmartInstantiationAwareBeanPostProcessor) {
 					SmartInstantiationAwareBeanPostProcessor ibp = (SmartInstantiationAwareBeanPostProcessor) bp;
-					Constructor[] ctors = ibp.determineCandidateConstructors(beanClass, beanName);
+					Constructor<?>[] ctors = ibp.determineCandidateConstructors(beanClass, beanName);
 					if (ctors != null) {
 						return ctors;
 					}
@@ -1104,7 +1109,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	 * @return BeanWrapper for the new instance
 	 */
 	protected BeanWrapper autowireConstructor(
-			String beanName, RootBeanDefinition mbd, Constructor[] ctors, Object[] explicitArgs) {
+			String beanName, RootBeanDefinition mbd, Constructor<?>[] ctors, Object[] explicitArgs) {
 
 		return new ConstructorResolver(this).autowireConstructor(beanName, mbd, ctors, explicitArgs);
 	}
@@ -1407,7 +1412,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		MutablePropertyValues mpvs = null;
 		List<PropertyValue> original;
 
-		if (System.getSecurityManager()!= null) {
+		if (System.getSecurityManager() != null) {
 			if (bw instanceof BeanWrapperImpl) {
 				((BeanWrapperImpl) bw).setSecurityContext(getAccessControlContext());
 			}
@@ -1704,7 +1709,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 
 
 	/**
-	 * Special DependencyDescriptor variant for autowire="byType".
+	 * Special DependencyDescriptor variant for Spring's good old autowire="byType" mode.
 	 * Always optional; never considering the parameter name for choosing a primary candidate.
 	 */
 	@SuppressWarnings("serial")

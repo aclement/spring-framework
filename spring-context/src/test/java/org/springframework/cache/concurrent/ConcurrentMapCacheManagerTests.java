@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2011 the original author or authors.
+ * Copyright 2002-2013 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,11 +43,20 @@ public class ConcurrentMapCacheManagerTests {
 		assertTrue(cache3 instanceof ConcurrentMapCache);
 		Cache cache3again = cm.getCache("c3");
 		assertSame(cache3again, cache3);
+
+		cache1.put("key1", "value1");
+		assertEquals("value1", cache1.get("key1").get());
+		cache1.put("key2", 2);
+		assertEquals(2, cache1.get("key2").get());
+		cache1.put("key3", null);
+		assertNull(cache1.get("key3").get());
+		cache1.evict("key3");
+		assertNull(cache1.get("key3"));
 	}
 
 	@Test
 	public void testStaticMode() {
-		ConcurrentMapCacheManager cm = new ConcurrentMapCacheManager("c1", "c2");
+		CacheManager cm = new ConcurrentMapCacheManager("c1", "c2");
 		Cache cache1 = cm.getCache("c1");
 		assertTrue(cache1 instanceof ConcurrentMapCache);
 		Cache cache1again = cm.getCache("c1");
@@ -58,6 +67,15 @@ public class ConcurrentMapCacheManagerTests {
 		assertSame(cache2again, cache2);
 		Cache cache3 = cm.getCache("c3");
 		assertNull(cache3);
+
+		cache1.put("key1", "value1");
+		assertEquals("value1", cache1.get("key1").get());
+		cache1.put("key2", 2);
+		assertEquals(2, cache1.get("key2").get());
+		cache1.put("key3", null);
+		assertNull(cache1.get("key3").get());
+		cache1.evict("key3");
+		assertNull(cache1.get("key3"));
 	}
 
 }

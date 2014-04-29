@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,7 +60,9 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.config.DependencyDescriptor;
 import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.core.annotation.OrderUtils;
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
@@ -92,6 +94,7 @@ import org.springframework.util.StringUtils;
  * @author Costin Leau
  * @author Chris Beams
  * @author Phillip Webb
+ * @author Stephane Nicoll
  * @since 16 April 2001
  * @see StaticListableBeanFactory
  * @see PropertiesBeanDefinitionReader
@@ -128,7 +131,7 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 	private boolean allowEagerClassLoading = true;
 
 	/** Optional OrderComparator for dependency Lists and arrays */
-	private Comparator dependencyComparator;
+	private Comparator<Object> dependencyComparator;
 
 	/** Resolver to use for checking if a bean definition is an autowire candidate */
 	private AutowireCandidateResolver autowireCandidateResolver = new SimpleAutowireCandidateResolver();
@@ -215,14 +218,14 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 	 * @see org.springframework.core.OrderComparator
 	 * @see org.springframework.core.annotation.AnnotationAwareOrderComparator
 	 */
-	public void setDependencyComparator(Comparator dependencyComparator) {
+	public void setDependencyComparator(Comparator<Object> dependencyComparator) {
 		this.dependencyComparator = dependencyComparator;
 	}
 
 	/**
 	 * Return the dependency comparator for this BeanFactory (may be {@code null}.
 	 */
-	public Comparator getDependencyComparator() {
+	public Comparator<Object> getDependencyComparator() {
 		return this.dependencyComparator;
 	}
 
@@ -295,21 +298,19 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 			return getBean(beanNames[0], requiredType);
 		}
 		else if (beanNames.length > 1) {
-			T primaryBean = null;
+			Map<String, Object> candidates = new HashMap<String, Object>();
 			for (String beanName : beanNames) {
-				T beanInstance = getBean(beanName, requiredType);
-				if (isPrimary(beanName, beanInstance)) {
-					if (primaryBean != null) {
-						throw new NoUniqueBeanDefinitionException(requiredType, beanNames.length,
-								"more than one 'primary' bean found of required type: " + Arrays.asList(beanNames));
-					}
-					primaryBean = beanInstance;
-				}
+				candidates.put(beanName, getBean(beanName, requiredType));
 			}
-			if (primaryBean != null) {
-				return primaryBean;
+			String primaryCandidate = determinePrimaryCandidate(candidates, requiredType);
+			if (primaryCandidate != null) {
+				return getBean(primaryCandidate, requiredType);
 			}
-			throw new NoUniqueBeanDefinitionException(requiredType, beanNames);
+			String priorityCandidate = determineHighestPriorityCandidate(candidates, requiredType);
+			if (priorityCandidate != null) {
+				return getBean(priorityCandidate, requiredType);
+			}
+			throw new NoUniqueBeanDefinitionException(requiredType, candidates.keySet());
 		}
 		else if (getParentBeanFactory() != null) {
 			return getParentBeanFactory().getBean(requiredType);
@@ -349,7 +350,7 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 
 	@Override
 	public String[] getBeanNamesForType(Class<?> type, boolean includeNonSingletons, boolean allowEagerInit) {
-		if (!isConfigurationFrozen()  || type == null || !allowEagerInit) {
+		if (!isConfigurationFrozen() || type == null || !allowEagerInit) {
 			return doGetBeanNamesForType(type, includeNonSingletons, allowEagerInit);
 		}
 		Map<Class<?>, String[]> cache =
@@ -359,7 +360,9 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 			return resolvedBeanNames;
 		}
 		resolvedBeanNames = doGetBeanNamesForType(type, includeNonSingletons, allowEagerInit);
-		cache.put(type, resolvedBeanNames);
+		if (ClassUtils.isCacheSafe(type, getBeanClassLoader())) {
+			cache.put(type, resolvedBeanNames);
+		}
 		return resolvedBeanNames;
 	}
 
@@ -567,15 +570,33 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 	public boolean isAutowireCandidate(String beanName, DependencyDescriptor descriptor)
 			throws NoSuchBeanDefinitionException {
 
+		return isAutowireCandidate(beanName, descriptor, getAutowireCandidateResolver());
+	}
+
+	/**
+	 * Determine whether the specified bean definition qualifies as an autowire candidate,
+	 * to be injected into other beans which declare a dependency of matching type.
+	 * @param beanName the name of the bean definition to check
+	 * @param descriptor the descriptor of the dependency to resolve
+	 * @param resolver the AutowireCandidateResolver to use for the actual resolution algorithm
+	 * @return whether the bean should be considered as autowire candidate
+	 */
+	protected boolean isAutowireCandidate(String beanName, DependencyDescriptor descriptor, AutowireCandidateResolver resolver)
+			throws NoSuchBeanDefinitionException {
+
 		String beanDefinitionName = BeanFactoryUtils.transformedBeanName(beanName);
 		if (containsBeanDefinition(beanDefinitionName)) {
-			return isAutowireCandidate(beanName, getMergedLocalBeanDefinition(beanDefinitionName), descriptor);
+			return isAutowireCandidate(beanName, getMergedLocalBeanDefinition(beanDefinitionName), descriptor, resolver);
 		}
 		else if (containsSingleton(beanName)) {
-			return isAutowireCandidate(beanName, new RootBeanDefinition(getType(beanName)), descriptor);
+			return isAutowireCandidate(beanName, new RootBeanDefinition(getType(beanName)), descriptor, resolver);
+		}
+		else if (getParentBeanFactory() instanceof DefaultListableBeanFactory) {
+			// No bean definition found in this factory -> delegate to parent.
+			return ((DefaultListableBeanFactory) getParentBeanFactory()).isAutowireCandidate(beanName, descriptor, resolver);
 		}
 		else if (getParentBeanFactory() instanceof ConfigurableListableBeanFactory) {
-			// No bean definition found in this factory -> delegate to parent.
+			// If no DefaultListableBeanFactory, can't pass the resolver along.
 			return ((ConfigurableListableBeanFactory) getParentBeanFactory()).isAutowireCandidate(beanName, descriptor);
 		}
 		else {
@@ -589,9 +610,12 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 	 * @param beanName the name of the bean definition to check
 	 * @param mbd the merged bean definition to check
 	 * @param descriptor the descriptor of the dependency to resolve
+	 * @param resolver the AutowireCandidateResolver to use for the actual resolution algorithm
 	 * @return whether the bean should be considered as autowire candidate
 	 */
-	protected boolean isAutowireCandidate(String beanName, RootBeanDefinition mbd, DependencyDescriptor descriptor) {
+	protected boolean isAutowireCandidate(String beanName, RootBeanDefinition mbd,
+			DependencyDescriptor descriptor, AutowireCandidateResolver resolver) {
+
 		String beanDefinitionName = BeanFactoryUtils.transformedBeanName(beanName);
 		resolveBeanClass(mbd, beanDefinitionName);
 		if (mbd.isFactoryMethodUnique) {
@@ -603,7 +627,7 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 				new ConstructorResolver(this).resolveFactoryMethodIfPossible(mbd);
 			}
 		}
-		return getAutowireCandidateResolver().isAutowireCandidate(
+		return resolver.isAutowireCandidate(
 				new BeanDefinitionHolder(mbd, beanName, getAliases(beanDefinitionName)), descriptor);
 	}
 
@@ -898,7 +922,7 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 			TypeConverter converter = (typeConverter != null ? typeConverter : getTypeConverter());
 			Object result = converter.convertIfNecessary(matchingBeans.values(), type);
 			if (this.dependencyComparator != null && result instanceof List) {
-				Collections.sort((List) result, this.dependencyComparator);
+				Collections.sort((List<?>) result, this.dependencyComparator);
 			}
 			return result;
 		}
@@ -941,7 +965,7 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 				return null;
 			}
 			if (matchingBeans.size() > 1) {
-				String primaryBeanName = determinePrimaryCandidate(matchingBeans, descriptor);
+				String primaryBeanName = determineAutowireCandidate(matchingBeans, descriptor);
 				if (primaryBeanName == null) {
 					throw new NoUniqueBeanDefinitionException(type, matchingBeans.keySet());
 				}
@@ -1005,15 +1029,47 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 	}
 
 	/**
-	 * Determine the primary autowire candidate in the given set of beans.
+	 * Determine the autowire candidate in the given set of beans.
+	 * <p>Looks for {@code @Primary} and {@code @Priority} (in that order).
 	 * @param candidateBeans a Map of candidate names and candidate instances
 	 * that match the required type, as returned by {@link #findAutowireCandidates}
 	 * @param descriptor the target dependency to match against
-	 * @return the name of the primary candidate, or {@code null} if none found
+	 * @return the name of the autowire candidate, or {@code null} if none found
 	 */
-	protected String determinePrimaryCandidate(Map<String, Object> candidateBeans, DependencyDescriptor descriptor) {
+	protected String determineAutowireCandidate(Map<String, Object> candidateBeans, DependencyDescriptor descriptor) {
+		Class<?> requiredType = descriptor.getDependencyType();
+		String primaryCandidate =
+				determinePrimaryCandidate(candidateBeans, requiredType);
+		if (primaryCandidate != null) {
+			return primaryCandidate;
+		}
+		String priorityCandidate =
+				determineHighestPriorityCandidate(candidateBeans, requiredType);
+		if (priorityCandidate != null) {
+			return priorityCandidate;
+		}
+		// Fallback
+		for (Map.Entry<String, Object> entry : candidateBeans.entrySet()) {
+			String candidateBeanName = entry.getKey();
+			Object beanInstance = entry.getValue();
+			if (this.resolvableDependencies.values().contains(beanInstance) ||
+					matchesBeanName(candidateBeanName, descriptor.getDependencyName())) {
+				return candidateBeanName;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Determine the primary candidate in the given set of beans.
+	 * @param candidateBeans a Map of candidate names and candidate instances
+	 * that match the required type
+	 * @param requiredType the target dependency type to match against
+	 * @return the name of the primary candidate, or {@code null} if none found
+	 * @see #isPrimary(String, Object)
+	 */
+	protected String determinePrimaryCandidate(Map<String, Object> candidateBeans, Class<?> requiredType) {
 		String primaryBeanName = null;
-		String fallbackBeanName = null;
 		for (Map.Entry<String, Object> entry : candidateBeans.entrySet()) {
 			String candidateBeanName = entry.getKey();
 			Object beanInstance = entry.getValue();
@@ -1021,11 +1077,11 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 				if (primaryBeanName != null) {
 					boolean candidateLocal = containsBeanDefinition(candidateBeanName);
 					boolean primaryLocal = containsBeanDefinition(primaryBeanName);
-					if (candidateLocal == primaryLocal) {
-						throw new NoUniqueBeanDefinitionException(descriptor.getDependencyType(), candidateBeans.size(),
+					if (candidateLocal && primaryLocal) {
+						throw new NoUniqueBeanDefinitionException(requiredType, candidateBeans.size(),
 								"more than one 'primary' bean found among candidates: " + candidateBeans.keySet());
 					}
-					else if (candidateLocal && !primaryLocal) {
+					else if (candidateLocal) {
 						primaryBeanName = candidateBeanName;
 					}
 				}
@@ -1033,13 +1089,45 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 					primaryBeanName = candidateBeanName;
 				}
 			}
-			if (primaryBeanName == null &&
-					(this.resolvableDependencies.values().contains(beanInstance) ||
-							matchesBeanName(candidateBeanName, descriptor.getDependencyName()))) {
-				fallbackBeanName = candidateBeanName;
+		}
+		return primaryBeanName;
+	}
+
+	/**
+	 * Determine the candidate with the highest priority in the given set of beans.
+	 * @param candidateBeans a Map of candidate names and candidate instances
+	 * that match the required type
+	 * @param requiredType the target dependency type to match against
+	 * @return the name of the candidate with the highest priority,
+	 * or {@code null} if none found
+	 * @see #getPriority(Object)
+	 */
+	protected String determineHighestPriorityCandidate(Map<String, Object> candidateBeans, Class<?> requiredType) {
+		String highestPriorityBeanName = null;
+		Integer highestPriority = null;
+		for (Map.Entry<String, Object> entry : candidateBeans.entrySet()) {
+			String candidateBeanName = entry.getKey();
+			Object beanInstance = entry.getValue();
+			Integer candidatePriority = getPriority(beanInstance);
+			if (candidatePriority != null) {
+				if (highestPriorityBeanName != null) {
+					if (candidatePriority.equals(highestPriority)) {
+						throw new NoUniqueBeanDefinitionException(requiredType, candidateBeans.size(),
+								"Multiple beans found with the same priority ('" + highestPriority + "') " +
+										"among candidates: " + candidateBeans.keySet());
+					}
+					else if (candidatePriority > highestPriority) {
+						highestPriorityBeanName = candidateBeanName;
+						highestPriority = candidatePriority;
+					}
+				}
+				else {
+					highestPriorityBeanName = candidateBeanName;
+					highestPriority = candidatePriority;
+				}
 			}
 		}
-		return (primaryBeanName != null ? primaryBeanName : fallbackBeanName);
+		return highestPriorityBeanName;
 	}
 
 	/**
@@ -1056,6 +1144,17 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 		BeanFactory parentFactory = getParentBeanFactory();
 		return (parentFactory instanceof DefaultListableBeanFactory &&
 				((DefaultListableBeanFactory) parentFactory).isPrimary(beanName, beanInstance));
+	}
+
+	/**
+	 * Return the priority assigned for the given bean instance by
+	 * the {@code javax.annotation.Priority} annotation.
+	 * <p>If the annotation is not present, returns {@code null}.
+	 * @param beanInstance the bean instance to check
+	 * @return the priority assigned to that bean or {@code null} if none is set
+	 */
+	protected Integer getPriority(Object beanInstance) {
+		return OrderUtils.getPriorityValue(beanInstance.getClass());
 	}
 
 	/**

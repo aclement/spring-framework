@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1647,6 +1647,75 @@ public class AutowiredAnnotationBeanPostProcessorTests {
 		assertSame(ngr, bean.integerRepositoryMap.get("simpleRepo"));
 	}
 
+	@Test
+	public void testGenericsBasedInjectionIntoMatchingTypeVariable() {
+		DefaultListableBeanFactory bf = new DefaultListableBeanFactory();
+		bf.setAutowireCandidateResolver(new QualifierAnnotationAutowireCandidateResolver());
+		AutowiredAnnotationBeanPostProcessor bpp = new AutowiredAnnotationBeanPostProcessor();
+		bpp.setBeanFactory(bf);
+		bf.addBeanPostProcessor(bpp);
+		RootBeanDefinition bd = new RootBeanDefinition(GenericInterface1Impl.class);
+		bd.setFactoryMethodName("create");
+		bf.registerBeanDefinition("bean1", bd);
+		bf.registerBeanDefinition("bean2", new RootBeanDefinition(GenericInterface2Impl.class));
+
+		GenericInterface1Impl bean1 = (GenericInterface1Impl) bf.getBean("bean1");
+		GenericInterface2Impl bean2 = (GenericInterface2Impl) bf.getBean("bean2");
+		assertSame(bean2, bean1.gi2);
+	}
+
+	@Test
+	public void testGenericsBasedInjectionIntoUnresolvedTypeVariable() {
+		DefaultListableBeanFactory bf = new DefaultListableBeanFactory();
+		bf.setAutowireCandidateResolver(new QualifierAnnotationAutowireCandidateResolver());
+		AutowiredAnnotationBeanPostProcessor bpp = new AutowiredAnnotationBeanPostProcessor();
+		bpp.setBeanFactory(bf);
+		bf.addBeanPostProcessor(bpp);
+		RootBeanDefinition bd = new RootBeanDefinition(GenericInterface1Impl.class);
+		bd.setFactoryMethodName("createPlain");
+		bf.registerBeanDefinition("bean1", bd);
+		bf.registerBeanDefinition("bean2", new RootBeanDefinition(GenericInterface2Impl.class));
+
+		GenericInterface1Impl bean1 = (GenericInterface1Impl) bf.getBean("bean1");
+		GenericInterface2Impl bean2 = (GenericInterface2Impl) bf.getBean("bean2");
+		assertSame(bean2, bean1.gi2);
+	}
+
+	@Test
+	public void testGenericsBasedInjectionIntoTypeVariableSelectingBestMatch() {
+		DefaultListableBeanFactory bf = new DefaultListableBeanFactory();
+		bf.setAutowireCandidateResolver(new QualifierAnnotationAutowireCandidateResolver());
+		AutowiredAnnotationBeanPostProcessor bpp = new AutowiredAnnotationBeanPostProcessor();
+		bpp.setBeanFactory(bf);
+		bf.addBeanPostProcessor(bpp);
+		RootBeanDefinition bd = new RootBeanDefinition(GenericInterface1Impl.class);
+		bd.setFactoryMethodName("create");
+		bf.registerBeanDefinition("bean1", bd);
+		bf.registerBeanDefinition("bean2", new RootBeanDefinition(GenericInterface2Impl.class));
+		bf.registerBeanDefinition("bean2a", new RootBeanDefinition(ReallyGenericInterface2Impl.class));
+		bf.registerBeanDefinition("bean2b", new RootBeanDefinition(PlainGenericInterface2Impl.class));
+
+		GenericInterface1Impl bean1 = (GenericInterface1Impl) bf.getBean("bean1");
+		GenericInterface2Impl bean2 = (GenericInterface2Impl) bf.getBean("bean2");
+		assertSame(bean2, bean1.gi2);
+	}
+
+	@Test
+	public void testCircularTypeReference() {
+		DefaultListableBeanFactory bf = new DefaultListableBeanFactory();
+		bf.setAutowireCandidateResolver(new QualifierAnnotationAutowireCandidateResolver());
+		AutowiredAnnotationBeanPostProcessor bpp = new AutowiredAnnotationBeanPostProcessor();
+		bpp.setBeanFactory(bf);
+		bf.addBeanPostProcessor(bpp);
+		bf.registerBeanDefinition("bean1", new RootBeanDefinition(StockServiceImpl.class));
+		bf.registerBeanDefinition("bean2", new RootBeanDefinition(StockMovementDaoImpl.class));
+		bf.registerBeanDefinition("bean3", new RootBeanDefinition(StockMovementImpl.class));
+		bf.registerBeanDefinition("bean4", new RootBeanDefinition(StockMovementInstructionImpl.class));
+
+		StockServiceImpl service = bf.getBean(StockServiceImpl.class);
+		assertSame(bf.getBean(StockMovementDaoImpl.class), service.stockMovementDao);
+	}
+
 
 	public static class ResourceInjectionBean {
 
@@ -2532,6 +2601,100 @@ public class AutowiredAnnotationBeanPostProcessorTests {
 						}
 					});
 		}
+	}
+
+
+	public interface GenericInterface1<T> {
+
+		public String doSomethingGeneric(T o);
+	}
+
+
+	public static class GenericInterface1Impl<T> implements GenericInterface1<T>{
+
+		@Autowired
+		private GenericInterface2<T> gi2;
+
+		@Override
+		public String doSomethingGeneric(T o) {
+			return gi2.doSomethingMoreGeneric(o) + "_somethingGeneric_" + o;
+		}
+
+		public static GenericInterface1<String> create(){
+			return new StringGenericInterface1Impl();
+		}
+
+		public static GenericInterface1 createPlain(){
+			return new GenericInterface1Impl();
+		}
+	}
+
+
+	public static class StringGenericInterface1Impl extends GenericInterface1Impl<String> {
+	}
+
+
+	public interface GenericInterface2<K> {
+
+		public String doSomethingMoreGeneric(K o);
+	}
+
+
+	public static class GenericInterface2Impl implements GenericInterface2<String>{
+
+		@Override
+		public String doSomethingMoreGeneric(String o) {
+			return "somethingMoreGeneric_" + o;
+		}
+	}
+
+
+	public static class ReallyGenericInterface2Impl implements GenericInterface2<Object> {
+
+		@Override
+		public String doSomethingMoreGeneric(Object o) {
+			return "somethingMoreGeneric_" + o;
+		}
+	}
+
+
+	public static class PlainGenericInterface2Impl implements GenericInterface2{
+
+		@Override
+		public String doSomethingMoreGeneric(Object o) {
+			return "somethingMoreGeneric_" + o;
+		}
+	}
+
+
+	public interface StockMovement<P extends StockMovementInstruction> {
+	}
+
+
+	public interface StockMovementInstruction<C extends StockMovement> {
+	}
+
+
+	public interface StockMovementDao<S extends StockMovement> {
+	}
+
+
+	public static class StockMovementImpl<P extends StockMovementInstruction> implements StockMovement<P> {
+	}
+
+
+	public static class StockMovementInstructionImpl<C extends StockMovement> implements StockMovementInstruction<C> {
+	}
+
+
+	public static class StockMovementDaoImpl<E extends StockMovement> implements StockMovementDao<E> {
+	}
+
+
+	public static class StockServiceImpl {
+
+		@Autowired
+		private StockMovementDao<StockMovement> stockMovementDao;
 	}
 
 }

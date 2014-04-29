@@ -16,7 +16,6 @@
 
 package org.springframework.context.annotation;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -61,8 +60,8 @@ final class ConfigurationClass {
 	private final Map<String, Class<? extends BeanDefinitionReader>> importedResources =
 			new LinkedHashMap<String, Class<? extends BeanDefinitionReader>>();
 
-	private final Set<ImportBeanDefinitionRegistrar> importBeanDefinitionRegistrars =
-			new LinkedHashSet<ImportBeanDefinitionRegistrar>();
+	private final Map<ImportBeanDefinitionRegistrar, AnnotationMetadata> importBeanDefinitionRegistrars =
+			new LinkedHashMap<ImportBeanDefinitionRegistrar, AnnotationMetadata>();
 
 
 	/**
@@ -176,12 +175,12 @@ final class ConfigurationClass {
 		this.importedResources.put(importedResource, readerClass);
 	}
 
-	public void addImportBeanDefinitionRegistrar(ImportBeanDefinitionRegistrar registrar) {
-		this.importBeanDefinitionRegistrars.add(registrar);
+	public void addImportBeanDefinitionRegistrar(ImportBeanDefinitionRegistrar registrar, AnnotationMetadata importingClassMetadata) {
+		this.importBeanDefinitionRegistrars.put(registrar, importingClassMetadata);
 	}
 
-	public Set<ImportBeanDefinitionRegistrar> getImportBeanDefinitionRegistrars() {
-		return Collections.unmodifiableSet(this.importBeanDefinitionRegistrars);
+	public Map<ImportBeanDefinitionRegistrar, AnnotationMetadata> getImportBeanDefinitionRegistrars() {
+		return this.importBeanDefinitionRegistrars;
 	}
 
 	public Map<String, Class<? extends BeanDefinitionReader>> getImportedResources() {

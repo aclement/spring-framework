@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.springframework.test.web.servlet.request;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import javax.servlet.ServletContext;
@@ -39,13 +40,11 @@ public class MockMultipartHttpServletRequestBuilder extends MockHttpServletReque
 
 
 	/**
-	 * Package private constructor. Use static factory methods in
+	 * Package-private constructor. Use static factory methods in
 	 * {@link MockMvcRequestBuilders}.
-	 *
 	 * <p>For other ways to initialize a {@code MockMultipartHttpServletRequest},
 	 * see {@link #with(RequestPostProcessor)} and the
 	 * {@link RequestPostProcessor} extension point.
-	 *
 	 * @param urlTemplate a URL template; the resulting URL will be encoded
 	 * @param urlVariables zero or more URL variables
 	 */
@@ -55,8 +54,22 @@ public class MockMultipartHttpServletRequestBuilder extends MockHttpServletReque
 	}
 
 	/**
+	 * Package-private constructor. Use static factory methods in
+	 * {@link MockMvcRequestBuilders}.
+	 * <p>For other ways to initialize a {@code MockMultipartHttpServletRequest},
+	 * see {@link #with(RequestPostProcessor)} and the
+	 * {@link RequestPostProcessor} extension point.
+	 * @param uri the URL
+	 * @since 4.0.3
+	 */
+	MockMultipartHttpServletRequestBuilder(URI uri) {
+		super(HttpMethod.POST, uri);
+		super.contentType(MediaType.MULTIPART_FORM_DATA);
+	}
+
+
+	/**
 	 * Create a new MockMultipartFile with the given content.
-	 *
 	 * @param name the name of the file
 	 * @param content the content of the file
 	 */
@@ -67,7 +80,6 @@ public class MockMultipartHttpServletRequestBuilder extends MockHttpServletReque
 
 	/**
 	 * Add the given MockMultipartFile.
-	 *
 	 * @param file the multipart file
 	 */
 	public MockMultipartHttpServletRequestBuilder file(MockMultipartFile file) {

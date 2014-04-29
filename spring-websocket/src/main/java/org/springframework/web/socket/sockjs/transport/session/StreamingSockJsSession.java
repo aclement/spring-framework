@@ -24,14 +24,16 @@ import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.sockjs.SockJsException;
 import org.springframework.web.socket.sockjs.SockJsTransportFailureException;
-import org.springframework.web.socket.sockjs.support.frame.SockJsFrame;
-import org.springframework.web.socket.sockjs.support.frame.SockJsFrame.FrameFormat;
-import org.springframework.web.socket.sockjs.support.frame.SockJsMessageCodec;
+import org.springframework.web.socket.sockjs.frame.SockJsFrame;
+import org.springframework.web.socket.sockjs.frame.SockJsFrameFormat;
+import org.springframework.web.socket.sockjs.frame.SockJsMessageCodec;
+import org.springframework.web.socket.sockjs.transport.SockJsServiceConfig;
 
 /**
  * A SockJS session for use with streaming HTTP transports.
  *
  * @author Rossen Stoyanchev
+ * @since 4.0
  */
 public class StreamingSockJsSession extends AbstractHttpSockJsSession {
 
@@ -46,20 +48,19 @@ public class StreamingSockJsSession extends AbstractHttpSockJsSession {
 
 
 	@Override
-	public synchronized void handleInitialRequest(ServerHttpRequest request, ServerHttpResponse response,
-			FrameFormat frameFormat) throws SockJsException {
+	public void handleInitialRequest(ServerHttpRequest request, ServerHttpResponse response,
+			SockJsFrameFormat frameFormat) throws SockJsException {
 
 		super.handleInitialRequest(request, response, frameFormat);
 
 		// the WebSocketHandler delegate may have closed the session
 		if (!isClosed()) {
-			super.startLongPollingRequest(request, response, frameFormat);
+			super.startAsyncRequest();
 		}
 	}
 
 	@Override
 	protected void flushCache() throws SockJsTransportFailureException {
-
 		cancelHeartbeat();
 
 		do {
@@ -86,13 +87,13 @@ public class StreamingSockJsSession extends AbstractHttpSockJsSession {
 	}
 
 	@Override
-	protected synchronized void resetRequest() {
+	protected void resetRequest() {
 		super.resetRequest();
 		this.byteCount = 0;
 	}
 
 	@Override
-	protected synchronized void writeFrameInternal(SockJsFrame frame) throws IOException {
+	protected void writeFrameInternal(SockJsFrame frame) throws IOException {
 		if (isActive()) {
 			super.writeFrameInternal(frame);
 			getResponse().flush();

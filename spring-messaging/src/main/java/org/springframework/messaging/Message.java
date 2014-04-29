@@ -27,12 +27,12 @@ package org.springframework.messaging;
 public interface Message<T> {
 
 	/**
-	 * Returns message headers for the message (never {@code null}).
+	 * Return message headers for the message, never {@code null}.
 	 */
 	MessageHeaders getHeaders();
 
 	/**
-	 * Returns the message payload.
+	 * Return the message payload.
 	 */
 	T getPayload();
 

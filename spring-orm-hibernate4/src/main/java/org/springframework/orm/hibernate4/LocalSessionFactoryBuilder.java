@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import java.lang.reflect.Method;
 import java.util.LinkedHashSet;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeSet;
 import javax.persistence.Embeddable;
 import javax.persistence.Entity;
 import javax.persistence.MappedSuperclass;
@@ -61,8 +62,10 @@ import org.springframework.util.ClassUtils;
  * <p>This is designed for programmatic use, e.g. in {@code @Bean} factory methods.
  * Consider using {@link LocalSessionFactoryBean} for XML bean definition files.
  *
- * <p>Requires Hibernate 4.0 or higher. As of Spring 4.0, it is compatible with
- * (the quite refactored) Hibernate 4.3 as well.
+ * <p><b>Requires Hibernate 4.0 or higher.</b> As of Spring 4.0, it is compatible with
+ * (the quite refactored) Hibernate 4.3 as well. We recommend using the latest
+ * Hibernate 4.2.x or 4.3.x version, depending on whether you need to remain JPA 2.0
+ * compatible at runtime (Hibernate 4.2) or can upgrade to JPA 2.1 (Hibernate 4.3).
  *
  * <p><b>NOTE:</b> To set up Hibernate 4 for Spring-driven JTA transactions, make
  * sure to either use the {@link #setJtaTransactionManager} method or to set the
@@ -130,11 +133,13 @@ public class LocalSessionFactoryBuilder extends Configuration {
 	 * (may be {@code null})
 	 * @param resourceLoader the ResourceLoader to load application classes from
 	 */
+	@SuppressWarnings("deprecation")  // to be able to build against Hibernate 4.3
 	public LocalSessionFactoryBuilder(DataSource dataSource, ResourceLoader resourceLoader) {
 		getProperties().put(Environment.CURRENT_SESSION_CONTEXT_CLASS, SpringSessionContext.class.getName());
 		if (dataSource != null) {
 			getProperties().put(Environment.DATASOURCE, dataSource);
 		}
+		// APP_CLASSLOADER is deprecated as of Hibernate 4.3 but we need to remain compatible with 4.0+
 		getProperties().put(AvailableSettings.APP_CLASSLOADER, resourceLoader.getClassLoader());
 		this.resourcePatternResolver = ResourcePatternUtils.getResourcePatternResolver(resourceLoader);
 	}
@@ -249,6 +254,8 @@ public class LocalSessionFactoryBuilder extends Configuration {
 	 * @throws HibernateException if scanning fails for any reason
 	 */
 	public LocalSessionFactoryBuilder scanPackages(String... packagesToScan) throws HibernateException {
+		Set<String> classNames = new TreeSet<String>();
+		Set<String> packageNames = new TreeSet<String>();
 		try {
 			for (String pkg : packagesToScan) {
 				String pattern = ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX +
@@ -260,22 +267,30 @@ public class LocalSessionFactoryBuilder extends Configuration {
 						MetadataReader reader = readerFactory.getMetadataReader(resource);
 						String className = reader.getClassMetadata().getClassName();
 						if (matchesEntityTypeFilter(reader, readerFactory)) {
-							addAnnotatedClass(this.resourcePatternResolver.getClassLoader().loadClass(className));
+							classNames.add(className);
 						}
 						else if (className.endsWith(PACKAGE_INFO_SUFFIX)) {
-							addPackage(className.substring(0, className.length() - PACKAGE_INFO_SUFFIX.length()));
+							packageNames.add(className.substring(0, className.length() - PACKAGE_INFO_SUFFIX.length()));
 						}
 					}
 				}
 			}
-			return this;
 		}
 		catch (IOException ex) {
 			throw new MappingException("Failed to scan classpath for unlisted classes", ex);
 		}
+		try {
+			for (String className : classNames) {
+				addAnnotatedClass(this.resourcePatternResolver.getClassLoader().loadClass(className));
+			}
+			for (String packageName : packageNames) {
+				addPackage(packageName);
+			}
+		}
 		catch (ClassNotFoundException ex) {
 			throw new MappingException("Failed to load annotated classes from classpath", ex);
 		}
+		return this;
 	}
 
 	/**

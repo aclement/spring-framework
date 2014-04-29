@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2013 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,14 +31,23 @@ import org.springframework.cache.CacheManager;
  * the set of cache names is pre-defined through {@link #setCacheNames}, with no
  * dynamic creation of further cache regions at runtime.
  *
+ * <p>Note: This is by no means a sophisticated CacheManager; it comes with no
+ * cache configuration options. However, it may be useful for testing or simple
+ * caching scenarios. For advanced local caching needs, consider
+ * {@link org.springframework.cache.guava.GuavaCacheManager} or
+ * {@link org.springframework.cache.ehcache.EhCacheCacheManager}.
+ *
  * @author Juergen Hoeller
  * @since 3.1
+ * @see ConcurrentMapCache
  */
 public class ConcurrentMapCacheManager implements CacheManager {
 
 	private final ConcurrentMap<String, Cache> cacheMap = new ConcurrentHashMap<String, Cache>(16);
 
 	private boolean dynamic = true;
+
+	private boolean allowNullValues = true;
 
 
 	/**
@@ -71,6 +80,25 @@ public class ConcurrentMapCacheManager implements CacheManager {
 		}
 	}
 
+	/**
+	 * Specify whether to accept and convert {@code null} values for all caches
+	 * in this cache manager.
+	 * <p>Default is "true", despite ConcurrentHashMap itself not supporting {@code null}
+	 * values. An internal holder object will be used to store user-level {@code null}s.
+	 */
+	public void setAllowNullValues(boolean allowNullValues) {
+		this.allowNullValues = allowNullValues;
+	}
+
+	/**
+	 * Return whether this cache manager accepts and converts {@code null} values
+	 * for all of its caches.
+	 */
+	public boolean isAllowNullValues() {
+		return this.allowNullValues;
+	}
+
+
 	@Override
 	public Collection<String> getCacheNames() {
 		return Collections.unmodifiableSet(this.cacheMap.keySet());
@@ -97,7 +125,7 @@ public class ConcurrentMapCacheManager implements CacheManager {
 	 * @return the ConcurrentMapCache (or a decorator thereof)
 	 */
 	protected Cache createConcurrentMapCache(String name) {
-		return new ConcurrentMapCache(name);
+		return new ConcurrentMapCache(name, isAllowNullValues());
 	}
 
 }

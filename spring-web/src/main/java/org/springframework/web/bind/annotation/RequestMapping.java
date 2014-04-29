@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,6 +73,7 @@ import java.util.concurrent.Callable;
  * <li>{@link java.io.OutputStream} / {@link java.io.Writer} for generating
  * the response's content. This will be the raw OutputStream/Writer as
  * exposed by the Servlet/Portlet API.
+ * <li>{@link org.springframework.http.HttpMethod} for the HTTP request method</li>
  * <li>{@link PathVariable @PathVariable} annotated parameters (Servlet-only)
  * for access to URI template values (i.e. /hotels/{hotel}). Variable values will be
  * converted to the declared method argument type. By default, the URI template
@@ -161,7 +162,7 @@ import java.util.concurrent.Callable;
  *
  * <p>The following return types are supported for handler methods:
  * <ul>
- * <li>A {@link ModelAndView} object (Servlet MVC or Portlet MVC),
+ * <li>A {@code ModelAndView} object (Servlet MVC or Portlet MVC),
  * with the model implicitly enriched with command objects and the results
  * of {@link ModelAttribute @ModelAttribute} annotated reference data accessor methods.
  * <li>A {@link org.springframework.ui.Model Model} object, with the view name
@@ -195,6 +196,8 @@ import java.util.concurrent.Callable;
  * The entity body will be converted to the response stream using
  * {@linkplain org.springframework.http.converter.HttpMessageConverter message
  * converters}.
+ * <li>An {@link org.springframework.http.HttpHeaders HttpHeaders} object to
+ * return a response with no body.</li>
  * <li>A {@link Callable} which is used by Spring MVC to obtain the return
  * value asynchronously in a separate thread transparently managed by Spring MVC
  * on behalf of the application.

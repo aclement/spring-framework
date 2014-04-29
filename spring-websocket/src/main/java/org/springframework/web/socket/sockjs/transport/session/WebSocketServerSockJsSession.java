@@ -28,13 +28,14 @@ import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
-import org.springframework.web.socket.support.WebSocketExtension;
+import org.springframework.web.socket.WebSocketExtension;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.adapter.NativeWebSocketSession;
 import org.springframework.web.socket.sockjs.SockJsTransportFailureException;
-import org.springframework.web.socket.sockjs.support.frame.SockJsFrame;
-import org.springframework.web.socket.sockjs.support.frame.SockJsMessageCodec;
+import org.springframework.web.socket.sockjs.frame.SockJsFrame;
+import org.springframework.web.socket.sockjs.frame.SockJsMessageCodec;
+import org.springframework.web.socket.sockjs.transport.SockJsServiceConfig;
 
 /**
  * A SockJS session for use with the WebSocket transport.
@@ -42,99 +43,121 @@ import org.springframework.web.socket.sockjs.support.frame.SockJsMessageCodec;
  * @author Rossen Stoyanchev
  * @since 4.0
  */
-public class WebSocketServerSockJsSession extends AbstractSockJsSession
-		implements WebSocketSession, NativeWebSocketSession {
+public class WebSocketServerSockJsSession extends AbstractSockJsSession implements NativeWebSocketSession {
 
-	private WebSocketSession wsSession;
+	private WebSocketSession webSocketSession;
 
 
 	public WebSocketServerSockJsSession(String id, SockJsServiceConfig config,
-			WebSocketHandler wsHandler, Map<String, Object> attributes) {
+			WebSocketHandler handler, Map<String, Object> attributes) {
 
-		super(id, config, wsHandler, attributes);
+		super(id, config, handler, attributes);
 	}
 
 
 	@Override
 	public URI getUri() {
 		checkDelegateSessionInitialized();
-		return this.wsSession.getUri();
+		return this.webSocketSession.getUri();
 	}
 
 	@Override
 	public HttpHeaders getHandshakeHeaders() {
 		checkDelegateSessionInitialized();
-		return this.wsSession.getHandshakeHeaders();
+		return this.webSocketSession.getHandshakeHeaders();
 	}
 
 	@Override
 	public Principal getPrincipal() {
 		checkDelegateSessionInitialized();
-		return this.wsSession.getPrincipal();
+		return this.webSocketSession.getPrincipal();
 	}
 
 	@Override
 	public InetSocketAddress getLocalAddress() {
 		checkDelegateSessionInitialized();
-		return this.wsSession.getLocalAddress();
+		return this.webSocketSession.getLocalAddress();
 	}
 
 	@Override
 	public InetSocketAddress getRemoteAddress() {
 		checkDelegateSessionInitialized();
-		return this.wsSession.getRemoteAddress();
+		return this.webSocketSession.getRemoteAddress();
 	}
 
 	@Override
 	public String getAcceptedProtocol() {
 		checkDelegateSessionInitialized();
-		return this.wsSession.getAcceptedProtocol();
+		return this.webSocketSession.getAcceptedProtocol();
+	}
+
+	@Override
+	public void setTextMessageSizeLimit(int messageSizeLimit) {
+		checkDelegateSessionInitialized();
+		this.webSocketSession.setTextMessageSizeLimit(messageSizeLimit);
+	}
+
+	@Override
+	public int getTextMessageSizeLimit() {
+		checkDelegateSessionInitialized();
+		return this.webSocketSession.getTextMessageSizeLimit();
+	}
+
+	@Override
+	public void setBinaryMessageSizeLimit(int messageSizeLimit) {
+		checkDelegateSessionInitialized();
+		this.webSocketSession.setBinaryMessageSizeLimit(messageSizeLimit);
+	}
+
+	@Override
+	public int getBinaryMessageSizeLimit() {
+		checkDelegateSessionInitialized();
+		return this.webSocketSession.getBinaryMessageSizeLimit();
 	}
 
 	@Override
 	public List<WebSocketExtension> getExtensions() {
 		checkDelegateSessionInitialized();
-		return this.wsSession.getExtensions();
+		return this.webSocketSession.getExtensions();
 	}
 
 	private void checkDelegateSessionInitialized() {
-		Assert.state(this.wsSession != null, "WebSocketSession not yet initialized");
+		Assert.state(this.webSocketSession != null, "WebSocketSession not yet initialized");
 	}
 
 	@Override
 	public Object getNativeSession() {
-		if ((this.wsSession != null) && (this.wsSession instanceof NativeWebSocketSession)) {
-			return ((NativeWebSocketSession) this.wsSession).getNativeSession();
+		if ((this.webSocketSession != null) && (this.webSocketSession instanceof NativeWebSocketSession)) {
+			return ((NativeWebSocketSession) this.webSocketSession).getNativeSession();
 		}
 		return null;
 	}
 
 	@Override
 	public <T> T getNativeSession(Class<T> requiredType) {
-		if ((this.wsSession != null) && (this.wsSession instanceof NativeWebSocketSession)) {
-			return ((NativeWebSocketSession) this.wsSession).getNativeSession(requiredType);
+		if ((this.webSocketSession != null) && (this.webSocketSession instanceof NativeWebSocketSession)) {
+			return ((NativeWebSocketSession) this.webSocketSession).getNativeSession(requiredType);
 		}
 		return null;
 	}
 
 
 	public void initializeDelegateSession(WebSocketSession session) {
-		this.wsSession = session;
+		this.webSocketSession = session;
 		try {
 			TextMessage message = new TextMessage(SockJsFrame.openFrame().getContent());
-			this.wsSession.sendMessage(message);
+			this.webSocketSession.sendMessage(message);
 			scheduleHeartbeat();
 			delegateConnectionEstablished();
 		}
 		catch (Exception ex) {
 			tryCloseWithSockJsTransportError(ex, CloseStatus.SERVER_ERROR);
-			return;
 		}
 	}
 
 	@Override
 	public boolean isActive() {
-		return ((this.wsSession != null) && this.wsSession.isOpen());
+		return ((this.webSocketSession != null) && this.webSocketSession.isOpen());
 	}
 
 	public void handleMessage(TextMessage message, WebSocketSession wsSession) throws Exception {
@@ -170,13 +193,13 @@ public class WebSocketServerSockJsSession extends AbstractSockJsSession
 			logger.trace("Write " + frame);
 		}
 		TextMessage message = new TextMessage(frame.getContent());
-		this.wsSession.sendMessage(message);
+		this.webSocketSession.sendMessage(message);
 	}
 
 	@Override
 	protected void disconnect(CloseStatus status) throws IOException {
-		if (this.wsSession != null) {
-			this.wsSession.close(status);
+		if (isActive()) {
+			this.webSocketSession.close(status);
 		}
 	}
 

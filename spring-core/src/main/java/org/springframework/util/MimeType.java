@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,23 +27,20 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeSet;
 
-
 /**
  * Represents a MIME Type, as originally defined in RFC 2046 and subsequently used in
  * other Internet protocols including HTTP. This class however does not contain support
  * the q-parameters used in HTTP content negotiation. Those can be found in the sub-class
  * {@code org.springframework.http.MediaType} in the {@code spring-web} module.
- * <p>
- * Consists of a {@linkplain #getType() type} and a {@linkplain #getSubtype() subtype}.
+ *
+ * <p>Consists of a {@linkplain #getType() type} and a {@linkplain #getSubtype() subtype}.
  * Also has functionality to parse media types from a string using
- * {@link #parseMimeType(String)}, or multiple comma-separated media types using
- * {@link #parseMimeTypes(String)}.
+ * {@link #valueOf(String)}. For more parsing options see {@link MimeTypeUtils}.
  *
  * @author Arjen Poutsma
  * @author Juergen Hoeller
  * @author Rossen Stoyanchev
  * @since 4.0
- *
  * @see MimeTypeUtils
  */
 public class MimeType implements Comparable<MimeType>, Serializable {
@@ -173,7 +170,8 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 	}
 
 	/**
-	 * Checks the given token string for illegal characters, as defined in RFC 2616, section 2.2.
+	 * Checks the given token string for illegal characters, as defined in RFC 2616,
+	 * section 2.2.
 	 * @throws IllegalArgumentException in case of illegal characters
 	 * @see <a href="http://tools.ietf.org/html/rfc2616#section-2.2">HTTP 1.1, section 2.2</a>
 	 */
@@ -216,15 +214,17 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 	}
 
 	/**
-	 * Indicates whether the {@linkplain #getType() type} is the wildcard character {@code &#42;} or not.
+	 * Indicates whether the {@linkplain #getType() type} is the wildcard character
+	 * {@code &#42;} or not.
 	 */
 	public boolean isWildcardType() {
 		return WILDCARD_TYPE.equals(getType());
 	}
 
 	/**
-	 * Indicates whether the {@linkplain #getSubtype() subtype} is the wildcard character {@code &#42;}
-	 * or the wildcard character followed by a sufiix (e.g. {@code &#42;+xml}), or not.
+	 * Indicates whether the {@linkplain #getSubtype() subtype} is the wildcard character
+	 * {@code &#42;} or the wildcard character followed by a sufiix (e.g.
+	 * {@code &#42;+xml}), or not.
 	 * @return whether the subtype is {@code &#42;}
 	 */
 	public boolean isWildcardSubtype() {
@@ -232,8 +232,8 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 	}
 
 	/**
-	 * Indicates whether this media type is concrete, i.e. whether neither the type or subtype is a wildcard
-	 * character {@code &#42;}.
+	 * Indicates whether this media type is concrete, i.e. whether neither the type or
+	 * subtype is a wildcard character {@code &#42;}.
 	 * @return whether this media type is concrete
 	 */
 	public boolean isConcrete() {
@@ -282,10 +282,12 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 
 	/**
 	 * Indicate whether this {@code MediaType} includes the given media type.
-	 * <p>For instance, {@code text/*} includes {@code text/plain} and {@code text/html}, and {@code application/*+xml}
-	 * includes {@code application/soap+xml}, etc. This method is <b>not</b> symmetric.
+	 * <p>For instance, {@code text/*} includes {@code text/plain} and {@code text/html},
+	 * and {@code application/*+xml} includes {@code application/soap+xml}, etc. This
+	 * method is <b>not</b> symmetric.
 	 * @param other the reference media type with which to compare
-	 * @return {@code true} if this media type includes the given media type; {@code false} otherwise
+	 * @return {@code true} if this media type includes the given media type;
+	 * {@code false} otherwise
 	 */
 	public boolean includes(MimeType other) {
 		if (other == null) {
@@ -324,10 +326,12 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 
 	/**
 	 * Indicate whether this {@code MediaType} is compatible with the given media type.
-	 * <p>For instance, {@code text/*} is compatible with {@code text/plain}, {@code text/html}, and vice versa.
-	 * In effect, this method is similar to {@link #includes(MediaType)}, except that it <b>is</b> symmetric.
+	 * <p>For instance, {@code text/*} is compatible with {@code text/plain},
+	 * {@code text/html}, and vice versa. In effect, this method is similar to
+	 * {@link #includes}, except that it <b>is</b> symmetric.
 	 * @param other the reference media type with which to compare
-	 * @return {@code true} if this media type is compatible with the given media type; {@code false} otherwise
+	 * @return {@code true} if this media type is compatible with the given media type;
+	 * {@code false} otherwise
 	 */
 	public boolean isCompatibleWith(MimeType other) {
 		if (other == null) {
@@ -369,7 +373,7 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 	/**
 	 * Compares this {@code MediaType} to another alphabetically.
 	 * @param other media type to compare to
-	 * @see #sortBySpecificity(List)
+	 * @see MimeTypeUtils#sortBySpecificity(List)
 	 */
 	@Override
 	public int compareTo(MimeType other) {
@@ -420,7 +424,8 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 			return false;
 		}
 		MimeType otherType = (MimeType) other;
-		return (this.type.equalsIgnoreCase(otherType.type) && this.subtype.equalsIgnoreCase(otherType.subtype) &&
+		return (this.type.equalsIgnoreCase(otherType.type) &&
+				this.subtype.equalsIgnoreCase(otherType.subtype) &&
 				this.parameters.equals(otherType.parameters));
 	}
 
@@ -459,7 +464,7 @@ public class MimeType implements Comparable<MimeType>, Serializable {
 	 * Parse the given String value into a {@code MimeType} object,
 	 * with this method name following the 'valueOf' naming convention
 	 * (as supported by {@link org.springframework.core.convert.ConversionService}.
-	 * @see #parseMimeType(String)
+	 * @see MimeTypeUtils#parseMimeType(String)
 	 */
 	public static MimeType valueOf(String value) {
 		return MimeTypeUtils.parseMimeType(value);

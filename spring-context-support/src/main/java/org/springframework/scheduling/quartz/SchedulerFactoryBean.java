@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.io.support.PropertiesLoaderUtils;
 import org.springframework.scheduling.SchedulingException;
+import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 
 /**
@@ -74,7 +75,7 @@ import org.springframework.util.CollectionUtils;
  * automatically apply to Scheduler operations performed within those scopes.
  * Alternatively, you may add transactional advice for the Scheduler itself.
  *
- * <p>Compatible with Quartz 1.8 as well as Quartz 2.0-2.2, as of Spring 4.0.
+ * <p>Compatible with Quartz 2.1.4 and higher, as of Spring 4.1.
  *
  * @author Juergen Hoeller
  * @since 18.02.2004
@@ -157,7 +158,7 @@ public class SchedulerFactoryBean extends SchedulerAccessor implements FactoryBe
 	}
 
 
-	private Class<?> schedulerFactoryClass = StdSchedulerFactory.class;
+	private Class<? extends SchedulerFactory> schedulerFactoryClass = StdSchedulerFactory.class;
 
 	private String schedulerName;
 
@@ -173,7 +174,7 @@ public class SchedulerFactoryBean extends SchedulerAccessor implements FactoryBe
 	private DataSource nonTransactionalDataSource;
 
 
-    private Map schedulerContextMap;
+    private Map<String, ?> schedulerContextMap;
 
 	private ApplicationContext applicationContext;
 
@@ -200,7 +201,7 @@ public class SchedulerFactoryBean extends SchedulerAccessor implements FactoryBe
 
 	/**
 	 * Set the Quartz SchedulerFactory implementation to use.
-	 * <p>Default is StdSchedulerFactory, reading in the standard
+	 * <p>Default is {@link StdSchedulerFactory}, reading in the standard
 	 * {@code quartz.properties} from {@code quartz.jar}.
 	 * To use custom Quartz properties, specify the "configLocation"
 	 * or "quartzProperties" bean property on this FactoryBean.
@@ -208,10 +209,8 @@ public class SchedulerFactoryBean extends SchedulerAccessor implements FactoryBe
 	 * @see #setConfigLocation
 	 * @see #setQuartzProperties
 	 */
-	public void setSchedulerFactoryClass(Class schedulerFactoryClass) {
-		if (schedulerFactoryClass == null || !SchedulerFactory.class.isAssignableFrom(schedulerFactoryClass)) {
-			throw new IllegalArgumentException("schedulerFactoryClass must implement [org.quartz.SchedulerFactory]");
-		}
+	public void setSchedulerFactoryClass(Class<? extends SchedulerFactory> schedulerFactoryClass) {
+		Assert.isAssignable(SchedulerFactory.class, schedulerFactoryClass);
 		this.schedulerFactoryClass = schedulerFactoryClass;
 	}
 
@@ -313,7 +312,7 @@ public class SchedulerFactoryBean extends SchedulerAccessor implements FactoryBe
 	 * values (for example Spring-managed beans)
 	 * @see JobDetailBean#setJobDataAsMap
 	 */
-	public void setSchedulerContextAsMap(Map schedulerContextAsMap) {
+	public void setSchedulerContextAsMap(Map<String, ?> schedulerContextAsMap) {
 		this.schedulerContextMap = schedulerContextAsMap;
 	}
 
@@ -455,10 +454,8 @@ public class SchedulerFactoryBean extends SchedulerAccessor implements FactoryBe
 			this.resourceLoader = this.applicationContext;
 		}
 
-		// Create SchedulerFactory instance.
-		SchedulerFactory schedulerFactory = (SchedulerFactory)
-				BeanUtils.instantiateClass(this.schedulerFactoryClass);
-
+		// Create SchedulerFactory instance...
+		SchedulerFactory schedulerFactory = BeanUtils.instantiateClass(this.schedulerFactoryClass);
 		initSchedulerFactory(schedulerFactory);
 
 		if (this.resourceLoader != null) {
@@ -521,9 +518,7 @@ public class SchedulerFactoryBean extends SchedulerAccessor implements FactoryBe
 	 * Load and/or apply Quartz properties to the given SchedulerFactory.
 	 * @param schedulerFactory the SchedulerFactory to initialize
 	 */
-	private void initSchedulerFactory(SchedulerFactory schedulerFactory)
-			throws SchedulerException, IOException {
-
+	private void initSchedulerFactory(SchedulerFactory schedulerFactory) throws SchedulerException, IOException {
 		if (!(schedulerFactory instanceof StdSchedulerFactory)) {
 			if (this.configLocation != null || this.quartzProperties != null ||
 					this.taskExecutor != null || this.dataSource != null) {

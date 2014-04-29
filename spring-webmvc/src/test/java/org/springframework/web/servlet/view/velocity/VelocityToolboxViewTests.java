@@ -23,7 +23,6 @@ import org.springframework.mock.web.test.MockHttpServletResponse;
 import org.springframework.mock.web.test.MockServletContext;
 import org.springframework.web.context.support.StaticWebApplicationContext;
 
-
 /**
  * @author Rod Johnson
  * @author Juergen Hoeller
@@ -73,8 +72,7 @@ public class VelocityToolboxViewTests {
 
 		vv.setUrl(templateName);
 		vv.setApplicationContext(wac);
-		@SuppressWarnings("unchecked")
-		Map<String, Class> toolAttributes = new HashMap<String, Class>();
+		Map<String, Class<?>> toolAttributes = new HashMap<String, Class<?>>();
 		toolAttributes.put("math", MathTool.class);
 		toolAttributes.put("link2", LinkTool.class);
 		vv.setToolAttributes(toolAttributes);

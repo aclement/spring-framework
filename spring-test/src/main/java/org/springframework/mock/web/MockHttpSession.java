@@ -28,7 +28,6 @@ import javax.servlet.ServletContext;
 import javax.servlet.http.HttpSession;
 import javax.servlet.http.HttpSessionBindingEvent;
 import javax.servlet.http.HttpSessionBindingListener;
-import javax.servlet.http.HttpSessionContext;
 
 import org.springframework.util.Assert;
 
@@ -54,7 +53,7 @@ public class MockHttpSession implements HttpSession {
 
 	private static int nextId = 1;
 
-	private final String id;
+	private String id;
 
 	private final long creationTime = System.currentTimeMillis();
 
@@ -111,6 +110,16 @@ public class MockHttpSession implements HttpSession {
 		return this.id;
 	}
 
+	/**
+	 * As of Servlet 3.1 the id of a session can be changed.
+	 * @return the new session id.
+	 * @since 4.0.3
+	 */
+	public String changeSessionId() {
+		this.id = Integer.toString(nextId++);
+		return this.id;
+	}
+
 	public void access() {
 		this.lastAccessedTime = System.currentTimeMillis();
 		this.isNew = false;
@@ -138,7 +147,7 @@ public class MockHttpSession implements HttpSession {
 	}
 
 	@Override
-	public HttpSessionContext getSessionContext() {
+	public javax.servlet.http.HttpSessionContext getSessionContext() {
 		throw new UnsupportedOperationException("getSessionContext");
 	}
 
@@ -235,7 +244,7 @@ public class MockHttpSession implements HttpSession {
 	/**
 	 * Convenience method for asserting that this session has not been
 	 * {@linkplain #invalidate() invalidated}.
-	 * 
+	 *
 	 * @throws IllegalStateException if this session has been invalidated
 	 */
 	private void assertIsValid() {

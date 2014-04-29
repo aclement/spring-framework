@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,9 +60,9 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 
 	private static final int DEFAULT_INITIAL_CAPACITY = 16;
 
-	private static final int DEFAULT_CONCURRENCY_LEVEL = 16;
-
 	private static final float DEFAULT_LOAD_FACTOR = 0.75f;
+
+	private static final int DEFAULT_CONCURRENCY_LEVEL = 16;
 
 	private static final ReferenceType DEFAULT_REFERENCE_TYPE = ReferenceType.SOFT;
 
@@ -116,7 +116,7 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 	 * Create a new {@code ConcurrentReferenceHashMap} instance.
 	 * @param initialCapacity the initial capacity of the map
 	 * @param loadFactor the load factor. When the average number of references per table
-	 *        exceeds this value resize will be attempted
+	 * exceeds this value resize will be attempted
 	 */
 	public ConcurrentReferenceHashMap(int initialCapacity, float loadFactor) {
 		this(initialCapacity, loadFactor, DEFAULT_CONCURRENCY_LEVEL, DEFAULT_REFERENCE_TYPE);
@@ -130,6 +130,15 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 	 */
 	public ConcurrentReferenceHashMap(int initialCapacity, int concurrencyLevel) {
 		this(initialCapacity, DEFAULT_LOAD_FACTOR, concurrencyLevel, DEFAULT_REFERENCE_TYPE);
+	}
+
+	/**
+	 * Create a new {@code ConcurrentReferenceHashMap} instance.
+	 * @param initialCapacity the initial capacity of the map
+	 * @param referenceType the reference type used for entries (soft or weak)
+	 */
+	public ConcurrentReferenceHashMap(int initialCapacity, ReferenceType referenceType) {
+		this(initialCapacity, DEFAULT_LOAD_FACTOR, DEFAULT_CONCURRENCY_LEVEL, referenceType);
 	}
 
 	/**
@@ -151,24 +160,24 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 	 * table exceeds this value, resize will be attempted.
 	 * @param concurrencyLevel the expected number of threads that will concurrently
 	 * write to the map
-	 * @param referenceType the reference type used for entries
+	 * @param referenceType the reference type used for entries (soft or weak)
 	 */
 	@SuppressWarnings("unchecked")
 	public ConcurrentReferenceHashMap(int initialCapacity, float loadFactor, int concurrencyLevel,
 			ReferenceType referenceType) {
 
-		Assert.isTrue(concurrencyLevel > 0, "ConcurrencyLevel must be positive");
-		Assert.isTrue(initialCapacity >= 0, "InitialCapacity must not be negative");
-		Assert.isTrue(loadFactor > 0f, "LoadFactor must be positive");
+		Assert.isTrue(initialCapacity >= 0, "Initial capacity must not be negative");
+		Assert.isTrue(loadFactor > 0f, "Load factor must be positive");
+		Assert.isTrue(concurrencyLevel > 0, "Concurrency level must be positive");
 		Assert.notNull(referenceType, "Reference type must not be null");
 		this.loadFactor = loadFactor;
 		this.shift = calculateShift(concurrencyLevel, MAXIMUM_CONCURRENCY_LEVEL);
 		int size = 1 << this.shift;
 		this.referenceType = referenceType;
-		int roundedUpSegmentCapactity = (int) ((initialCapacity + size - 1L) / size);
+		int roundedUpSegmentCapacity = (int) ((initialCapacity + size - 1L) / size);
 		this.segments = (Segment[]) Array.newInstance(Segment.class, size);
 		for (int i = 0; i < this.segments.length; i++) {
-			this.segments[i] = new Segment(roundedUpSegmentCapactity);
+			this.segments[i] = new Segment(roundedUpSegmentCapacity);
 		}
 	}
 
@@ -186,8 +195,8 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 	}
 
 	/**
-	 * Factory method that returns the {@link ReferenceManager}. This method will be
-	 * called once for each {@link Segment}.
+	 * Factory method that returns the {@link ReferenceManager}.
+	 * This method will be called once for each {@link Segment}.
 	 * @return a new reference manager
 	 */
 	protected ReferenceManager createReferenceManager() {
@@ -329,6 +338,19 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 		}
 	}
 
+	/**
+	 * Remove any entries that have been garbage collected and are no longer referenced.
+	 * Under normal circumstances garbage collected entries are automatically purged as
+	 * items are added or removed from the Map. This method can be used to force a purge,
+	 * and is useful when the Map is read frequently but updated less often.
+	 */
+	public void purgeUnreferencedEntries() {
+		for (Segment segment : this.segments) {
+			segment.restructureIfNecessary(false);
+		}
+	}
+
+
 	@Override
 	public int size() {
 		int size = 0;
@@ -365,7 +387,7 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 	protected static int calculateShift(int minimumValue, int maximumValue) {
 		int shift = 0;
 		int value = 1;
-		while (value < minimumValue && value < minimumValue) {
+		while (value < minimumValue && value < maximumValue) {
 			value <<= 1;
 			shift++;
 		}
@@ -503,7 +525,7 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 		 * references that have been garbage collected.
 		 * @param allowResize if resizing is permitted
 		 */
-		private void restructureIfNecessary(boolean allowResize) {
+		protected final void restructureIfNecessary(boolean allowResize) {
 			boolean needsResize = ((this.count > 0) && (this.count >= this.resizeThreshold));
 			Reference<K, V> reference = this.referenceManager.pollForPurge();
 			if ((reference != null) || (needsResize && allowResize)) {
@@ -541,7 +563,7 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 							restructured[i] = null;
 						}
 						while (reference != null) {
-							if (!toPurge.contains(reference)) {
+							if (!toPurge.contains(reference) && (reference.get() != null)) {
 								int index = getIndex(reference.getHash(), restructured);
 								restructured[index] = this.referenceManager.createReference(
 										reference.get(), reference.getHash(),
@@ -555,7 +577,7 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 					if (resizing) {
 						setReferences(restructured);
 					}
-					this.count = countAfterRestructure;
+					this.count = Math.max(countAfterRestructure, 0);
 				} finally {
 					unlock();
 				}
@@ -639,7 +661,7 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 
 		/**
 		 * Release this entry and ensure that it will be returned from
-		 * {@link ReferenceManager#pollForPurge()}.
+		 * {@code ReferenceManager#pollForPurge()}.
 		 */
 		void release();
 	}
@@ -744,7 +766,7 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 
 
 	/**
-	 * Various options supported by a {@link Task}.
+	 * Various options supported by a {@code Task}.
 	 */
 	private static enum TaskOption {
 
@@ -965,6 +987,7 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 			enqueue();
 			clear();
 		}
+
 	}
 
 
@@ -998,6 +1021,7 @@ public class ConcurrentReferenceHashMap<K, V> extends AbstractMap<K, V> implemen
 			enqueue();
 			clear();
 		}
+
 	}
 
 }

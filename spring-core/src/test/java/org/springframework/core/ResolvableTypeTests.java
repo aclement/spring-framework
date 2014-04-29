@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.runners.MockitoJUnitRunner;
+
 import org.springframework.core.ResolvableType.VariableResolver;
 import org.springframework.util.MultiValueMap;
 
@@ -659,6 +660,16 @@ public class ResolvableTypeTests {
 	}
 
 	@Test
+	public void resolveTypeVariableFromFieldTypeWithImplementsType() throws Exception {
+		ResolvableType implementationType = ResolvableType.forClassWithGenerics(
+				Fields.class, Integer.class);
+		ResolvableType type = ResolvableType.forField(
+				Fields.class.getField("parameterizedType"), implementationType);
+		assertThat(type.resolve(), equalTo((Class) List.class));
+		assertThat(type.getGeneric().resolve(), equalTo((Class) Integer.class));
+	}
+
+	@Test
 	public void resolveTypeVariableFromSuperType() throws Exception {
 		ResolvableType type = ResolvableType.forClass(ExtendsList.class);
 		assertThat(type.resolve(), equalTo((Class) ExtendsList.class));
@@ -735,6 +746,16 @@ public class ResolvableTypeTests {
 	}
 
 	@Test
+	public void resolveTypeVariableFromMethodParameterTypeWithImplementsType() throws Exception {
+		Method method = Methods.class.getMethod("typedParameter", Object.class);
+		MethodParameter methodParameter = MethodParameter.forMethodOrConstructor(method, 0);
+		ResolvableType implementationType = ResolvableType.forClassWithGenerics(Methods.class, Integer.class);
+		ResolvableType type = ResolvableType.forMethodParameter(methodParameter, implementationType);
+		assertThat(type.resolve(), equalTo((Class) Integer.class));
+		assertThat(type.getType().toString(), equalTo("T"));
+	}
+
+	@Test
 	public void resolveTypeVariableFromMethodReturn() throws Exception {
 		Method method = Methods.class.getMethod("typedReturn");
 		ResolvableType type = ResolvableType.forMethodReturnType(method);
@@ -770,6 +791,7 @@ public class ResolvableTypeTests {
 	@Test
 	public void resolveTypeWithCustomVariableResolver() throws Exception {
 		VariableResolver variableResolver = mock(VariableResolver.class);
+		given(variableResolver.getSource()).willReturn(this);
 		ResolvableType longType = ResolvableType.forClass(Long.class);
 		given(variableResolver.resolveVariable((TypeVariable<?>) anyObject())).willReturn(longType);
 
@@ -832,8 +854,7 @@ public class ResolvableTypeTests {
 		assertThat("field " + field + " toString", type.toString(), equalTo(expected));
 	}
 
-	private void assertTypedFieldToStringValue(String field, String expected)
-			throws Exception {
+	private void assertTypedFieldToStringValue(String field, String expected) throws Exception {
 		ResolvableType type = ResolvableType.forField(Fields.class.getField(field), TypedFields.class);
 		assertThat("field " + field + " toString", type.toString(), equalTo(expected));
 	}
@@ -841,8 +862,7 @@ public class ResolvableTypeTests {
 	@Test
 	public void resolveFromOuterClass() throws Exception {
 		Field field = EnclosedInParameterizedType.InnerTyped.class.getField("field");
-		ResolvableType type = ResolvableType.forField(
-				field, TypedEnclosedInParameterizedType.TypedInnerTyped.class);
+		ResolvableType type = ResolvableType.forField(field, TypedEnclosedInParameterizedType.TypedInnerTyped.class);
 		assertThat(type.resolve(), equalTo((Type) Integer.class));
 	}
 
@@ -1183,6 +1203,13 @@ public class ResolvableTypeTests {
 		assertThat(type.hasUnresolvableGenerics(), equalTo(true));
 	}
 
+	@Test
+	public void testSpr11219() throws Exception {
+		ResolvableType type = ResolvableType.forField(BaseProvider.class.getField("stuff"), BaseProvider.class);
+		assertTrue(type.getNested(2).isAssignableFrom(ResolvableType.forClass(BaseImplementation.class)));
+		assertEquals("java.util.Collection<org.springframework.core.ResolvableTypeTests$IBase<?>>", type.toString());
+	}
+
 
 	private ResolvableType testSerialization(ResolvableType type) throws Exception {
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -1197,16 +1224,13 @@ public class ResolvableTypeTests {
 		return read;
 	}
 
-	private static AssertAssignbleMatcher assertAssignable(final ResolvableType type,
-			final ResolvableType... fromTypes) {
+	private static AssertAssignbleMatcher assertAssignable(final ResolvableType type, final ResolvableType... fromTypes) {
 		return new AssertAssignbleMatcher() {
 			@Override
 			public void equalTo(boolean... values) {
 				for (int i = 0; i < fromTypes.length; i++) {
-					assertThat(stringDesc(type) + " isAssignableFrom "
-							+ stringDesc(fromTypes[i]),
-							type.isAssignableFrom(fromTypes[i]),
-							Matchers.equalTo(values[i]));
+					assertThat(stringDesc(type) + " isAssignableFrom " + stringDesc(fromTypes[i]),
+							type.isAssignableFrom(fromTypes[i]), Matchers.equalTo(values[i]));
 				}
 			}
 		};
@@ -1226,17 +1250,16 @@ public class ResolvableTypeTests {
 	private static interface AssertAssignbleMatcher {
 
 		void equalTo(boolean... values);
-
 	}
 
 
+	@SuppressWarnings("serial")
 	static class ExtendsList extends ArrayList<CharSequence> {
-
 	}
 
 
+	@SuppressWarnings("serial")
 	static class ExtendsMap extends HashMap<String, Integer> {
-
 	}
 
 
@@ -1278,12 +1301,10 @@ public class ResolvableTypeTests {
 		public Map<Map<String, Integer>, Map<Byte, Long>> nested;
 
 		public T[] variableTypeGenericArray;
-
 	}
 
 
 	static class TypedFields extends Fields<String> {
-
 	}
 
 
@@ -1300,7 +1321,6 @@ public class ResolvableTypeTests {
 		void typedParameter(T p);
 
 		T typedReturn();
-
 	}
 
 
@@ -1349,17 +1369,14 @@ public class ResolvableTypeTests {
 		public Collection<? extends Collection<? extends CharSequence>> complexWildcard3;
 
 		public List<List<String>> complexWildcard4;
-
 	}
 
 
 	static class Assignment extends AssignmentBase<Object, CharSequence, String> {
-
 	}
 
 
 	static interface TypedMethods extends Methods<String> {
-
 	}
 
 
@@ -1370,7 +1387,6 @@ public class ResolvableTypeTests {
 
 		public Constructors(Map<T, Long> p) {
 		}
-
 	}
 
 
@@ -1383,65 +1399,52 @@ public class ResolvableTypeTests {
 		public TypedConstructors(Map<String, Long> p) {
 			super(p);
 		}
-
 	}
 
 
 	public interface MyInterfaceType<T> {
-
 	}
 
 
 	public class MySimpleInterfaceType implements MyInterfaceType<String> {
-
 	}
 
 	public abstract class MySimpleInterfaceTypeWithImplementsRaw implements MyInterfaceType<String>, List {
-
 	}
 
 	public abstract class ExtendsMySimpleInterfaceTypeWithImplementsRaw extends MySimpleInterfaceTypeWithImplementsRaw {
-
 	}
 
 
 	public class MyCollectionInterfaceType implements MyInterfaceType<Collection<String>> {
-
 	}
 
 
 	public abstract class MySuperclassType<T> {
-
 	}
 
 
 	public class MySimpleSuperclassType extends MySuperclassType<String> {
-
 	}
 
 
 	public class MyCollectionSuperclassType extends MySuperclassType<Collection<String>> {
-
 	}
 
 
 	static interface Wildcard<T extends Number> extends List<T> {
-
 	}
 
 
 	static interface RawExtendsWildcard extends Wildcard {
-
 	}
 
 
 	static interface VariableNameSwitch<V, K> extends MultiValueMap<K, V> {
-
 	}
 
 
 	static interface ListOfGenericArray extends List<List<String>[]> {
-
 	}
 
 
@@ -1454,16 +1457,31 @@ public class ResolvableTypeTests {
 
 			public T field;
 		}
-
 	}
 
 
-	static class TypedEnclosedInParameterizedType extends
-			EnclosedInParameterizedType<Integer> {
+	static class TypedEnclosedInParameterizedType extends EnclosedInParameterizedType<Integer> {
 
 		class TypedInnerTyped extends InnerTyped<Long> {
 		}
+	}
 
+
+	public interface IProvider<P> {
+	}
+
+	public interface IBase<BT extends IBase<BT>> {
+	}
+
+	public abstract class AbstractBase<BT extends IBase<BT>> implements IBase<BT> {
+	}
+
+	public class BaseImplementation extends AbstractBase<BaseImplementation> {
+	}
+
+	public class BaseProvider<BT extends IBase<BT>> implements IProvider<IBase<BT>> {
+
+		public Collection<IBase<BT>> stuff;
 	}
 
 }

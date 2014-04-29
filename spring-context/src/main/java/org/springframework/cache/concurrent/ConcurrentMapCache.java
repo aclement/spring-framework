@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import org.springframework.cache.Cache;
 import org.springframework.cache.support.SimpleValueWrapper;
+import org.springframework.util.Assert;
 
 /**
  * Simple {@link Cache} implementation based on the core JDK
@@ -77,6 +78,8 @@ public class ConcurrentMapCache implements Cache {
 	 * (adapting them to an internal null holder value)
 	 */
 	public ConcurrentMapCache(String name, ConcurrentMap<Object, Object> store, boolean allowNullValues) {
+		Assert.notNull(name, "Name must not be null");
+		Assert.notNull(store, "Store must not be null");
 		this.name = name;
 		this.store = store;
 		this.allowNullValues = allowNullValues;
@@ -84,30 +87,30 @@ public class ConcurrentMapCache implements Cache {
 
 
 	@Override
-	public String getName() {
+	public final String getName() {
 		return this.name;
 	}
 
 	@Override
-	public ConcurrentMap getNativeCache() {
+	public final ConcurrentMap<Object, Object> getNativeCache() {
 		return this.store;
 	}
 
-	public boolean isAllowNullValues() {
+	public final boolean isAllowNullValues() {
 		return this.allowNullValues;
 	}
 
 	@Override
 	public ValueWrapper get(Object key) {
 		Object value = this.store.get(key);
-		return (value != null ? new SimpleValueWrapper(fromStoreValue(value)) : null);
+		return toWrapper(value);
 	}
 
 	@Override
 	@SuppressWarnings("unchecked")
 	public <T> T get(Object key, Class<T> type) {
 		Object value = fromStoreValue(this.store.get(key));
-		if (type != null && !type.isInstance(value)) {
+		if (value != null && type != null && !type.isInstance(value)) {
 			throw new IllegalStateException("Cached value is not of required type [" + type.getName() + "]: " + value);
 		}
 		return (T) value;
@@ -116,6 +119,12 @@ public class ConcurrentMapCache implements Cache {
 	@Override
 	public void put(Object key, Object value) {
 		this.store.put(key, toStoreValue(value));
+	}
+
+	@Override
+	public ValueWrapper putIfAbsent(Object key, Object value) {
+		Object existing = this.store.putIfAbsent(key, value);
+		return toWrapper(existing);
 	}
 
 	@Override
@@ -155,6 +164,9 @@ public class ConcurrentMapCache implements Cache {
 		return userValue;
 	}
 
+	private ValueWrapper toWrapper(Object value) {
+		return (value != null ? new SimpleValueWrapper(fromStoreValue(value)) : null);
+	}
 
 	@SuppressWarnings("serial")
 	private static class NullHolder implements Serializable {

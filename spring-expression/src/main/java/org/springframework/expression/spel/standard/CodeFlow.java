@@ -17,7 +17,6 @@
 package org.springframework.expression.spel.standard;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Stack;
@@ -78,7 +77,7 @@ public class CodeFlow implements Opcodes {
 	public void unboxBooleanIfNecessary(MethodVisitor mv) {
 		String ld = lastDescriptor();
 		if (ld.equals("Ljava/lang/Boolean")) {
-			mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Boolean", "booleanValue", "()Z");
+			mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Boolean", "booleanValue", "()Z", false);
 		}
 	}
 	
@@ -128,7 +127,7 @@ public class CodeFlow implements Opcodes {
 		return s.toString();
 	}
 
-	public static String createDescriptor(Constructor ctor) {
+	public static String createDescriptor(Constructor<?> ctor) {
 		Class<?>[] params = ctor.getParameterTypes();
 		StringBuilder s = new StringBuilder();
 		s.append("(");
@@ -202,6 +201,7 @@ public class CodeFlow implements Opcodes {
 					else if (name.equals("void")) {
 						return "V";
 					}
+					break;
 				case 5:
 					if (name.equals("float")) {
 						return "F";
@@ -209,14 +209,17 @@ public class CodeFlow implements Opcodes {
 					else if (name.equals("short")) {
 						return "S";
 					}
+					break;
 				case 6:
 					if (name.equals("double")) {
 						return "D";
 					}
+					break;
 				case 7:
 					if (name.equals("boolean")) {
 						return "Z";
 					}
+					break;
 				default:
 					throw new IllegalStateException("nyi "+name);
 			}
@@ -231,6 +234,7 @@ public class CodeFlow implements Opcodes {
 				}
 			}
 		}
+		throw new IllegalStateException("nyi "+name);
 	}
 
 	public static boolean isBooleanCompatible(String descriptor) {
@@ -259,7 +263,7 @@ public class CodeFlow implements Opcodes {
 		switch (desiredPrimitiveType) {
 			case 'Z':
 				if (ld.equals("Ljava/lang/Boolean")) {
-					mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Boolean", "booleanValue", "()Z");
+					mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Boolean", "booleanValue", "()Z",false);
 				} else if (!ld.equals("Z")) {
 					throw new IllegalStateException("not unboxable to boolean:"+codeflow.lastDescriptor());
 				}
@@ -389,28 +393,28 @@ public class CodeFlow implements Opcodes {
 		char ch = descriptor.charAt(0);
 		switch (ch) {
 		case 'I':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;", false);
 			break;
 		case 'C':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Character", "valueOf", "(C)Ljava/lang/Character;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Character", "valueOf", "(C)Ljava/lang/Character;", false);
 			break;
 		case 'J':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;", false);
 			break;
 		case 'Z':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Z)Ljava/lang/Boolean;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Z)Ljava/lang/Boolean;", false);
 			break;
 		case 'F':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;", false);
 			break;
 		case 'S':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Short", "valueOf", "(S)Ljava/lang/Short;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Short", "valueOf", "(S)Ljava/lang/Short;", false);
 			break;
 		case 'D':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Double", "valueOf", "(D)Ljava/lang/Double;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Double", "valueOf", "(D)Ljava/lang/Double;", false);
 			break;
 		case 'B':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Byte", "valueOf", "(B)Ljava/lang/Byte;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Byte", "valueOf", "(B)Ljava/lang/Byte;", false);
 			break;
 		case 'V':
 		case '[':
@@ -424,28 +428,28 @@ public class CodeFlow implements Opcodes {
 	public static void insertBoxInsns(MethodVisitor mv, char ch) {
 		switch (ch) {
 		case 'I':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;", false);
 			break;
 		case 'F':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;", false);
 			break;
 		case 'S':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Short", "valueOf", "(S)Ljava/lang/Short;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Short", "valueOf", "(S)Ljava/lang/Short;", false);
 			break;
 		case 'Z':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Z)Ljava/lang/Boolean;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Z)Ljava/lang/Boolean;", false);
 			break;
 		case 'J':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;", false);
 			break;
 		case 'D':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Double", "valueOf", "(D)Ljava/lang/Double;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Double", "valueOf", "(D)Ljava/lang/Double;", false);
 			break;
 		case 'C':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Character", "valueOf", "(C)Ljava/lang/Character;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Character", "valueOf", "(C)Ljava/lang/Character;", false);
 			break;
 		case 'B':
-			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Byte", "valueOf", "(B)Ljava/lang/Byte;");
+			mv.visitMethodInsn(INVOKESTATIC, "java/lang/Byte", "valueOf", "(B)Ljava/lang/Byte;", false);
 			break;
 		case 'L':
 		case '[':
@@ -466,7 +470,7 @@ public class CodeFlow implements Opcodes {
 		return parameters;
 	}
 	
-	public static String[] toParamDescriptors(Constructor c) {
+	public static String[] toParamDescriptors(Constructor<?> c) {
 		Class<?>[] parameterTypes = c.getParameterTypes();
 		int parameterCount = c.getParameterCount();
 		String[] parameters = new String[parameterCount];

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,23 +28,23 @@ import org.eclipse.jetty.websocket.client.ClientUpgradeRequest;
 import org.eclipse.jetty.websocket.client.WebSocketClient;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.core.task.AsyncListenableTaskExecutor;
-import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.HttpHeaders;
-import org.springframework.util.Assert;
 import org.springframework.util.concurrent.ListenableFuture;
+import org.springframework.util.concurrent.ListenableFutureTask;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.adapter.JettyWebSocketHandlerAdapter;
-import org.springframework.web.socket.adapter.JettyWebSocketSession;
+import org.springframework.web.socket.adapter.jetty.JettyWebSocketHandlerAdapter;
+import org.springframework.web.socket.adapter.jetty.JettyWebSocketSession;
+import org.springframework.web.socket.adapter.jetty.WebSocketToJettyExtensionConfigAdapter;
 import org.springframework.web.socket.client.AbstractWebSocketClient;
-import org.springframework.web.socket.support.WebSocketExtension;
+import org.springframework.web.socket.WebSocketExtension;
 import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
 
 /**
- * Initiates WebSocket requests to a WebSocket server programatically through the Jetty
- * WebSocket API.
+ * Initiates WebSocket requests to a WebSocket server programmatically
+ * through the Jetty WebSocket API.
  *
  * @author Rossen Stoyanchev
  * @since 4.0
@@ -59,32 +59,33 @@ public class JettyWebSocketClient extends AbstractWebSocketClient implements Sma
 
 	private final Object lifecycleMonitor = new Object();
 
-	private AsyncListenableTaskExecutor taskExecutor = new SimpleAsyncTaskExecutor("WebSocketClient-");
+	private AsyncListenableTaskExecutor taskExecutor;
 
 
 	/**
 	 * Default constructor that creates an instance of
-	 * {@link org.eclipse.jetty.websocket.client.WebSocketClient} with default settings.
+	 * {@link org.eclipse.jetty.websocket.client.WebSocketClient}.
 	 */
 	public JettyWebSocketClient() {
 		this.client = new org.eclipse.jetty.websocket.client.WebSocketClient();
 	}
 
 	/**
-	 * Constructor that accepts a pre-configured {@link WebSocketClient}.
+	 * Constructor that accepts an existing
+	 * {@link org.eclipse.jetty.websocket.client.WebSocketClient} instance.
 	 */
 	public JettyWebSocketClient(WebSocketClient client) {
-		super();
 		this.client = client;
 	}
 
 
 	/**
-	 * Set a {@link TaskExecutor} to use to open the connection.
-	 * By default {@link SimpleAsyncTaskExecutor} is used.
+	 * Set an {@link AsyncListenableTaskExecutor} to use when opening connections.
+	 *
+	 * <p>If this property is not configured, calls to  any of the
+	 * {@code doHandshake} methods will block until the connection is established.
 	 */
 	public void setTaskExecutor(AsyncListenableTaskExecutor taskExecutor) {
-		Assert.notNull(taskExecutor, "taskExecutor is required");
 		this.taskExecutor = taskExecutor;
 	}
 
@@ -171,13 +172,13 @@ public class JettyWebSocketClient extends AbstractWebSocketClient implements Sma
 	@Override
 	public ListenableFuture<WebSocketSession> doHandshakeInternal(WebSocketHandler wsHandler,
 			HttpHeaders headers, final URI uri, List<String> protocols,
-			List<WebSocketExtension> extensions,  Map<String, Object> handshakeAttributes) {
+			List<WebSocketExtension> extensions,  Map<String, Object> attributes) {
 
 		final ClientUpgradeRequest request = new ClientUpgradeRequest();
 		request.setSubProtocols(protocols);
 
 		for (WebSocketExtension e : extensions) {
-			request.addExtensions(new WebSocketExtension.WebSocketToJettyExtensionConfigAdapter(e));
+			request.addExtensions(new WebSocketToJettyExtensionConfigAdapter(e));
 		}
 
 		for (String header : headers.keySet()) {
@@ -185,22 +186,31 @@ public class JettyWebSocketClient extends AbstractWebSocketClient implements Sma
 		}
 
 		Principal user = getUser();
-		final JettyWebSocketSession wsSession = new JettyWebSocketSession(user, handshakeAttributes);
+		final JettyWebSocketSession wsSession = new JettyWebSocketSession(attributes, user);
 		final JettyWebSocketHandlerAdapter listener = new JettyWebSocketHandlerAdapter(wsHandler, wsSession);
 
-		return this.taskExecutor.submitListenable(new Callable<WebSocketSession>() {
+		Callable<WebSocketSession> connectTask = new Callable<WebSocketSession>() {
 			@Override
 			public WebSocketSession call() throws Exception {
 				Future<Session> future = client.connect(listener, uri, request);
 				future.get();
 				return wsSession;
 			}
-		});
+		};
+
+		if (this.taskExecutor != null) {
+			return this.taskExecutor.submitListenable(connectTask);
+		}
+		else {
+			ListenableFutureTask<WebSocketSession> task = new ListenableFutureTask<WebSocketSession>(connectTask);
+			task.run();
+			return task;
+		}
 	}
 
 	/**
 	 * @return the user to make available through {@link WebSocketSession#getPrincipal()};
-	 *         by default this method returns {@code null}
+	 * 	by default this method returns {@code null}
 	 */
 	protected Principal getUser() {
 		return null;

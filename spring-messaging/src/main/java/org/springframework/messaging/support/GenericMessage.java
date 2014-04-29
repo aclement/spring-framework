@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package org.springframework.messaging.support;
 
 import java.io.Serializable;
-import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.messaging.Message;
@@ -26,8 +25,8 @@ import org.springframework.util.Assert;
 import org.springframework.util.ObjectUtils;
 
 /**
- * Base Message class defining common properties such as id, payload, and headers.
- * Once created this object is immutable.
+ * An implementation of {@link Message} with a generic payload.
+ * Once created, a GenericMessage is immutable.
  *
  * @author Mark Fisher
  * @since 4.0
@@ -47,29 +46,36 @@ public class GenericMessage<T> implements Message<T>, Serializable {
 	/**
 	 * Create a new message with the given payload.
 	 *
-	 * @param payload the message payload
+	 * @param payload the message payload, never {@code null}
 	 */
 	public GenericMessage(T payload) {
-		this(payload, null);
+		this(payload, new MessageHeaders(null));
 	}
 
 	/**
-	 * Create a new message with the given payload. The provided map will be used to
-	 * populate the message headers
+	 * Create a new message with the given payload and headers.
+	 * The content of the given header map is copied.
 	 *
-	 * @param payload the message payload
-	 * @param headers message headers
-	 * @see MessageHeaders
+	 * @param payload the message payload, never {@code null}
+	 * @param headers message headers to use for initialization
 	 */
 	public GenericMessage(T payload, Map<String, Object> headers) {
+		this(payload, new MessageHeaders(headers));
+	}
+
+	/**
+	 * A constructor with the {@link MessageHeaders} instance to use.
+	 *
+	 * <p><strong>Note:</strong> the given {@code MessageHeaders} instance is used
+	 * directly in the new message, i.e. it is not copied.
+	 *
+	 * @param payload the message payload, never {@code null}
+	 * @param headers message headers
+	 */
+	public GenericMessage(T payload, MessageHeaders headers) {
+		Assert.notNull(headers, "'headers' must not be null");
 		Assert.notNull(payload, "payload must not be null");
-		if (headers == null) {
-			headers = new HashMap<String, Object>();
-		}
-		else {
-			headers = new HashMap<String, Object>(headers);
-		}
-		this.headers = new MessageHeaders(headers);
+		this.headers = headers;
 		this.payload = payload;
 	}
 
@@ -91,7 +97,7 @@ public class GenericMessage<T> implements Message<T>, Serializable {
 			sb.append("[Payload ").append(this.payload.getClass().getSimpleName());
 			sb.append(" content=").append(this.payload).append("]");
 		}
-		sb.append("[Headers=" + this.headers + "]");
+		sb.append("[Headers=").append(this.headers).append("]");
 		return sb.toString();
 	}
 
@@ -105,11 +111,8 @@ public class GenericMessage<T> implements Message<T>, Serializable {
 		}
 		if (obj != null && obj instanceof GenericMessage<?>) {
 			GenericMessage<?> other = (GenericMessage<?>) obj;
-			if (!this.headers.getId().equals(other.headers.getId())) {
-				return false;
-			}
-			return this.headers.equals(other.headers)
-					&& this.payload.equals(other.payload);
+			return (ObjectUtils.nullSafeEquals(this.headers.getId(), other.headers.getId()) &&
+					this.headers.equals(other.headers) && this.payload.equals(other.payload));
 		}
 		return false;
 	}

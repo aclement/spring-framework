@@ -19,7 +19,6 @@ package org.springframework.expression.spel.ast;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,8 +39,6 @@ import org.springframework.expression.spel.SpelMessage;
 import org.springframework.expression.spel.SpelNode;
 import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.support.ReflectiveConstructorExecutor;
-import org.springframework.expression.spel.support.ReflectiveConstructorResolver;
-import org.springframework.expression.spel.support.ReflectiveMethodExecutor;
 
 /**
  * Represents the invocation of a constructor. Either a constructor on a regular type or
@@ -129,7 +126,7 @@ public class ConstructorReference extends SpelNodeImpl {
 	@Override
 	public void generateCode(MethodVisitor mv, CodeFlow codeflow) {
 		ReflectiveConstructorExecutor executor = ((ReflectiveConstructorExecutor) this.cachedExecutor);
-		Constructor constructor = executor.getConstructor();
+		Constructor<?> constructor = executor.getConstructor();
 		
 		String classSlashedDescriptor = constructor.getDeclaringClass().getName().replace('.','/');
 		String[] paramDescriptors = CodeFlow.toParamDescriptors(constructor);
@@ -145,7 +142,7 @@ public class ConstructorReference extends SpelNodeImpl {
 			}
 			codeflow.exitCompilationScope();
 		}
-		mv.visitMethodInsn(INVOKESPECIAL,classSlashedDescriptor,"<init>",CodeFlow.createDescriptor(constructor));
+		mv.visitMethodInsn(INVOKESPECIAL,classSlashedDescriptor,"<init>",CodeFlow.createDescriptor(constructor),false);
 		codeflow.pushDescriptor(exitTypeDescriptor);
 	};
 

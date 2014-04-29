@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package org.springframework.test.web.servlet;
 
 import java.io.IOException;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
 
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
@@ -27,11 +26,7 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.context.request.NativeWebRequest;
-import org.springframework.web.context.request.async.CallableProcessingInterceptorAdapter;
-import org.springframework.web.context.request.async.DeferredResult;
-import org.springframework.web.context.request.async.DeferredResultProcessingInterceptorAdapter;
-import org.springframework.web.context.request.async.WebAsyncManager;
-import org.springframework.web.context.request.async.WebAsyncUtils;
+import org.springframework.web.context.request.async.*;
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.HandlerExecutionChain;
 import org.springframework.web.servlet.ModelAndView;
@@ -50,6 +45,7 @@ final class TestDispatcherServlet extends DispatcherServlet {
 
 	private static final String KEY = TestDispatcherServlet.class.getName() + ".interceptor";
 
+
 	/**
 	 * Create a new instance with the given web application context.
 	 */
@@ -57,37 +53,29 @@ final class TestDispatcherServlet extends DispatcherServlet {
 		super(webApplicationContext);
 	}
 
+
 	@Override
-	protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+	protected void service(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
 
-		CountDownLatch latch = registerAsyncInterceptors(request);
-		getMvcResult(request).setAsyncResultLatch(latch);
-
+		registerAsyncResultInterceptors(request);
 		super.service(request, response);
 	}
 
-	private CountDownLatch registerAsyncInterceptors(final HttpServletRequest servletRequest) {
-
-		final CountDownLatch asyncResultLatch = new CountDownLatch(1);
-
-		WebAsyncManager asyncManager = WebAsyncUtils.getAsyncManager(servletRequest);
-
+	private void registerAsyncResultInterceptors(final HttpServletRequest request) {
+		WebAsyncManager asyncManager = WebAsyncUtils.getAsyncManager(request);
 		asyncManager.registerCallableInterceptor(KEY, new CallableProcessingInterceptorAdapter() {
 			@Override
-			public <T> void postProcess(NativeWebRequest request, Callable<T> task, Object value) throws Exception {
-				getMvcResult(servletRequest).setAsyncResult(value);
-				asyncResultLatch.countDown();
+			public <T> void postProcess(NativeWebRequest r, Callable<T> task, Object value) throws Exception {
+				getMvcResult(request).setAsyncResult(value);
 			}
 		});
 		asyncManager.registerDeferredResultInterceptor(KEY, new DeferredResultProcessingInterceptorAdapter() {
 			@Override
-			public <T> void postProcess(NativeWebRequest request, DeferredResult<T> result, Object value) throws Exception {
-				getMvcResult(servletRequest).setAsyncResult(value);
-				asyncResultLatch.countDown();
+			public <T> void postProcess(NativeWebRequest r, DeferredResult<T> result, Object value) throws Exception {
+				getMvcResult(request).setAsyncResult(value);
 			}
 		});
-
-		return asyncResultLatch;
 	}
 
 	protected DefaultMvcResult getMvcResult(ServletRequest request) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,6 @@ public abstract class AbstractWebSocketMessage<T> implements WebSocketMessage<T>
 
 	/**
 	 * Create a new WebSocket message with the given payload.
-	 *
 	 * @param payload the non-null payload
 	 */
 	AbstractWebSocketMessage(T payload) {
@@ -46,12 +45,11 @@ public abstract class AbstractWebSocketMessage<T> implements WebSocketMessage<T>
 	 * message content. When the {@code isLast} boolean flag is set to {@code false}
 	 * the message is sent as partial content and more partial messages will be
 	 * expected until the boolean flag is set to {@code true}.
-	 *
 	 * @param payload the non-null payload
 	 * @param isLast if the message is the last of a series of partial messages
 	 */
 	AbstractWebSocketMessage(T payload, boolean isLast) {
-		Assert.notNull(payload, "payload is required");
+		Assert.notNull(payload, "payload must not be null");
 		this.payload = payload;
 		this.last = isLast;
 	}
@@ -84,18 +82,16 @@ public abstract class AbstractWebSocketMessage<T> implements WebSocketMessage<T>
 		if (!(other instanceof AbstractWebSocketMessage)) {
 			return false;
 		}
-		AbstractWebSocketMessage otherMessage = (AbstractWebSocketMessage) other;
+		AbstractWebSocketMessage<?> otherMessage = (AbstractWebSocketMessage<?>) other;
 		return ObjectUtils.nullSafeEquals(this.payload, otherMessage.payload);
 	}
 
 	@Override
 	public String toString() {
 		return getClass().getSimpleName() + " payload= " + toStringPayload()
-				+ ", length=" + getPayloadSize() + ", last=" + isLast() + "]";
+				+ ", byteCount=" + getPayloadLength() + ", last=" + isLast() + "]";
 	}
 
 	protected abstract String toStringPayload();
-
-	protected abstract int getPayloadSize();
 
 }

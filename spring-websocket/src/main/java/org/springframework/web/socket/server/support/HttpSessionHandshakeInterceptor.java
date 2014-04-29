@@ -19,11 +19,11 @@ package org.springframework.web.socket.server.support;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.Map;
-
 import javax.servlet.http.HttpSession;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.http.server.ServletServerHttpRequest;
@@ -32,10 +32,9 @@ import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
-
 /**
  * An interceptor to copy HTTP session attributes into the map of "handshake attributes"
- * made available through {@link WebSocketSession#getHandshakeAttributes()}.
+ * made available through {@link WebSocketSession#getAttributes()}.
  *
  * @author Rossen Stoyanchev
  * @since 4.0

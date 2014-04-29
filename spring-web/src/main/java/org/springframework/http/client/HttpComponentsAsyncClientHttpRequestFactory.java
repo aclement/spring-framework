@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ import org.springframework.util.Assert;
 
 /**
  * Asynchronous extension of the {@link HttpComponentsClientHttpRequestFactory}. Uses
-  * <a href="http://hc.apache.org/httpcomponents-asyncclient-dev/">Apache HttpComponents
+ * <a href="http://hc.apache.org/httpcomponents-asyncclient-dev/">Apache HttpComponents
  * HttpAsyncClient 4.0</a> to create requests.
  *
  * @author Arjen Poutsma
@@ -113,8 +113,7 @@ public class HttpComponentsAsyncClientHttpRequestFactory
 	}
 
 	@Override
-	public AsyncClientHttpRequest createAsyncRequest(URI uri, HttpMethod httpMethod)
-			throws IOException {
+	public AsyncClientHttpRequest createAsyncRequest(URI uri, HttpMethod httpMethod) throws IOException {
 		HttpAsyncClient asyncClient = getHttpAsyncClient();
 		startAsyncClient();
 		HttpUriRequest httpRequest = createHttpUriRequest(httpMethod, uri);

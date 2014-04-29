@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import org.springframework.util.Assert;
 public abstract class SpelNodeImpl implements SpelNode, Opcodes {
 
 	private static SpelNodeImpl[] NO_CHILDREN = new SpelNodeImpl[0];
+
 
 	protected int pos; // start = top 16bits, end = bottom 16bits
 
@@ -86,7 +87,7 @@ public abstract class SpelNodeImpl implements SpelNode, Opcodes {
 	/**
      * @return true if the next child is one of the specified classes
      */
-	protected boolean nextChildIs(Class... clazzes) {
+	protected boolean nextChildIs(Class<?>... clazzes) {
 		if (this.parent != null) {
 			SpelNodeImpl[] peers = this.parent.children;
 			for (int i = 0, max = peers.length; i < max; i++) {
@@ -95,8 +96,8 @@ public abstract class SpelNodeImpl implements SpelNode, Opcodes {
 						return false;
 					}
 
-					Class clazz = peers[i + 1].getClass();
-					for (Class desiredClazz : clazzes) {
+					Class<?> clazz = peers[i + 1].getClass();
+					for (Class<?> desiredClazz : clazzes) {
 						if (clazz.equals(desiredClazz)) {
 							return true;
 						}
@@ -165,23 +166,18 @@ public abstract class SpelNodeImpl implements SpelNode, Opcodes {
 		return ExpressionUtils.convertTypedValue(state.getEvaluationContext(), getValueInternal(state), desiredReturnType);
 	}
 
-	public abstract TypedValue getValueInternal(ExpressionState expressionState) throws EvaluationException;
-
-	@Override
-	public abstract String toStringAST();
-
 	@Override
 	public int getStartPosition() {
-		return (this.pos>>16);
+		return (this.pos >> 16);
 	}
 
 	@Override
 	public int getEndPosition() {
-		return (this.pos&0xffff);
+		return (this.pos & 0xffff);
 	}
 
 	protected ValueRef getValueRef(ExpressionState state) throws EvaluationException {
-		throw new SpelEvaluationException(this.pos,SpelMessage.NOT_ASSIGNABLE,toStringAST());
+		throw new SpelEvaluationException(this.pos, SpelMessage.NOT_ASSIGNABLE, toStringAST());
 	}
 
 	/**
@@ -212,4 +208,7 @@ public abstract class SpelNodeImpl implements SpelNode, Opcodes {
 	public String getExitDescriptor() {
 		return this.exitTypeDescriptor;
 	}
+
+	public abstract TypedValue getValueInternal(ExpressionState expressionState) throws EvaluationException;
+
 }

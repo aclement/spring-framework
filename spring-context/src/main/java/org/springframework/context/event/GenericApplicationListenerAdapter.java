@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,35 +33,35 @@ import org.springframework.util.Assert;
  */
 public class GenericApplicationListenerAdapter implements SmartApplicationListener {
 
-	private final ApplicationListener delegate;
+	private final ApplicationListener<ApplicationEvent> delegate;
 
 
 	/**
 	 * Create a new GenericApplicationListener for the given delegate.
 	 * @param delegate the delegate listener to be invoked
 	 */
-	public GenericApplicationListenerAdapter(ApplicationListener delegate) {
+	@SuppressWarnings("unchecked")
+	public GenericApplicationListenerAdapter(ApplicationListener<?> delegate) {
 		Assert.notNull(delegate, "Delegate listener must not be null");
-		this.delegate = delegate;
+		this.delegate = (ApplicationListener<ApplicationEvent>) delegate;
 	}
 
 
 	@Override
-	@SuppressWarnings("unchecked")
 	public void onApplicationEvent(ApplicationEvent event) {
 		this.delegate.onApplicationEvent(event);
 	}
 
 	@Override
 	public boolean supportsEventType(Class<? extends ApplicationEvent> eventType) {
-		Class<?> typeArg = GenericTypeResolver.resolveTypeArgument(this.delegate.getClass(), ApplicationListener.class);
-		if (typeArg == null || typeArg.equals(ApplicationEvent.class)) {
+		Class<?> declaredEventType = resolveDeclaredEventType(this.delegate.getClass());
+		if (declaredEventType == null || declaredEventType.equals(ApplicationEvent.class)) {
 			Class<?> targetClass = AopUtils.getTargetClass(this.delegate);
 			if (targetClass != this.delegate.getClass()) {
-				typeArg = GenericTypeResolver.resolveTypeArgument(targetClass, ApplicationListener.class);
+				declaredEventType = resolveDeclaredEventType(targetClass);
 			}
 		}
-		return (typeArg == null || typeArg.isAssignableFrom(eventType));
+		return (declaredEventType == null || declaredEventType.isAssignableFrom(eventType));
 	}
 
 	@Override
@@ -72,6 +72,11 @@ public class GenericApplicationListenerAdapter implements SmartApplicationListen
 	@Override
 	public int getOrder() {
 		return (this.delegate instanceof Ordered ? ((Ordered) this.delegate).getOrder() : Ordered.LOWEST_PRECEDENCE);
+	}
+
+
+	static Class<?> resolveDeclaredEventType(Class<?> listenerType) {
+		return GenericTypeResolver.resolveTypeArgument(listenerType, ApplicationListener.class);
 	}
 
 }

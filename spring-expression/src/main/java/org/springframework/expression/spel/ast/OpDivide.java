@@ -17,21 +17,26 @@
 package org.springframework.expression.spel.ast;
 
 import org.springframework.asm.MethodVisitor;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.Operation;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.standard.Utils;
+import org.springframework.util.NumberUtils;
 
 /**
  * Implements division operator.
  *
  * @author Andy Clement
  * @author Juergen Hoeller
+ * @author Giovanni Dall'Oglio Risso
  * @since 3.0
  */
 public class OpDivide extends Operator {
+
 
 	public OpDivide(int pos, SpelNodeImpl... operands) {
 		super("/", pos, operands);
@@ -40,38 +45,47 @@ public class OpDivide extends Operator {
 
 	@Override
 	public TypedValue getValueInternal(ExpressionState state) throws EvaluationException {
-		Object operandOne = getLeftOperand().getValueInternal(state).getValue();
-		Object operandTwo = getRightOperand().getValueInternal(state).getValue();
-		if (operandOne instanceof Number && operandTwo instanceof Number) {
-			Number op1 = (Number) operandOne;
-			Number op2 = (Number) operandTwo;
-			if (op1 instanceof Double || op2 instanceof Double) {
-				if (op1 instanceof Double && op2 instanceof Double) {
+		Object leftOperand = getLeftOperand().getValueInternal(state).getValue();
+		Object rightOperand = getRightOperand().getValueInternal(state).getValue();
+		if (leftOperand instanceof Number && rightOperand instanceof Number) {
+			Number leftNumber = (Number) leftOperand;
+			Number rightNumber = (Number) rightOperand;
+			
+			if (leftNumber instanceof BigDecimal || rightNumber instanceof BigDecimal) {
+				BigDecimal leftBigDecimal = NumberUtils.convertNumberToTargetClass(leftNumber, BigDecimal.class);
+				BigDecimal rightBigDecimal = NumberUtils.convertNumberToTargetClass(rightNumber, BigDecimal.class);
+				int scale = Math.max(leftBigDecimal.scale(), rightBigDecimal.scale());
+				return new TypedValue(leftBigDecimal.divide(rightBigDecimal, scale, RoundingMode.HALF_EVEN));
+			}
+
+			if (leftNumber instanceof Double || rightNumber instanceof Double) {
+				if (leftNumber instanceof Double && rightNumber instanceof Double) {
 					this.exitTypeDescriptor = "D";
 				}
-				return new TypedValue(op1.doubleValue() / op2.doubleValue());
+				return new TypedValue(leftNumber.doubleValue() / rightNumber.doubleValue());
 			}
-			else if (op1 instanceof Float || op2 instanceof Float) {
-				if (op1 instanceof Float && op2 instanceof Float) {
+			else if (leftNumber instanceof Float || rightNumber instanceof Float) {
+				if (leftNumber instanceof Float && rightNumber instanceof Float) {
 					this.exitTypeDescriptor = "F";
 				}
-				return new TypedValue(op1.floatValue() / op2.floatValue());
+				return new TypedValue(leftNumber.floatValue() / rightNumber.floatValue());
 			}
-			else if (op1 instanceof Long || op2 instanceof Long) {
-				if (op1 instanceof Long && op2 instanceof Long) {
+			else if (leftNumber instanceof Long || rightNumber instanceof Long) {
+				if (leftNumber instanceof Long && rightNumber instanceof Long) {
 					this.exitTypeDescriptor = "J";
 				}
-				return new TypedValue(op1.longValue() / op2.longValue());
+				return new TypedValue(leftNumber.longValue() / rightNumber.longValue());
 			}
 			else {
-				if (op1 instanceof Integer && op2 instanceof Integer) {
+				if (leftNumber instanceof Integer && rightNumber instanceof Integer) {
 					this.exitTypeDescriptor = "I";
 				}
 				// TODO what about non-int result of the division?
-				return new TypedValue(op1.intValue() / op2.intValue());
+				return new TypedValue(leftNumber.intValue() / rightNumber.intValue());
 			}
 		}
-		return state.operate(Operation.DIVIDE, operandOne, operandTwo);
+
+		return state.operate(Operation.DIVIDE, leftOperand, rightOperand);
 	}
 	
 	@Override

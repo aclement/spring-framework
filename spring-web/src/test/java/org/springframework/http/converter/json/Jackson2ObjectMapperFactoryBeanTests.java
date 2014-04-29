@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import java.util.Map;
 
 import org.junit.Before;
 import org.junit.Test;
+
 import org.springframework.beans.FatalBeanException;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -36,6 +37,7 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.cfg.DeserializerFactoryConfig;
 import com.fasterxml.jackson.databind.cfg.SerializerFactoryConfig;
@@ -45,8 +47,8 @@ import com.fasterxml.jackson.databind.introspect.NopAnnotationIntrospector;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.BasicSerializerFactory;
 import com.fasterxml.jackson.databind.ser.Serializers;
+import com.fasterxml.jackson.databind.ser.std.ClassSerializer;
 import com.fasterxml.jackson.databind.ser.std.NumberSerializers.NumberSerializer;
-import com.fasterxml.jackson.databind.ser.std.StdJdkSerializers.ClassSerializer;
 import com.fasterxml.jackson.databind.type.SimpleType;
 
 import static org.junit.Assert.*;
@@ -80,7 +82,7 @@ public class Jackson2ObjectMapperFactoryBeanTests {
 
 	@Test(expected = FatalBeanException.class)
 	public void testUnknownFeature() {
-		this.factory.setFeaturesToEnable(new Object[] { Boolean.TRUE });
+		this.factory.setFeaturesToEnable(Boolean.TRUE);
 		this.factory.afterPropertiesSet();
 	}
 
@@ -178,12 +180,22 @@ public class Jackson2ObjectMapperFactoryBeanTests {
 		assertEquals(ObjectMapper.class, this.factory.getObjectType());
 	}
 
-	private static final SerializerFactoryConfig getSerializerFactoryConfig(ObjectMapper objectMapper) {
+	private static SerializerFactoryConfig getSerializerFactoryConfig(ObjectMapper objectMapper) {
 		return ((BasicSerializerFactory) objectMapper.getSerializerFactory()).getFactoryConfig();
 	}
 
-	private static final DeserializerFactoryConfig getDeserializerFactoryConfig(ObjectMapper objectMapper) {
+	private static DeserializerFactoryConfig getDeserializerFactoryConfig(ObjectMapper objectMapper) {
 		return ((BasicDeserializerFactory) objectMapper.getDeserializationContext().getFactory()).getFactoryConfig();
+	}
+
+	@Test
+	public void testPropertyNamingStrategy() {
+		PropertyNamingStrategy strategy = new PropertyNamingStrategy.LowerCaseWithUnderscoresStrategy();
+		this.factory.setPropertyNamingStrategy(strategy);
+		this.factory.afterPropertiesSet();
+
+		assertSame(strategy, this.factory.getObject().getSerializationConfig().getPropertyNamingStrategy());
+		assertSame(strategy, this.factory.getObject().getDeserializationConfig().getPropertyNamingStrategy());
 	}
 
 	@Test
@@ -199,8 +211,8 @@ public class Jackson2ObjectMapperFactoryBeanTests {
 
 		factory.setObjectMapper(objectMapper);
 
-		JsonSerializer serializer1 = new ClassSerializer();
-		JsonSerializer serializer2 = new NumberSerializer();
+		JsonSerializer<Class<?>> serializer1 = new ClassSerializer();
+		JsonSerializer<Number> serializer2 = new NumberSerializer();
 
 		factory.setSerializers(serializer1);
 		factory.setSerializersByType(Collections.<Class<?>, JsonSerializer<?>> singletonMap(Boolean.class, serializer2));
@@ -221,16 +233,13 @@ public class Jackson2ObjectMapperFactoryBeanTests {
 		assertFalse(getDeserializerFactoryConfig(objectMapper).hasDeserializers());
 
 		this.factory.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-
 		this.factory.afterPropertiesSet();
 
 		assertTrue(objectMapper == this.factory.getObject());
-
 		assertTrue(getSerializerFactoryConfig(objectMapper).hasSerializers());
 		assertTrue(getDeserializerFactoryConfig(objectMapper).hasDeserializers());
 
 		Serializers serializers = getSerializerFactoryConfig(objectMapper).serializers().iterator().next();
-
 		assertTrue(serializers.findSerializer(null, SimpleType.construct(Class.class), null) == serializer1);
 		assertTrue(serializers.findSerializer(null, SimpleType.construct(Boolean.class), null) == serializer2);
 		assertNull(serializers.findSerializer(null, SimpleType.construct(Number.class), null));
@@ -247,7 +256,7 @@ public class Jackson2ObjectMapperFactoryBeanTests {
 		assertFalse(objectMapper.getDeserializationConfig().isEnabled(MapperFeature.AUTO_DETECT_FIELDS));
 		assertFalse(objectMapper.getFactory().isEnabled(JsonParser.Feature.AUTO_CLOSE_SOURCE));
 		assertFalse(objectMapper.getFactory().isEnabled(JsonGenerator.Feature.QUOTE_FIELD_NAMES));
-
 		assertTrue(objectMapper.getSerializationConfig().getSerializationInclusion() == JsonInclude.Include.NON_NULL);
 	}
+
 }

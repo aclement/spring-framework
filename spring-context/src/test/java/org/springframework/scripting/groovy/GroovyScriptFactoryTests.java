@@ -23,7 +23,6 @@ import java.util.Map;
 import groovy.lang.DelegatingMetaClass;
 import groovy.lang.GroovyObject;
 
-import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.springframework.aop.support.AopUtils;
@@ -45,8 +44,6 @@ import org.springframework.scripting.ScriptCompilationException;
 import org.springframework.scripting.ScriptSource;
 import org.springframework.scripting.support.ScriptFactoryPostProcessor;
 import org.springframework.stereotype.Component;
-import org.springframework.tests.Assume;
-import org.springframework.tests.TestGroup;
 import org.springframework.tests.sample.beans.TestBean;
 import org.springframework.util.ObjectUtils;
 
@@ -63,11 +60,6 @@ import static org.mockito.BDDMockito.*;
  */
 @SuppressWarnings("resource")
 public class GroovyScriptFactoryTests {
-
-	@Before
-	public void setUp() {
-		Assume.group(TestGroup.LONG_RUNNING);
-	}
 
 	@Test
 	public void testStaticScript() throws Exception {
@@ -412,8 +404,6 @@ public class GroovyScriptFactoryTests {
 
 	@Test
 	public void testAnonymousScriptDetected() throws Exception {
-		Assume.group(TestGroup.LONG_RUNNING);
-
 		ApplicationContext ctx = new ClassPathXmlApplicationContext("groovy-with-xsd.xml", getClass());
 		Map<?, Messenger> beans = ctx.getBeansOfType(Messenger.class);
 		assertEquals(4, beans.size());
@@ -490,6 +480,7 @@ public class GroovyScriptFactoryTests {
 		assertTrue(result instanceof String);
 		assertEquals("test", result);
 	}
+
 
 	public static class TestCustomizer implements GroovyObjectCustomizer {
 

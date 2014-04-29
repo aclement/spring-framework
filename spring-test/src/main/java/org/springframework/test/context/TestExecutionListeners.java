@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,9 @@ import java.lang.annotation.Target;
  * <p>Typically, {@code @TestExecutionListeners} will be used in conjunction with
  * {@link ContextConfiguration @ContextConfiguration}.
  *
+ * <p>As of Spring Framework 4.0, this annotation may be used as a
+ * <em>meta-annotation</em> to create custom <em>composed annotations</em>.
+ *
  * @author Sam Brannen
  * @since 2.5
  * @see TestExecutionListener
@@ -44,8 +47,19 @@ import java.lang.annotation.Target;
 public @interface TestExecutionListeners {
 
 	/**
+	 * Alias for {@link #listeners() listeners}.
+	 *
+	 * <p>This attribute may <strong>not</strong> be used in conjunction with
+	 * {@link #listeners}, but it may be used instead of {@link #listeners}.
+	 */
+	Class<? extends TestExecutionListener>[] value() default {};
+
+	/**
 	 * The {@link TestExecutionListener TestExecutionListeners} to register with
 	 * a {@link TestContextManager}.
+	 *
+	 * <p>This attribute may <strong>not</strong> be used in conjunction with
+	 * {@link #value}, but it may be used instead of {@link #value}.
 	 *
 	 * @see org.springframework.test.context.web.ServletTestExecutionListener
 	 * @see org.springframework.test.context.support.DependencyInjectionTestExecutionListener
@@ -53,11 +67,6 @@ public @interface TestExecutionListeners {
 	 * @see org.springframework.test.context.transaction.TransactionalTestExecutionListener
 	 */
 	Class<? extends TestExecutionListener>[] listeners() default {};
-
-	/**
-	 * Alias for {@link #listeners() listeners}.
-	 */
-	Class<? extends TestExecutionListener>[] value() default {};
 
 	/**
 	 * Whether or not {@link #value() TestExecutionListeners} from superclasses

@@ -34,7 +34,6 @@ import org.apache.tiles.servlet.context.ServletUtil;
 import org.springframework.web.servlet.support.JstlUtils;
 import org.springframework.web.servlet.support.RequestContext;
 import org.springframework.web.servlet.view.AbstractUrlBasedView;
-import org.springframework.web.util.WebUtils;
 
 /**
  * {@link org.springframework.web.servlet.View} implementation that retrieves a
@@ -42,7 +41,7 @@ import org.springframework.web.util.WebUtils;
  *
  * <p>This class builds on Tiles2, which requires JSP 2.0.
  * JSTL support is integrated out of the box due to JSTL's inclusion in JSP 2.0.
- * <b>Note: Spring 3.0 requires Tiles 2.1.2 or above.</b>
+ * <b>Note: Spring 4.0 requires Tiles 2.2.2.</b>
  *
  * <p>Depends on a TilesContainer which must be available in
  * the ServletContext. This container is typically set up via a

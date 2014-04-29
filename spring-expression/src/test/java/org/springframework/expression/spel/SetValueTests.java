@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,14 +32,13 @@ import org.springframework.expression.ParseException;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.expression.spel.testresources.PlaceOfBirth;
 
-
 /**
  * Tests set value expressions.
  *
  * @author Keith Donald
  * @author Andy Clement
  */
-public class SetValueTests extends ExpressionTestCase {
+public class SetValueTests extends AbstractExpressionTests {
 
 	private final static boolean DEBUG = false;
 
@@ -167,15 +166,15 @@ public class SetValueTests extends ExpressionTestCase {
 		e.setValue(eContext, "true");
 
 		// All keys should be strings
-		Set ks = parse("mapOfStringToBoolean.keySet()").getValue(eContext,Set.class);
+		Set<?> ks = parse("mapOfStringToBoolean.keySet()").getValue(eContext, Set.class);
 		for (Object o: ks) {
 			assertEquals(String.class,o.getClass());
 		}
 
 		// All values should be booleans
-		Collection vs = parse("mapOfStringToBoolean.values()").getValue(eContext,Collection.class);
+		Collection<?> vs = parse("mapOfStringToBoolean.values()").getValue(eContext, Collection.class);
 		for (Object o: vs) {
-			assertEquals(Boolean.class,o.getClass());
+			assertEquals(Boolean.class, o.getClass());
 		}
 
 		// One final test check coercion on the key for a map lookup

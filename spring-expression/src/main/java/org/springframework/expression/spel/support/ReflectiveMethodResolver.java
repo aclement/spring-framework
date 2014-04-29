@@ -42,8 +42,8 @@ import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelMessage;
 
 /**
- * Reflection-based {@link MethodResolver} used by default in
- * {@link StandardEvaluationContext} unless explicit method resolvers have been specified.
+ * Reflection-based {@link MethodResolver} used by default in {@link StandardEvaluationContext}
+ * unless explicit method resolvers have been specified.
  *
  * @author Andy Clement
  * @author Juergen Hoeller
@@ -53,20 +53,21 @@ import org.springframework.expression.spel.SpelMessage;
  */
 public class ReflectiveMethodResolver implements MethodResolver {
 
-	private Map<Class<?>, MethodFilter> filters = null;
-
 	// Using distance will ensure a more accurate match is discovered,
 	// more closely following the Java rules.
-	private boolean useDistance = false;
+	private final boolean useDistance;
+
+	private Map<Class<?>, MethodFilter> filters;
 
 
 	public ReflectiveMethodResolver() {
+		this.useDistance = false;
 	}
 
 	/**
 	 * This constructors allows the ReflectiveMethodResolver to be configured such that it will
 	 * use a distance computation to check which is the better of two close matches (when there
-	 * are multiple matches).  Using the distance computation is intended to ensure matches
+	 * are multiple matches). Using the distance computation is intended to ensure matches
 	 * are more closely representative of what a Java compiler would do when taking into
 	 * account boxing/unboxing and whether the method candidates are declared to handle a
 	 * supertype of the type (of the argument) being passed in.
@@ -74,6 +75,19 @@ public class ReflectiveMethodResolver implements MethodResolver {
 	 */
 	public ReflectiveMethodResolver(boolean useDistance) {
 		this.useDistance = useDistance;
+	}
+
+
+	public void registerMethodFilter(Class<?> type, MethodFilter filter) {
+		if (this.filters == null) {
+			this.filters = new HashMap<Class<?>, MethodFilter>();
+		}
+		if (filter != null) {
+			this.filters.put(type, filter);
+		}
+		else {
+			this.filters.remove(type);
+		}
 	}
 
 
@@ -124,7 +138,6 @@ public class ReflectiveMethodResolver implements MethodResolver {
 
 			Method closeMatch = null;
 			int closeMatchDistance = Integer.MAX_VALUE;
-			int[] argsToConvert = null;
 			Method matchRequiringConversion = null;
 			boolean multipleOptions = false;
 
@@ -141,44 +154,43 @@ public class ReflectiveMethodResolver implements MethodResolver {
 						matchInfo = ReflectionHelper.compareArgumentsVarargs(paramDescriptors, argumentTypes, typeConverter);
 					}
 					else if (paramTypes.length == argumentTypes.size()) {
-						// name and parameter number match, check the arguments
+						// Name and parameter number match, check the arguments
 						matchInfo = ReflectionHelper.compareArguments(paramDescriptors, argumentTypes, typeConverter);
 					}
 					if (matchInfo != null) {
-						if (matchInfo.kind == ReflectionHelper.ArgsMatchKind.EXACT) {
-							return new ReflectiveMethodExecutor(method, null);
+						if (matchInfo.isExactMatch()) {
+							return new ReflectiveMethodExecutor(method);
 						}
-						else if (matchInfo.kind == ReflectionHelper.ArgsMatchKind.CLOSE) {
+						else if (matchInfo.isCloseMatch()) {
 							if (!this.useDistance) {
 								closeMatch = method;
 							}
 							else {
 								int matchDistance = ReflectionHelper.getTypeDifferenceWeight(paramDescriptors, argumentTypes);
-								if (matchDistance<closeMatchDistance) {
-									// this is a better match
+								if (matchDistance < closeMatchDistance) {
+									// This is a better match...
 									closeMatchDistance = matchDistance;
 									closeMatch = method;
 								}
 							}
 						}
-						else if (matchInfo.kind == ReflectionHelper.ArgsMatchKind.REQUIRES_CONVERSION) {
+						else if (matchInfo.isMatchRequiringConversion()) {
 							if (matchRequiringConversion != null) {
 								multipleOptions = true;
 							}
-							argsToConvert = matchInfo.argsRequiringConversion;
 							matchRequiringConversion = method;
 						}
 					}
 				}
 			}
 			if (closeMatch != null) {
-				return new ReflectiveMethodExecutor(closeMatch, null);
+				return new ReflectiveMethodExecutor(closeMatch);
 			}
 			else if (matchRequiringConversion != null) {
 				if (multipleOptions) {
 					throw new SpelEvaluationException(SpelMessage.MULTIPLE_POSSIBLE_METHODS, name);
 				}
-				return new ReflectiveMethodExecutor(matchRequiringConversion, argsToConvert);
+				return new ReflectiveMethodExecutor(matchRequiringConversion);
 			}
 			else {
 				return null;
@@ -186,18 +198,6 @@ public class ReflectiveMethodResolver implements MethodResolver {
 		}
 		catch (EvaluationException ex) {
 			throw new AccessException("Failed to resolve method", ex);
-		}
-	}
-
-	public void registerMethodFilter(Class<?> type, MethodFilter filter) {
-		if (this.filters == null) {
-			this.filters = new HashMap<Class<?>, MethodFilter>();
-		}
-		if (filter == null) {
-			this.filters.remove(type);
-		}
-		else {
-			this.filters.put(type,filter);
 		}
 	}
 

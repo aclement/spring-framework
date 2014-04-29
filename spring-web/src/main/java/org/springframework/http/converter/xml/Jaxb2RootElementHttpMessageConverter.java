@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2010 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import javax.xml.bind.annotation.XmlRootElement;
 import javax.xml.bind.annotation.XmlType;
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
+import javax.xml.transform.sax.SAXSource;
+import javax.xml.transform.stream.StreamSource;
 
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.http.HttpHeaders;
@@ -36,6 +38,10 @@ import org.springframework.http.converter.HttpMessageConversionException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.util.ClassUtils;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import org.xml.sax.XMLReader;
+import org.xml.sax.helpers.XMLReaderFactory;
 
 /**
  * Implementation of {@link org.springframework.http.converter.HttpMessageConverter HttpMessageConverter} that can read
@@ -45,9 +51,21 @@ import org.springframework.util.ClassUtils;
  * annotated with with {@link XmlRootElement}, or subclasses thereof.
  *
  * @author Arjen Poutsma
+ * @author Sebastien Deleuze
  * @since 3.0
  */
 public class Jaxb2RootElementHttpMessageConverter extends AbstractJaxb2HttpMessageConverter<Object> {
+
+	private boolean processExternalEntities = false;
+
+
+	/**
+	 * Indicates whether external XML entities are processed when converting to a Source.
+	 * <p>Default is {@code false}, meaning that external entities are not resolved.
+	 */
+	public void setProcessExternalEntities(boolean processExternalEntities) {
+		this.processExternalEntities = processExternalEntities;
+	}
 
 	@Override
 	public boolean canRead(Class<?> clazz, MediaType mediaType) {
@@ -69,12 +87,13 @@ public class Jaxb2RootElementHttpMessageConverter extends AbstractJaxb2HttpMessa
 	@Override
 	protected Object readFromSource(Class<?> clazz, HttpHeaders headers, Source source) throws IOException {
 		try {
+			source = processSource(source);
 			Unmarshaller unmarshaller = createUnmarshaller(clazz);
 			if (clazz.isAnnotationPresent(XmlRootElement.class)) {
 				return unmarshaller.unmarshal(source);
 			}
 			else {
-				JAXBElement jaxbElement = unmarshaller.unmarshal(source, clazz);
+				JAXBElement<?> jaxbElement = unmarshaller.unmarshal(source, clazz);
 				return jaxbElement.getValue();
 			}
 		}
@@ -87,10 +106,30 @@ public class Jaxb2RootElementHttpMessageConverter extends AbstractJaxb2HttpMessa
 		}
 	}
 
+	protected Source processSource(Source source) {
+		if (source instanceof StreamSource) {
+			StreamSource streamSource = (StreamSource) source;
+			InputSource inputSource = new InputSource(streamSource.getInputStream());
+			try {
+				XMLReader xmlReader = XMLReaderFactory.createXMLReader();
+				String featureName = "http://xml.org/sax/features/external-general-entities";
+				xmlReader.setFeature(featureName, this.processExternalEntities);
+				return new SAXSource(xmlReader, inputSource);
+			}
+			catch (SAXException ex) {
+				logger.warn("Processing of external entities could not be disabled", ex);
+				return source;
+			}
+		}
+		else {
+			return source;
+		}
+	}
+
 	@Override
 	protected void writeToResult(Object o, HttpHeaders headers, Result result) throws IOException {
 		try {
-			Class clazz = ClassUtils.getUserClass(o);
+			Class<?> clazz = ClassUtils.getUserClass(o);
 			Marshaller marshaller = createMarshaller(clazz);
 			setCharset(headers.getContentType(), marshaller);
 			marshaller.marshal(o, result);

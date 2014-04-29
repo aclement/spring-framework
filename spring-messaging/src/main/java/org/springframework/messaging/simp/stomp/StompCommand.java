@@ -23,9 +23,7 @@ import java.util.Map;
 
 import org.springframework.messaging.simp.SimpMessageType;
 
-
 /**
- *
  * @author Rossen Stoyanchev
  * @since 4.0
  */
@@ -54,6 +52,7 @@ public enum StompCommand {
 
 	private static Collection<StompCommand> destinationRequired = Arrays.asList(SEND, SUBSCRIBE, MESSAGE);
 	private static Collection<StompCommand> subscriptionIdRequired = Arrays.asList(SUBSCRIBE, UNSUBSCRIBE, MESSAGE);
+	private static Collection<StompCommand> contentLengthRequired = Arrays.asList(SEND, MESSAGE, ERROR);
 	private static Collection<StompCommand> bodyAllowed = Arrays.asList(SEND, MESSAGE, ERROR);
 
 	static {
@@ -77,6 +76,10 @@ public enum StompCommand {
 
 	public boolean requiresSubscriptionId() {
 		return subscriptionIdRequired.contains(this);
+	}
+
+	public boolean requiresContentLength() {
+		return contentLengthRequired.contains(this);
 	}
 
 	public boolean isBodyAllowed() {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.springframework.web.context.request;
 
 import java.security.Principal;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
@@ -24,6 +25,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
+import org.springframework.http.HttpMethod;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
@@ -46,6 +48,8 @@ public class ServletWebRequest extends ServletRequestAttributes implements Nativ
 	private static final String HEADER_LAST_MODIFIED = "Last-Modified";
 
 	private static final String METHOD_GET = "GET";
+
+	private static final String METHOD_HEAD = "HEAD";
 
 
 	private HttpServletResponse response;
@@ -99,6 +103,14 @@ public class ServletWebRequest extends ServletRequestAttributes implements Nativ
 		return WebUtils.getNativeResponse(getResponse(), requiredType);
 	}
 
+
+	/**
+	 * Return the HTTP method of the request.
+	 * @since 4.0.2
+	 */
+	public HttpMethod getHttpMethod() {
+		return HttpMethod.valueOf(getRequest().getMethod().trim().toUpperCase());
+	}
 
 	@Override
 	public String getHeader(String headerName) {
@@ -167,13 +179,31 @@ public class ServletWebRequest extends ServletRequestAttributes implements Nativ
 	}
 
 	@Override
+	@SuppressWarnings("deprecation")
 	public boolean checkNotModified(long lastModifiedTimestamp) {
 		if (lastModifiedTimestamp >= 0 && !this.notModified &&
 				(this.response == null || !this.response.containsHeader(HEADER_LAST_MODIFIED))) {
-			long ifModifiedSince = getRequest().getDateHeader(HEADER_IF_MODIFIED_SINCE);
+			long ifModifiedSince = -1;
+			try {
+				ifModifiedSince = getRequest().getDateHeader(HEADER_IF_MODIFIED_SINCE);
+			}
+			catch (IllegalArgumentException ex) {
+				String headerValue = getRequest().getHeader(HEADER_IF_MODIFIED_SINCE);
+				// Possibly an IE 10 style value: "Wed, 09 Apr 2014 09:57:42 GMT; length=13774"
+				int separatorIndex = headerValue.indexOf(';');
+				if (separatorIndex != -1) {
+					String datePart = headerValue.substring(0, separatorIndex);
+					try {
+						ifModifiedSince = Date.parse(datePart);
+					}
+					catch (IllegalArgumentException ex2) {
+						// Giving up
+					}
+				}
+			}
 			this.notModified = (ifModifiedSince >= (lastModifiedTimestamp / 1000 * 1000));
 			if (this.response != null) {
-				if (this.notModified && METHOD_GET.equals(getRequest().getMethod())) {
+				if (this.notModified && supportsNotModifiedStatus()) {
 					this.response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
 				}
 				else {
@@ -185,22 +215,26 @@ public class ServletWebRequest extends ServletRequestAttributes implements Nativ
 	}
 
 	@Override
-	public boolean checkNotModified(String eTag) {
-		if (StringUtils.hasLength(eTag) && !this.notModified &&
+	public boolean checkNotModified(String etag) {
+		if (StringUtils.hasLength(etag) && !this.notModified &&
 				(this.response == null || !this.response.containsHeader(HEADER_ETAG))) {
 			String ifNoneMatch = getRequest().getHeader(HEADER_IF_NONE_MATCH);
-			this.notModified = eTag.equals(ifNoneMatch);
+			this.notModified = etag.equals(ifNoneMatch);
 			if (this.response != null) {
-				if (this.notModified && METHOD_GET.equals(getRequest().getMethod())) {
+				if (this.notModified && supportsNotModifiedStatus()) {
 					this.response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
 				}
 				else {
-					this.response.setHeader(HEADER_ETAG, eTag);
+					this.response.setHeader(HEADER_ETAG, etag);
 				}
 			}
 		}
 		return this.notModified;
+	}
 
+	private boolean supportsNotModifiedStatus() {
+		String method = getRequest().getMethod();
+		return (METHOD_GET.equals(method) || METHOD_HEAD.equals(method));
 	}
 
 	public boolean isNotModified() {

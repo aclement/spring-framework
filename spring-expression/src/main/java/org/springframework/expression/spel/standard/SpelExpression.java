@@ -16,7 +16,6 @@
 
 package org.springframework.expression.spel.standard;
 
-import java.lang.reflect.Method;
 
 import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.EvaluationContext;

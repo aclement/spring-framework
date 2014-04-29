@@ -17,9 +17,7 @@
 package org.springframework.expression.spel;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,12 +26,10 @@ import java.util.StringTokenizer;
 
 import org.junit.Test;
 import org.springframework.asm.MethodVisitor;
-import org.springframework.asm.Opcodes;
 import org.springframework.expression.AccessException;
 import org.springframework.expression.CompilablePropertyAccessor;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.Expression;
-import org.springframework.expression.PropertyAccessor;
 import org.springframework.expression.TypedValue;
 import org.springframework.expression.spel.ast.CompoundExpression;
 import org.springframework.expression.spel.ast.OpLT;
@@ -43,10 +39,7 @@ import org.springframework.expression.spel.ast.Ternary;
 import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.standard.SpelCompiler;
 import org.springframework.expression.spel.standard.SpelExpression;
-import org.springframework.expression.spel.support.ReflectivePropertyAccessor;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
-
-import com.sun.org.apache.bcel.internal.generic.CHECKCAST;
 
 import static org.junit.Assert.*;
 
@@ -56,7 +49,7 @@ import static org.junit.Assert.*;
  * @author Andy Clement
  * @since 4.0
  */
-public class SpelCompilationCoverageTests extends ExpressionTestCase {
+public class SpelCompilationCoverageTests extends AbstractExpressionTests {
 	
 	private Expression expression;
 	private SpelNodeImpl ast;
@@ -2226,7 +2219,7 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 				mv.visitTypeInsn(CHECKCAST, memberDeclaringClassSlashedDescriptor);
 			}
 			mv.visitLdcInsn(propertyReference.getName());
-			mv.visitMethodInsn(INVOKEVIRTUAL, memberDeclaringClassSlashedDescriptor, method.getName(),CodeFlow.createDescriptor(method));
+			mv.visitMethodInsn(INVOKEVIRTUAL, memberDeclaringClassSlashedDescriptor, method.getName(),CodeFlow.createDescriptor(method),false);
 		}
 
 		@Override
@@ -2334,7 +2327,7 @@ public class SpelCompilationCoverageTests extends ExpressionTestCase {
 				codeflow.loadTarget(mv);
 			}
 			mv.visitLdcInsn(propertyReference.getName());
-			mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "get","(Ljava/lang/Object;)Ljava/lang/Object;");
+			mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "get","(Ljava/lang/Object;)Ljava/lang/Object;",true);
 
 //			if (method == null) {
 //				try {

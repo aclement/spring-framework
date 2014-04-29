@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,26 +18,27 @@ package org.springframework.messaging.simp.annotation.support;
 
 import org.springframework.core.MethodParameter;
 import org.springframework.messaging.Message;
-import org.springframework.messaging.core.MessagePostProcessor;
+import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.core.MessageSendingOperations;
 import org.springframework.messaging.handler.annotation.SendTo;
-import org.springframework.messaging.handler.method.HandlerMethodReturnValueHandler;
+import org.springframework.messaging.handler.invocation.HandlerMethodReturnValueHandler;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
-import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.messaging.support.MessageHeaderInitializer;
 import org.springframework.util.Assert;
 
-
 /**
- * A {@link HandlerMethodReturnValueHandler} for replying directly to a subscription. It
- * supports methods annotated with {@link org.springframework.messaging.simp.annotation.SubscribeMapping} unless they're also annotated
- * with {@link SendTo} or {@link SendToUser}.
- * <p>
- * The value returned from the method is converted, and turned to a {@link Message} and
- * then enriched with the sessionId, subscriptionId, and destination of the input message.
- * The message is then sent directly back to the connected client.
+ * A {@link HandlerMethodReturnValueHandler} for replying directly to a subscription.
+ * It is supported on methods annotated with
+ * {@link org.springframework.messaging.simp.annotation.SubscribeMapping}
+ * unless they're also annotated with {@link SendTo} or {@link SendToUser} in
+ * which case a message is sent to the broker instead.
+ *
+ * <p>The value returned from the method is converted, and turned to a {@link Message}
+ * and then enriched with the sessionId, subscriptionId, and destination of the
+ * input message. The message is then sent directly back to the connected client.
  *
  * @author Rossen Stoyanchev
  * @since 4.0
@@ -46,10 +47,35 @@ public class SubscriptionMethodReturnValueHandler implements HandlerMethodReturn
 
 	private final MessageSendingOperations<String> messagingTemplate;
 
+	private MessageHeaderInitializer headerInitializer;
 
+
+	/**
+	 * Class constructor.
+	 *
+	 * @param messagingTemplate a messaging template to send messages to, most
+	 * likely the "clientOutboundChannel", must not be {@link null}.
+	 */
 	public SubscriptionMethodReturnValueHandler(MessageSendingOperations<String> messagingTemplate) {
-		Assert.notNull(messagingTemplate, "messagingTemplate is required");
+		Assert.notNull(messagingTemplate, "messagingTemplate must not be null");
 		this.messagingTemplate = messagingTemplate;
+	}
+
+	/**
+	 * Configure a {@link MessageHeaderInitializer} to apply to the headers of all
+	 * messages sent to the client outbound channel.
+	 *
+	 * <p>By default this property is not set.
+	 */
+	public void setHeaderInitializer(MessageHeaderInitializer headerInitializer) {
+		this.headerInitializer = headerInitializer;
+	}
+
+	/**
+	 * @return the configured header initializer.
+	 */
+	public MessageHeaderInitializer getHeaderInitializer() {
+		return this.headerInitializer;
 	}
 
 
@@ -68,38 +94,26 @@ public class SubscriptionMethodReturnValueHandler implements HandlerMethodReturn
 			return;
 		}
 
-		SimpMessageHeaderAccessor inputHeaders = SimpMessageHeaderAccessor.wrap(message);
-		String sessionId = inputHeaders.getSessionId();
-		String subscriptionId = inputHeaders.getSubscriptionId();
-		String destination = inputHeaders.getDestination();
+		MessageHeaders headers = message.getHeaders();
+		String destination = SimpMessageHeaderAccessor.getDestination(headers);
+		String sessionId = SimpMessageHeaderAccessor.getSessionId(headers);
+		String subscriptionId = SimpMessageHeaderAccessor.getSubscriptionId(headers);
 
-		Assert.state(inputHeaders.getSubscriptionId() != null,
-				"No subsriptiondId in input message to method " + returnType.getMethod());
+		Assert.state(subscriptionId != null,
+				"No subscriptionId in message=" + message + ", method=" + returnType.getMethod());
 
-		MessagePostProcessor postProcessor = new SubscriptionHeaderPostProcessor(sessionId, subscriptionId);
-		this.messagingTemplate.convertAndSend(destination, returnValue, postProcessor);
+		this.messagingTemplate.convertAndSend(destination, returnValue, createHeaders(sessionId, subscriptionId));
 	}
 
-
-	private final class SubscriptionHeaderPostProcessor implements MessagePostProcessor {
-
-		private final String sessionId;
-
-		private final String subscriptionId;
-
-
-		public SubscriptionHeaderPostProcessor(String sessionId, String subscriptionId) {
-			this.sessionId = sessionId;
-			this.subscriptionId = subscriptionId;
+	private MessageHeaders createHeaders(String sessionId, String subscriptionId) {
+		SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);
+		if (getHeaderInitializer() != null) {
+			getHeaderInitializer().initHeaders(headerAccessor);
 		}
-
-		@Override
-		public Message<?> postProcessMessage(Message<?> message) {
-			SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.wrap(message);
-			headers.setSessionId(this.sessionId);
-			headers.setSubscriptionId(this.subscriptionId);
-			headers.setMessageTypeIfNotSet(SimpMessageType.MESSAGE);
-			return MessageBuilder.withPayload(message.getPayload()).setHeaders(headers).build();
-		}
+		headerAccessor.setSessionId(sessionId);
+		headerAccessor.setSubscriptionId(subscriptionId);
+		headerAccessor.setLeaveMutable(true);
+		return headerAccessor.getMessageHeaders();
 	}
+
 }

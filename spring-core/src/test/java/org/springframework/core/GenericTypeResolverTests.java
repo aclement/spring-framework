@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -75,6 +75,7 @@ public class GenericTypeResolverTests {
 	}
 
 	@Test
+	@Deprecated
 	public void testResolveType() {
 		Method intMessageMethod = findMethod(MyTypeWithMethods.class, "readIntegerInputMessage", MyInterfaceType.class);
 		MethodParameter intMessageMethodParam = new MethodParameter(intMessageMethod, 0);
@@ -96,10 +97,11 @@ public class GenericTypeResolverTests {
 
 	@Test
 	public void testBoundParameterizedType() {
-		assertEquals(B.class, resolveTypeArgument(TestImpl.class, ITest.class));
+		assertEquals(B.class, resolveTypeArgument(TestImpl.class, TestIfc.class));
 	}
 
 	@Test
+	@Deprecated
 	public void testGetTypeVariableMap() throws Exception {
 		Map<TypeVariable, Type> map;
 
@@ -289,9 +291,9 @@ public class GenericTypeResolverTests {
 
 	class B<T>{}
 
-	class ITest<T>{}
+	class TestIfc<T>{}
 
-	class TestImpl<I extends A, T extends B<I>> extends ITest<T>{
+	class TestImpl<I extends A, T extends B<I>> extends TestIfc<T>{
 	}
 
 	static class TopLevelClass<T> {

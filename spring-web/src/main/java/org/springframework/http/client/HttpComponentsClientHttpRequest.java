@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,19 +21,17 @@ import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
+
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 
 /**
  * {@link org.springframework.http.client.ClientHttpRequest} implementation that uses
@@ -55,7 +53,7 @@ final class HttpComponentsClientHttpRequest extends AbstractBufferingClientHttpR
 	private final HttpContext httpContext;
 
 
-	public HttpComponentsClientHttpRequest(CloseableHttpClient httpClient, HttpUriRequest httpRequest, HttpContext httpContext) {
+	HttpComponentsClientHttpRequest(CloseableHttpClient httpClient, HttpUriRequest httpRequest, HttpContext httpContext) {
 		this.httpClient = httpClient;
 		this.httpRequest = httpRequest;
 		this.httpContext = httpContext;
@@ -72,6 +70,9 @@ final class HttpComponentsClientHttpRequest extends AbstractBufferingClientHttpR
 		return this.httpRequest.getURI();
 	}
 
+	HttpContext getHttpContext() {
+		return httpContext;
+	}
 
 	@Override
 	protected ClientHttpResponse executeInternal(HttpHeaders headers, byte[] bufferedOutput) throws IOException {
@@ -83,14 +84,13 @@ final class HttpComponentsClientHttpRequest extends AbstractBufferingClientHttpR
 			HttpEntity requestEntity = new ByteArrayEntity(bufferedOutput);
 			entityEnclosingRequest.setEntity(requestEntity);
 		}
-		CloseableHttpResponse httpResponse =
-				this.httpClient.execute(this.httpRequest, this.httpContext);
+		CloseableHttpResponse httpResponse = this.httpClient.execute(this.httpRequest, this.httpContext);
 		return new HttpComponentsClientHttpResponse(httpResponse);
 	}
 
+
 	/**
-	 * Adds the given headers to the given HTTP request.
-	 *
+	 * Add the given headers to the given HTTP request.
 	 * @param httpRequest the request to add the headers to
 	 * @param headers the headers to add
 	 */

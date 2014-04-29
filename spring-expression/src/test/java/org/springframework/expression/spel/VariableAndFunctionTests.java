@@ -22,13 +22,12 @@ import org.junit.Test;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 
-
 /**
  * Tests the evaluation of expressions that access variables and functions (lambda/java).
  *
  * @author Andy Clement
  */
-public class VariableAndFunctionTests extends ExpressionTestCase {
+public class VariableAndFunctionTests extends AbstractExpressionTests {
 
 	@Test
 	public void testVariableAccess01() {

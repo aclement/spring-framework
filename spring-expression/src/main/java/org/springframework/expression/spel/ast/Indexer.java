@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ import org.springframework.expression.spel.support.ReflectivePropertyAccessor;
 
 /**
  * An Indexer can index into some proceeding structure to access a particular piece of it.
- * Supported structures are: strings/collections (lists/sets)/arrays
+ * Supported structures are: strings / collections (lists/sets) / arrays.
  *
  * @author Andy Clement
  * @author Phillip Webb
@@ -97,6 +97,7 @@ public class Indexer extends SpelNodeImpl {
 	}
 
 
+	
 	private class ArrayIndexingValueRef implements ValueRef {
 
 		private final TypeConverter typeConverter;
@@ -146,15 +147,12 @@ public class Indexer extends SpelNodeImpl {
 
 		private final TypeDescriptor mapEntryTypeDescriptor;
 
-
-		MapIndexingValueRef(TypeConverter typeConverter, Map map, Object key,
-				TypeDescriptor mapEntryTypeDescriptor) {
+		public MapIndexingValueRef(TypeConverter typeConverter, Map map, Object key, TypeDescriptor mapEntryTypeDescriptor) {
 			this.typeConverter = typeConverter;
 			this.map = map;
 			this.key = key;
 			this.mapEntryTypeDescriptor = mapEntryTypeDescriptor;
 		}
-
 
 		@Override
 		public TypedValue getValue() {
@@ -190,7 +188,6 @@ public class Indexer extends SpelNodeImpl {
 
 		private final TypeDescriptor targetObjectTypeDescriptor;
 
-
 		public PropertyIndexingValueRef(Object targetObject, String value, EvaluationContext evaluationContext,
 				TypeDescriptor targetObjectTypeDescriptor) {
 			this.targetObject = targetObject;
@@ -204,16 +201,14 @@ public class Indexer extends SpelNodeImpl {
 		public TypedValue getValue() {
 			Class<?> targetObjectRuntimeClass = getObjectClass(this.targetObject);
 			try {
-				if (Indexer.this.cachedReadName != null && Indexer.this.cachedReadName.equals(this.name) && Indexer.this.cachedReadTargetType != null &&
+				if (Indexer.this.cachedReadName != null && Indexer.this.cachedReadName.equals(this.name) &&
+						Indexer.this.cachedReadTargetType != null &&
 						Indexer.this.cachedReadTargetType.equals(targetObjectRuntimeClass)) {
-					// it is OK to use the cached accessor
-					TypedValue value = Indexer.this.cachedReadAccessor.read(this.evaluationContext, this.targetObject, this.name);
-					return value;
+					// It is OK to use the cached accessor
+					return Indexer.this.cachedReadAccessor.read(this.evaluationContext, this.targetObject, this.name);
 				}
-
 				List<PropertyAccessor> accessorsToTry = AstUtils.getPropertyAccessorsToTry(
 						targetObjectRuntimeClass, this.evaluationContext.getPropertyAccessors());
-
 				if (accessorsToTry != null) {
 					for (PropertyAccessor accessor : accessorsToTry) {
 						if (accessor.canRead(this.evaluationContext, this.targetObject, this.name)) {
@@ -251,9 +246,10 @@ public class Indexer extends SpelNodeImpl {
 		public void setValue(Object newValue) {
 			Class<?> contextObjectClass = getObjectClass(this.targetObject);
 			try {
-				if (Indexer.this.cachedWriteName != null && Indexer.this.cachedWriteName.equals(this.name) && Indexer.this.cachedWriteTargetType != null &&
+				if (Indexer.this.cachedWriteName != null && Indexer.this.cachedWriteName.equals(this.name) &&
+						Indexer.this.cachedWriteTargetType != null &&
 						Indexer.this.cachedWriteTargetType.equals(contextObjectClass)) {
-					// it is OK to use the cached accessor
+					// It is OK to use the cached accessor
 					Indexer.this.cachedWriteAccessor.write(this.evaluationContext, this.targetObject, this.name, newValue);
 					return;
 				}
@@ -291,7 +287,7 @@ public class Indexer extends SpelNodeImpl {
 
 		private final int index;
 
-		private final TypeDescriptor collectionEntryTypeDescriptor;
+		private final TypeDescriptor collectionEntryDescriptor;
 
 		private final TypeConverter typeConverter;
 
@@ -299,12 +295,11 @@ public class Indexer extends SpelNodeImpl {
 
 		private final int maximumSize;
 
-
-		CollectionIndexingValueRef(Collection collection, int index, TypeDescriptor collectionEntryTypeDescriptor,
+		public CollectionIndexingValueRef(Collection collection, int index, TypeDescriptor collectionEntryTypeDescriptor,
 				TypeConverter typeConverter, boolean growCollection, int maximumSize) {
 			this.collection = collection;
-			this.index = index;			
-			this.collectionEntryTypeDescriptor = collectionEntryTypeDescriptor;
+			this.index = index;
+			this.collectionEntryDescriptor = collectionEntryTypeDescriptor;
 			this.typeConverter = typeConverter;
 			this.growCollection = growCollection;
 			this.maximumSize = maximumSize;
@@ -317,12 +312,12 @@ public class Indexer extends SpelNodeImpl {
 			if (this.collection instanceof List) {
 				Object o = ((List) this.collection).get(this.index);
 				exitTypeDescriptor = CodeFlow.toDescriptorFromObject(o);
-				return new TypedValue(o, this.collectionEntryTypeDescriptor.elementTypeDescriptor(o));
+				return new TypedValue(o, this.collectionEntryDescriptor.elementTypeDescriptor(o));
 			}
 			int pos = 0;
 			for (Object o : this.collection) {
 				if (pos == this.index) {
-					return new TypedValue(o, this.collectionEntryTypeDescriptor.elementTypeDescriptor(o));
+					return new TypedValue(o, this.collectionEntryDescriptor.elementTypeDescriptor(o));
 				}
 				pos++;
 			}
@@ -334,35 +329,31 @@ public class Indexer extends SpelNodeImpl {
 			growCollectionIfNecessary();
 			if (this.collection instanceof List) {
 				List list = (List) this.collection;
-				if (this.collectionEntryTypeDescriptor.getElementTypeDescriptor() != null) {
+				if (this.collectionEntryDescriptor.getElementTypeDescriptor() != null) {
 					newValue = this.typeConverter.convertValue(newValue, TypeDescriptor.forObject(newValue),
-							this.collectionEntryTypeDescriptor.getElementTypeDescriptor());
+							this.collectionEntryDescriptor.getElementTypeDescriptor());
 				}
 				list.set(this.index, newValue);
 			}
 			else {
 				throw new SpelEvaluationException(getStartPosition(), SpelMessage.INDEXING_NOT_SUPPORTED_FOR_TYPE,
-						this.collectionEntryTypeDescriptor.toString());
+						this.collectionEntryDescriptor.toString());
 			}
 		}
 
 		private void growCollectionIfNecessary() {
 			if (this.index >= this.collection.size()) {
-
 				if (!this.growCollection) {
 					throw new SpelEvaluationException(getStartPosition(), SpelMessage.COLLECTION_INDEX_OUT_OF_BOUNDS,
 							this.collection.size(), this.index);
 				}
-
 				if(this.index >= this.maximumSize) {
 					throw new SpelEvaluationException(getStartPosition(), SpelMessage.UNABLE_TO_GROW_COLLECTION);
 				}
-
-				if (this.collectionEntryTypeDescriptor.getElementTypeDescriptor() == null) {
+				if (this.collectionEntryDescriptor.getElementTypeDescriptor() == null) {
 					throw new SpelEvaluationException(getStartPosition(), SpelMessage.UNABLE_TO_GROW_COLLECTION_UNKNOWN_ELEMENT_TYPE);
 				}
-
-				TypeDescriptor elementType = this.collectionEntryTypeDescriptor.getElementTypeDescriptor();
+				TypeDescriptor elementType = this.collectionEntryDescriptor.getElementTypeDescriptor();
 				try {
 					int newElements = this.index - this.collection.size();
 					while (newElements >= 0) {
@@ -391,13 +382,11 @@ public class Indexer extends SpelNodeImpl {
 
 		private final TypeDescriptor typeDescriptor;
 
-
 		public StringIndexingLValue(String target, int index, TypeDescriptor typeDescriptor) {
 			this.target = target;
 			this.index = index;
 			this.typeDescriptor = typeDescriptor;
 		}
-
 
 		@Override
 		public TypedValue getValue() {
@@ -511,7 +500,7 @@ public class Indexer extends SpelNodeImpl {
 		sb.append("]");
 		return sb.toString();
 	}
-
+	
 	private void setArrayElement(TypeConverter converter, Object ctx, int idx, Object newValue, Class<?> clazz)
 			throws EvaluationException {
 		Class<?> arrayComponentType = clazz;
@@ -716,13 +705,13 @@ public class Indexer extends SpelNodeImpl {
 		else if (this.indexedType == IndexedType.list) {
 			mv.visitTypeInsn(CHECKCAST,"java/util/List");
 			this.children[0].generateCode(mv, codeflow);
-			mv.visitMethodInsn(INVOKEINTERFACE,"java/util/List","get","(I)Ljava/lang/Object;");
+			mv.visitMethodInsn(INVOKEINTERFACE,"java/util/List","get","(I)Ljava/lang/Object;", true);
 			CodeFlow.insertCheckCast(mv,exitTypeDescriptor);
 		}
 		else if (this.indexedType == IndexedType.map) {
 			mv.visitTypeInsn(CHECKCAST,"java/util/Map");
 			this.children[0].generateCode(mv, codeflow);
-			mv.visitMethodInsn(INVOKEINTERFACE,"java/util/Map","get","(Ljava/lang/Object;)Ljava/lang/Object;");
+			mv.visitMethodInsn(INVOKEINTERFACE,"java/util/Map","get","(Ljava/lang/Object;)Ljava/lang/Object;", true);
 			CodeFlow.insertCheckCast(mv,exitTypeDescriptor);
 		} 
 		else if (this.indexedType == IndexedType.object) {
@@ -744,7 +733,7 @@ public class Indexer extends SpelNodeImpl {
 			if (member instanceof Field) {
 				mv.visitFieldInsn(isStatic?GETSTATIC:GETFIELD,memberDeclaringClassSlashedDescriptor,member.getName(),CodeFlow.getDescriptor(((Field) member).getType()));
 			} else {
-				mv.visitMethodInsn(isStatic?INVOKESTATIC:INVOKEVIRTUAL, memberDeclaringClassSlashedDescriptor, member.getName(),CodeFlow.createDescriptor((Method)member));
+				mv.visitMethodInsn(isStatic?INVOKESTATIC:INVOKEVIRTUAL, memberDeclaringClassSlashedDescriptor, member.getName(),CodeFlow.createDescriptor((Method)member),false);
 			}
 		} 
 		codeflow.pushDescriptor(exitTypeDescriptor);

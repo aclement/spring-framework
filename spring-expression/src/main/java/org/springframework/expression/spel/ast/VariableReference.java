@@ -138,7 +138,7 @@ public class VariableReference extends SpelNodeImpl {
 		} else {
 			mv.visitVarInsn(ALOAD, 2);
 			mv.visitLdcInsn(name);
-			mv.visitMethodInsn(INVOKEINTERFACE, "org/springframework/expression/EvaluationContext", "lookupVariable", "(Ljava/lang/String;)Ljava/lang/Object;");
+			mv.visitMethodInsn(INVOKEINTERFACE, "org/springframework/expression/EvaluationContext", "lookupVariable", "(Ljava/lang/String;)Ljava/lang/Object;",true);
 		}
 		CodeFlow.insertCheckCast(mv,getExitDescriptor());
 		codeflow.pushDescriptor(getExitDescriptor());

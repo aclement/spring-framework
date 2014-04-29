@@ -54,6 +54,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
  * @author Arjen Poutsma
  * @since 3.2
  */
+@SuppressWarnings("rawtypes")
 public class Jaxb2CollectionHttpMessageConverter<T extends Collection>
 		extends AbstractJaxb2HttpMessageConverter<T> implements GenericHttpMessageConverter<T> {
 
@@ -121,6 +122,7 @@ public class Jaxb2CollectionHttpMessageConverter<T extends Collection>
 	}
 
 	@Override
+	@SuppressWarnings("unchecked")
 	public T read(Type type, Class<?> contextClass, HttpInputMessage inputMessage)
 			throws IOException, HttpMessageNotReadableException {
 
@@ -227,7 +229,7 @@ public class Jaxb2CollectionHttpMessageConverter<T extends Collection>
 	 */
 	protected XMLInputFactory createXmlInputFactory() {
 		XMLInputFactory inputFactory = XMLInputFactory.newInstance();
-		inputFactory.setProperty(XMLInputFactory.IS_REPLACING_ENTITY_REFERENCES, false);
+		inputFactory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
 		return inputFactory;
 	}
 

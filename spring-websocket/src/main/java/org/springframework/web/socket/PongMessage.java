@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ public final class PongMessage extends AbstractWebSocketMessage<ByteBuffer> {
 
 	/**
 	 * Create a new pong message with the given ByteBuffer payload.
-	 *
 	 * @param payload the non-null payload
 	 */
 	public PongMessage(ByteBuffer payload) {
@@ -45,7 +44,7 @@ public final class PongMessage extends AbstractWebSocketMessage<ByteBuffer> {
 
 
 	@Override
-	protected int getPayloadSize() {
+	public int getPayloadLength() {
 		return (getPayload() != null) ? getPayload().remaining() : 0;
 	}
 

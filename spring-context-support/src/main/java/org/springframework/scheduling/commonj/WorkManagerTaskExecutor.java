@@ -30,11 +30,14 @@ import commonj.work.WorkManager;
 import commonj.work.WorkRejectedException;
 
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.core.task.AsyncListenableTaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.jndi.JndiLocatorSupport;
 import org.springframework.scheduling.SchedulingException;
 import org.springframework.scheduling.SchedulingTaskExecutor;
 import org.springframework.util.Assert;
+import org.springframework.util.concurrent.ListenableFuture;
+import org.springframework.util.concurrent.ListenableFutureTask;
 
 /**
  * TaskExecutor implementation that delegates to a CommonJ WorkManager,
@@ -60,7 +63,7 @@ import org.springframework.util.Assert;
  * @since 2.0
  */
 public class WorkManagerTaskExecutor extends JndiLocatorSupport
-		implements SchedulingTaskExecutor, WorkManager, InitializingBean {
+		implements AsyncListenableTaskExecutor, SchedulingTaskExecutor, WorkManager, InitializingBean {
 
 	private WorkManager workManager;
 
@@ -152,6 +155,20 @@ public class WorkManagerTaskExecutor extends JndiLocatorSupport
 		return future;
 	}
 
+	@Override
+	public ListenableFuture<?> submitListenable(Runnable task) {
+		ListenableFutureTask<Object> future = new ListenableFutureTask<Object>(task, null);
+		execute(future);
+		return future;
+	}
+
+	@Override
+	public <T> ListenableFuture<T> submitListenable(Callable<T> task) {
+		ListenableFutureTask<T> future = new ListenableFutureTask<T>(task);
+		execute(future);
+		return future;
+	}
+
 	/**
 	 * This task executor prefers short-lived work units.
 	 */
@@ -176,11 +193,13 @@ public class WorkManagerTaskExecutor extends JndiLocatorSupport
 	}
 
 	@Override
+	@SuppressWarnings("rawtypes")
 	public boolean waitForAll(Collection workItems, long timeout) throws InterruptedException {
 		return this.workManager.waitForAll(workItems, timeout);
 	}
 
 	@Override
+	@SuppressWarnings("rawtypes")
 	public Collection waitForAny(Collection workItems, long timeout) throws InterruptedException {
 		return this.workManager.waitForAny(workItems, timeout);
 	}

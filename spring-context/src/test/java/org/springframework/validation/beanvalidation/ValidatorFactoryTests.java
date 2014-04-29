@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +46,8 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
 /**
+ * Tested against Hibernate Validator 4.3, as of Spring 4.0.
+ *
  * @author Juergen Hoeller
  * @since 3.0
  */
@@ -67,6 +69,7 @@ public class ValidatorFactoryTests {
 				fail("Invalid constraint violation with path '" + path + "'");
 			}
 		}
+		validator.destroy();
 	}
 
 	@Test
@@ -86,6 +89,7 @@ public class ValidatorFactoryTests {
 				fail("Invalid constraint violation with path '" + path + "'");
 			}
 		}
+		validator.destroy();
 	}
 
 	@Test
@@ -133,7 +137,6 @@ public class ValidatorFactoryTests {
 		assertTrue(errorCodes.contains("NotNull.name"));
 		assertTrue(errorCodes.contains("NotNull.java.lang.String"));
 		assertTrue(errorCodes.contains("NotNull"));
-		System.out.println(fieldError.getDefaultMessage());
 		fieldError = result.getFieldError("address.street");
 		assertEquals("address.street", fieldError.getField());
 		errorCodes = Arrays.asList(fieldError.getCodes());
@@ -143,7 +146,6 @@ public class ValidatorFactoryTests {
 		assertTrue(errorCodes.contains("NotNull.street"));
 		assertTrue(errorCodes.contains("NotNull.java.lang.String"));
 		assertTrue(errorCodes.contains("NotNull"));
-		System.out.println(fieldError.getDefaultMessage());
 	}
 
 	@Test
@@ -161,7 +163,6 @@ public class ValidatorFactoryTests {
 		assertEquals(2, errorCodes.size());
 		assertTrue(errorCodes.contains("NameAddressValid.person"));
 		assertTrue(errorCodes.contains("NameAddressValid"));
-		System.out.println(globalError.getDefaultMessage());
 	}
 
 	@Test
@@ -175,16 +176,10 @@ public class ValidatorFactoryTests {
 		assertEquals(3, result.getErrorCount());
 		FieldError fieldError = result.getFieldError("name");
 		assertEquals("name", fieldError.getField());
-		System.out.println(Arrays.asList(fieldError.getCodes()));
-		System.out.println(fieldError.getDefaultMessage());
 		fieldError = result.getFieldError("address.street");
 		assertEquals("address.street", fieldError.getField());
-		System.out.println(Arrays.asList(fieldError.getCodes()));
-		System.out.println(fieldError.getDefaultMessage());
 		fieldError = result.getFieldError("addressList[0].street");
 		assertEquals("addressList[0].street", fieldError.getField());
-		System.out.println(Arrays.asList(fieldError.getCodes()));
-		System.out.println(fieldError.getDefaultMessage());
 	}
 
 	@Test
@@ -198,16 +193,10 @@ public class ValidatorFactoryTests {
 		assertEquals(3, result.getErrorCount());
 		FieldError fieldError = result.getFieldError("name");
 		assertEquals("name", fieldError.getField());
-		System.out.println(Arrays.asList(fieldError.getCodes()));
-		System.out.println(fieldError.getDefaultMessage());
 		fieldError = result.getFieldError("address.street");
 		assertEquals("address.street", fieldError.getField());
-		System.out.println(Arrays.asList(fieldError.getCodes()));
-		System.out.println(fieldError.getDefaultMessage());
 		fieldError = result.getFieldError("addressSet[].street");
 		assertEquals("addressSet[].street", fieldError.getField());
-		System.out.println(Arrays.asList(fieldError.getCodes()));
-		System.out.println(fieldError.getDefaultMessage());
 	}
 
 	@Test
@@ -271,6 +260,7 @@ public class ValidatorFactoryTests {
 		}
 	}
 
+
 	public static class ValidAddress {
 
 		@NotNull
@@ -285,6 +275,7 @@ public class ValidatorFactoryTests {
 		}
 	}
 
+
 	@Target(ElementType.TYPE)
 	@Retention(RetentionPolicy.RUNTIME)
 	@Constraint(validatedBy = NameAddressValidator.class)
@@ -296,6 +287,7 @@ public class ValidatorFactoryTests {
 
 		Class<?>[] payload() default {};
 	}
+
 
 	public static class NameAddressValidator implements ConstraintValidator<NameAddressValid, ValidPerson> {
 
@@ -325,6 +317,7 @@ public class ValidatorFactoryTests {
 		}
 	}
 
+
 	public static class InnerBean {
 
 		private String value;
@@ -337,14 +330,19 @@ public class ValidatorFactoryTests {
 		}
 	}
 
+
 	@Retention(RetentionPolicy.RUNTIME)
 	@Target(ElementType.FIELD)
 	@Constraint(validatedBy=InnerValidator.class)
 	public static @interface InnerValid {
+
 		String message() default "NOT VALID";
+
 		Class<?>[] groups() default { };
+
 		Class<? extends Payload>[] payload() default {};
 	}
+
 
 	public static class InnerValidator implements ConstraintValidator<InnerValid, InnerBean> {
 

@@ -17,6 +17,7 @@
 package org.springframework.expression.spel.ast;
 
 import org.springframework.asm.MethodVisitor;
+import java.math.BigDecimal;
 import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.Operation;
@@ -26,24 +27,28 @@ import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.standard.Utils;
 import org.springframework.util.Assert;
+import org.springframework.util.NumberUtils;
 
 /**
  * The plus operator will:
  * <ul>
+ * <li>add {@code BigDecimal}
  * <li>add doubles (floats are represented as doubles)
  * <li>add longs
  * <li>add integers
  * <li>concatenate strings
  * </ul>
- * It can be used as a unary operator for numbers (double/long/int). The standard
- * promotions are performed when the operand types vary (double+int=double). For other
- * options it defers to the registered overloader.
+ * It can be used as a unary operator for numbers ({@code BigDecimal}/double/long/int).
+ * The standard promotions are performed when the operand types vary (double+int=double).
+ * For other options it defers to the registered overloader.
  *
  * @author Andy Clement
  * @author Ivo Smid
+ * @author Giovanni Dall'Oglio Risso
  * @since 3.0
  */
 public class OpPlus extends Operator {
+
 
 	public OpPlus(int pos, SpelNodeImpl... operands) {
 		super("+", pos, operands);
@@ -59,8 +64,10 @@ public class OpPlus extends Operator {
 		if (rightOp == null) { // If only one operand, then this is unary plus
 			Object operandOne = leftOp.getValueInternal(state).getValue();
 			if (operandOne instanceof Number) {
-				if (operandOne instanceof Double || operandOne instanceof Long) {
-					this.exitTypeDescriptor = (operandOne instanceof Double)?"D":"J";
+				if (operandOne instanceof Double || operandOne instanceof Long || operandOne instanceof BigDecimal) {
+					if (operandOne instanceof Double || operandOne instanceof Long) {
+						this.exitTypeDescriptor = (operandOne instanceof Double)?"D":"J";
+					}
 					return new TypedValue(operandOne);
 				}
 				if (operandOne instanceof Float) {
@@ -74,57 +81,64 @@ public class OpPlus extends Operator {
 		}
 
 		final TypedValue operandOneValue = leftOp.getValueInternal(state);
-		final Object operandOne = operandOneValue.getValue();
+		final Object leftOperand = operandOneValue.getValue();
 
 		final TypedValue operandTwoValue = rightOp.getValueInternal(state);
-		final Object operandTwo = operandTwoValue.getValue();
+		final Object rightOperand = operandTwoValue.getValue();
 
-		if (operandOne instanceof Number && operandTwo instanceof Number) {
-			Number op1 = (Number) operandOne;
-			Number op2 = (Number) operandTwo;
-			if (op1 instanceof Double || op2 instanceof Double) {
-				if (op1 instanceof Double && op2 instanceof Double) {
+		if (leftOperand instanceof Number && rightOperand instanceof Number) {
+			Number leftNumber = (Number) leftOperand;
+			Number rightNumber = (Number) rightOperand;
+
+			if (leftNumber instanceof BigDecimal || rightNumber instanceof BigDecimal) {
+				BigDecimal leftBigDecimal = NumberUtils.convertNumberToTargetClass(leftNumber, BigDecimal.class);
+				BigDecimal rightBigDecimal = NumberUtils.convertNumberToTargetClass(rightNumber, BigDecimal.class);
+				return new TypedValue(leftBigDecimal.add(rightBigDecimal));
+			}
+			if (leftNumber instanceof Double || rightNumber instanceof Double) {
+				if (leftNumber instanceof Double && rightNumber instanceof Double) {
 					this.exitTypeDescriptor = "D";
 				}
-				return new TypedValue(op1.doubleValue() + op2.doubleValue());
+				return new TypedValue(leftNumber.doubleValue() + rightNumber.doubleValue());
 			}
-			if (op1 instanceof Float || op2 instanceof Float) {
-				if (op1 instanceof Float && op2 instanceof Float) {
+			if (leftNumber instanceof Float || rightNumber instanceof Float) {
+				if (leftNumber instanceof Float && rightNumber instanceof Float) {
 					this.exitTypeDescriptor = "F";
 				}
-				return new TypedValue(op1.floatValue() + op2.floatValue());
+				return new TypedValue(leftNumber.floatValue() + rightNumber.floatValue());
 			}
-			if (op1 instanceof Long || op2 instanceof Long) {
-				if (op1 instanceof Long && op2 instanceof Long) {
+			if (leftNumber instanceof Long || rightNumber instanceof Long) {
+				if (leftNumber instanceof Long && rightNumber instanceof Long) {
 					this.exitTypeDescriptor = "J";
 				}
-				return new TypedValue(op1.longValue() + op2.longValue());
+				return new TypedValue(leftNumber.longValue() + rightNumber.longValue());
 			}
+
 			// TODO what about overflow?
 			this.exitTypeDescriptor = "I";
-			return new TypedValue(op1.intValue() + op2.intValue());
+			return new TypedValue(leftNumber.intValue() + rightNumber.intValue());
 		}
 
-		if (operandOne instanceof String && operandTwo instanceof String) {
-			return new TypedValue(new StringBuilder((String) operandOne).append(
-					(String) operandTwo).toString());
+		if (leftOperand instanceof String && rightOperand instanceof String) {
+			return new TypedValue(new StringBuilder((String) leftOperand).append(
+					(String) rightOperand).toString());
 		}
 
-		if (operandOne instanceof String) {
-			StringBuilder result = new StringBuilder((String) operandOne);
-			result.append((operandTwo == null ? "null" : convertTypedValueToString(
+		if (leftOperand instanceof String) {
+			StringBuilder result = new StringBuilder((String) leftOperand);
+			result.append((rightOperand == null ? "null" : convertTypedValueToString(
 					operandTwoValue, state)));
 			return new TypedValue(result.toString());
 		}
 
-		if (operandTwo instanceof String) {
-			StringBuilder result = new StringBuilder((operandOne == null ? "null"
+		if (rightOperand instanceof String) {
+			StringBuilder result = new StringBuilder((leftOperand == null ? "null"
 					: convertTypedValueToString(operandOneValue, state)));
-			result.append((String) operandTwo);
+			result.append((String) rightOperand);
 			return new TypedValue(result.toString());
 		}
 
-		return state.operate(Operation.ADD, operandOne, operandTwo);
+		return state.operate(Operation.ADD, leftOperand, rightOperand);
 	}
 
 	@Override
@@ -132,7 +146,6 @@ public class OpPlus extends Operator {
 		if (this.children.length<2) {  // unary plus
 			return new StringBuilder().append("+").append(getLeftOperand().toStringAST()).toString();
 		}
-
 		return super.toStringAST();
 	}
 
@@ -141,7 +154,6 @@ public class OpPlus extends Operator {
 		if (this.children.length < 2) {
 			return null;
 		}
-
 		return this.children[1];
 	}
 

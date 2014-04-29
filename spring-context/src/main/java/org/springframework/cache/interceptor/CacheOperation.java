@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,8 +26,9 @@ import org.springframework.util.Assert;
  * Base class for cache operations.
  *
  * @author Costin Leau
+ * @author Stephane Nicoll
  */
-public abstract class CacheOperation {
+public abstract class CacheOperation implements BasicCacheOperation {
 
 	private Set<String> cacheNames = Collections.emptySet();
 
@@ -35,9 +36,16 @@ public abstract class CacheOperation {
 
 	private String key = "";
 
+	private String keyGenerator = "";
+
+	private String cacheManager = "";
+
+	private String cacheResolver = "";
+
 	private String name = "";
 
 
+	@Override
 	public Set<String> getCacheNames() {
 		return cacheNames;
 	}
@@ -50,6 +58,18 @@ public abstract class CacheOperation {
 		return key;
 	}
 
+	public String getKeyGenerator() {
+		return keyGenerator;
+	}
+
+	public String getCacheManager() {
+		return cacheManager;
+	}
+
+	public String getCacheResolver() {
+		return cacheResolver;
+	}
+
 	public String getName() {
 		return name;
 	}
@@ -60,10 +80,10 @@ public abstract class CacheOperation {
 	}
 
 	public void setCacheNames(String[] cacheNames) {
-		Assert.notEmpty(cacheNames);
 		this.cacheNames = new LinkedHashSet<String>(cacheNames.length);
-		for (String string : cacheNames) {
-			this.cacheNames.add(string);
+		for (String cacheName : cacheNames) {
+			Assert.hasText(cacheName, "Cache name must be set if specified.");
+			this.cacheNames.add(cacheName);
 		}
 	}
 
@@ -75,6 +95,21 @@ public abstract class CacheOperation {
 	public void setKey(String key) {
 		Assert.notNull(key);
 		this.key = key;
+	}
+
+	public void setKeyGenerator(String keyGenerator) {
+		Assert.notNull(keyGenerator);
+		this.keyGenerator = keyGenerator;
+	}
+
+	public void setCacheManager(String cacheManager) {
+		Assert.notNull(cacheManager);
+		this.cacheManager = cacheManager;
+	}
+
+	public void setCacheResolver(String cacheResolver) {
+		Assert.notNull(cacheManager);
+		this.cacheResolver = cacheResolver;
 	}
 
 	public void setName(String name) {
@@ -124,6 +159,12 @@ public abstract class CacheOperation {
 		result.append(this.cacheNames);
 		result.append(" | key='");
 		result.append(this.key);
+		result.append("' | keyGenerator='");
+		result.append(this.keyGenerator);
+		result.append("' | cacheManager='");
+		result.append(this.cacheManager);
+		result.append("' | cacheResolver='");
+		result.append(this.cacheResolver);
 		result.append("' | condition='");
 		result.append(this.condition);
 		result.append("'");

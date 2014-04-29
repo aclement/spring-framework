@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +17,19 @@
 package org.springframework.expression.spel.ast;
 
 import org.springframework.asm.MethodVisitor;
+import java.math.BigDecimal;
 import org.springframework.expression.EvaluationException;
 import org.springframework.expression.spel.ExpressionState;
 import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.support.BooleanTypedValue;
+import org.springframework.util.NumberUtils;
 
 /**
- * Implements greater-than operator.
+ * Implements the greater-than operator.
  *
  * @author Andy Clement
+ * @author Juergen Hoeller
+ * @author Giovanni Dall'Oglio Risso
  * @since 3.0
  */
 public class OpGT extends Operator {
@@ -35,24 +39,41 @@ public class OpGT extends Operator {
 		this.exitTypeDescriptor = "Z";
 	}
 
-
 	@Override
 	public BooleanTypedValue getValueInternal(ExpressionState state) throws EvaluationException {
 		Object left = getLeftOperand().getValueInternal(state).getValue();
 		Object right = getRightOperand().getValueInternal(state).getValue();
+
 		if (left instanceof Number && right instanceof Number) {
 			Number leftNumber = (Number) left;
 			Number rightNumber = (Number) right;
+
+			if (leftNumber instanceof BigDecimal || rightNumber instanceof BigDecimal) {
+				BigDecimal leftBigDecimal = NumberUtils.convertNumberToTargetClass(leftNumber, BigDecimal.class);
+				BigDecimal rightBigDecimal = NumberUtils.convertNumberToTargetClass(rightNumber, BigDecimal.class);
+				return BooleanTypedValue.forValue(leftBigDecimal.compareTo(rightBigDecimal) > 0);
+			}
+
 			if (leftNumber instanceof Double || rightNumber instanceof Double) {
 				return BooleanTypedValue.forValue(leftNumber.doubleValue() > rightNumber.doubleValue());
 			}
-			else if (leftNumber instanceof Long || rightNumber instanceof Long) {
+
+			if (leftNumber instanceof Float || rightNumber instanceof Float) {
+				return BooleanTypedValue.forValue(leftNumber.floatValue() > rightNumber.floatValue());
+			}
+
+			if (leftNumber instanceof Long || rightNumber instanceof Long) {
 				return BooleanTypedValue.forValue(leftNumber.longValue() > rightNumber.longValue());
 			}
-			else {
-				return BooleanTypedValue.forValue(leftNumber.intValue() > rightNumber.intValue());
-			}
+
+			return BooleanTypedValue.forValue(leftNumber.intValue() > rightNumber.intValue());
 		}
+
+		if (left instanceof CharSequence && right instanceof CharSequence) {
+			left = left.toString();
+			right = right.toString();
+		}
+
 		return BooleanTypedValue.forValue(state.getTypeComparator().compare(left, right) > 0);
 	}
 

@@ -72,7 +72,7 @@ public class MethodReference extends SpelNodeImpl {
 			throwIfNotNullSafe(getArgumentTypes(arguments));
 			return ValueRef.NullValueRef.instance;
 		}
-		return new MethodValueRef(this, state);
+		return new MethodValueRef(this, state, arguments);
 	}
 
 	@Override
@@ -278,12 +278,12 @@ public class MethodReference extends SpelNodeImpl {
 
 		private final Object[] arguments;
 
-		public MethodValueRef(MethodReference methodReference, ExpressionState state) {
+		public MethodValueRef(MethodReference methodReference, ExpressionState state, Object[] arguments) {
 			this.methodReference = methodReference;
 			this.evaluationContext = state.getEvaluationContext();
 			this.value = state.getActiveContextObject().getValue();
 			this.targetType = state.getActiveContextObject().getTypeDescriptor();
-			this.arguments = getArguments(state);
+			this.arguments = arguments;
 		}
 
 		@Override
@@ -377,6 +377,7 @@ public class MethodReference extends SpelNodeImpl {
 			codeflow.loadTarget(mv);
 		}
 		
+		boolean itf = method.getDeclaringClass().isInterface();
 		String methodDeclaringClassSlashedDescriptor = method.getDeclaringClass().getName().replace('.','/');
 		if (!isStaticMethod) {
 			if (descriptor == null || !descriptor.equals(method.getDeclaringClass())) {
@@ -398,7 +399,7 @@ public class MethodReference extends SpelNodeImpl {
 			}
 			codeflow.exitCompilationScope();
 		}
-		mv.visitMethodInsn(isStaticMethod?INVOKESTATIC:INVOKEVIRTUAL,methodDeclaringClassSlashedDescriptor,method.getName(),CodeFlow.createDescriptor(method));
+		mv.visitMethodInsn(isStaticMethod?INVOKESTATIC:INVOKEVIRTUAL,methodDeclaringClassSlashedDescriptor,method.getName(),CodeFlow.createDescriptor(method), itf);
 		codeflow.pushDescriptor(exitTypeDescriptor);
 	}
 	

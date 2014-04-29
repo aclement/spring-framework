@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -223,8 +223,7 @@ class ConfigurationClassParser {
 
 		// process any @PropertySource annotations
 		for (AnnotationAttributes propertySource : AnnotationConfigUtils.attributesForRepeatable(
-				sourceClass.getMetadata(), PropertySources.class,
-				org.springframework.context.annotation.PropertySource.class)) {
+				sourceClass.getMetadata(), PropertySources.class, org.springframework.context.annotation.PropertySource.class)) {
 			processPropertySource(propertySource);
 		}
 
@@ -246,7 +245,7 @@ class ConfigurationClassParser {
 		}
 
 		// process any @Import annotations
-		processImports(configClass, getImports(sourceClass), true);
+		processImports(configClass, sourceClass, getImports(sourceClass), true);
 
 		// process any @ImportResource annotations
 		if (sourceClass.getMetadata().isAnnotated(ImportResource.class.getName())) {
@@ -306,17 +305,15 @@ class ConfigurationClassParser {
 		String name = propertySource.getString("name");
 		String[] locations = propertySource.getStringArray("value");
 		boolean ignoreResourceNotFound = propertySource.getBoolean("ignoreResourceNotFound");
-		int locationCount = locations.length;
-		if (locationCount == 0) {
+		if (locations.length == 0) {
 			throw new IllegalArgumentException("At least one @PropertySource(value) location is required");
 		}
 		for (String location : locations) {
-			Resource resource = this.resourceLoader.getResource(
-					this.environment.resolveRequiredPlaceholders(location));
 			try {
+				Resource resource = this.resourceLoader.getResource(
+						this.environment.resolveRequiredPlaceholders(location));
 				if (!StringUtils.hasText(name) || this.propertySources.containsKey(name)) {
-					// We need to ensure unique names when the property source will
-					// ultimately end up in a composite
+					// We need to ensure unique names when the property source will ultimately end up in a composite
 					ResourcePropertySource ps = new ResourcePropertySource(resource);
 					this.propertySources.add((StringUtils.hasText(name) ? name : ps.getName()), ps);
 				}
@@ -324,7 +321,14 @@ class ConfigurationClassParser {
 					this.propertySources.add(name, new ResourcePropertySource(name, resource));
 				}
 			}
+			catch (IllegalArgumentException ex) {
+				// from resolveRequiredPlaceholders
+				if (!ignoreResourceNotFound) {
+					throw ex;
+				}
+			}
 			catch (FileNotFoundException ex) {
+				// from ResourcePropertySource constructor
 				if (!ignoreResourceNotFound) {
 					throw ex;
 				}
@@ -345,7 +349,7 @@ class ConfigurationClassParser {
 	/**
 	 * Recursively collect all declared {@code @Import} values. Unlike most
 	 * meta-annotations it is valid to have several {@code @Import}s declared with
-	 * different values, the usual process or returning values from the first
+	 * different values; the usual process of returning values from the first
 	 * meta-annotation on a class is not sufficient.
 	 * <p>For example, it is common for a {@code @Configuration} class to declare direct
 	 * {@code @Import}s in addition to meta-imports originating from an {@code @Enable}
@@ -378,7 +382,7 @@ class ConfigurationClassParser {
 			try {
 				ConfigurationClass configClass = deferredImport.getConfigurationClass();
 				String[] imports = deferredImport.getImportSelector().selectImports(configClass.getMetadata());
-				processImports(configClass, asSourceClasses(imports), false);
+				processImports(configClass, asSourceClass(configClass), asSourceClasses(imports), false);
 			}
 			catch (Exception ex) {
 				throw new BeanDefinitionStoreException("Failed to load bean class: ", ex);
@@ -387,10 +391,10 @@ class ConfigurationClassParser {
 		this.deferredImportSelectors.clear();
 	}
 
-	private void processImports(ConfigurationClass configClass, Collection<SourceClass> sourceClasses, boolean checkForCircularImports)
-			throws IOException {
+	private void processImports(ConfigurationClass configClass, SourceClass currentSourceClass,
+			Collection<SourceClass> importCandidates, boolean checkForCircularImports) throws IOException {
 
-		if (sourceClasses.isEmpty()) {
+		if (importCandidates.isEmpty()) {
 			return;
 		}
 		if (checkForCircularImports && this.importStack.contains(configClass)) {
@@ -398,9 +402,8 @@ class ConfigurationClassParser {
 		}
 		else {
 			this.importStack.push(configClass);
-			AnnotationMetadata importingClassMetadata = configClass.getMetadata();
 			try {
-				for (SourceClass candidate : sourceClasses) {
+				for (SourceClass candidate : importCandidates) {
 					if (candidate.isAssignable(ImportSelector.class)) {
 						// the candidate class is an ImportSelector -> delegate to it to determine imports
 						Class<?> candidateClass = candidate.loadClass();
@@ -410,9 +413,9 @@ class ConfigurationClassParser {
 							this.deferredImportSelectors.add(new DeferredImportSelectorHolder(configClass, (DeferredImportSelector) selector));
 						}
 						else {
-							String[] importClassNames = selector.selectImports(importingClassMetadata);
+							String[] importClassNames = selector.selectImports(currentSourceClass.getMetadata());
 							Collection<SourceClass> importSourceClasses = asSourceClasses(importClassNames);
-							processImports(configClass, importSourceClasses, false);
+							processImports(configClass, currentSourceClass, importSourceClasses, false);
 						}
 					}
 					else if (candidate.isAssignable(ImportBeanDefinitionRegistrar.class)) {
@@ -420,12 +423,11 @@ class ConfigurationClassParser {
 						Class<?> candidateClass = candidate.loadClass();
 						ImportBeanDefinitionRegistrar registrar = BeanUtils.instantiateClass(candidateClass, ImportBeanDefinitionRegistrar.class);
 						invokeAwareMethods(registrar);
-						configClass.addImportBeanDefinitionRegistrar(registrar);
+						configClass.addImportBeanDefinitionRegistrar(registrar, currentSourceClass.getMetadata());
 					}
 					else {
 						// candidate class not an ImportSelector or ImportBeanDefinitionRegistrar -> process it as a @Configuration class
-						this.importStack.registerImport(importingClassMetadata.getClassName(),
-								candidate.getMetadata().getClassName());
+						this.importStack.registerImport(currentSourceClass.getMetadata(), candidate.getMetadata().getClassName());
 						processConfigurationClass(candidate.asConfigClass(configClass));
 					}
 				}
@@ -486,8 +488,7 @@ class ConfigurationClassParser {
 		return propertySources;
 	}
 
-	private PropertySource<?> collatePropertySources(String name,
-			List<PropertySource<?>> propertySources) {
+	private PropertySource<?> collatePropertySources(String name, List<PropertySource<?>> propertySources) {
 		if (propertySources.size() == 1) {
 			return propertySources.get(0);
 		}
@@ -558,22 +559,21 @@ class ConfigurationClassParser {
 
 	interface ImportRegistry {
 
-		String getImportingClassFor(String importedClass);
-
+		AnnotationMetadata getImportingClassFor(String importedClass);
 	}
 
 
 	@SuppressWarnings("serial")
 	private static class ImportStack extends Stack<ConfigurationClass> implements ImportRegistry {
 
-		private final Map<String, String> imports = new HashMap<String, String>();
+		private final Map<String, AnnotationMetadata> imports = new HashMap<String, AnnotationMetadata>();
 
-		public void registerImport(String importingClass, String importedClass) {
+		public void registerImport(AnnotationMetadata importingClass, String importedClass) {
 			this.imports.put(importedClass, importingClass);
 		}
 
 		@Override
-		public String getImportingClassFor(String importedClass) {
+		public AnnotationMetadata getImportingClassFor(String importedClass) {
 			return this.imports.get(importedClass);
 		}
 
@@ -673,7 +673,7 @@ class ConfigurationClassParser {
 
 		public boolean isAssignable(Class<?> clazz) throws IOException {
 			if (this.source instanceof Class) {
-				return clazz.isAssignableFrom((Class) this.source);
+				return clazz.isAssignableFrom((Class<?>) this.source);
 			}
 			return new AssignableTypeFilter(clazz).match((MetadataReader) this.source, metadataReaderFactory);
 		}

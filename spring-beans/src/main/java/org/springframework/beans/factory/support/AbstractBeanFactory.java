@@ -286,8 +286,12 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 				String[] dependsOn = mbd.getDependsOn();
 				if (dependsOn != null) {
 					for (String dependsOnBean : dependsOn) {
-						getBean(dependsOnBean);
+						if (isDependent(beanName, dependsOnBean)) {
+							throw new BeanCreationException("Circular depends-on relationship between '" +
+									beanName + "' and '" + dependsOnBean + "'");
+						}
 						registerDependentBean(dependsOnBean, beanName);
+						getBean(dependsOnBean);
 					}
 				}
 
@@ -513,8 +517,8 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 			// Retrieve corresponding bean definition.
 			RootBeanDefinition mbd = getMergedLocalBeanDefinition(beanName);
 
-			Class[] typesToMatch = (FactoryBean.class.equals(typeToMatch) ?
-					new Class[] {typeToMatch} : new Class[] {FactoryBean.class, typeToMatch});
+			Class<?>[] typesToMatch = (FactoryBean.class.equals(typeToMatch) ?
+					new Class<?>[] {typeToMatch} : new Class<?>[] {FactoryBean.class, typeToMatch});
 
 			// Check decorated bean definition, if any: We assume it'll be easier
 			// to determine the decorated bean's type than the proxy's type.

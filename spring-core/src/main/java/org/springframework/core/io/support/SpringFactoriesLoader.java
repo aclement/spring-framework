@@ -59,24 +59,25 @@ public abstract class SpringFactoriesLoader {
 
 
 	/**
-	 * Loads the factory implementations of the given type from the default location, using
-	 * the given class loader.
+	 * Load the factory implementations of the given type from the default location,
+	 * using the given class loader.
 	 * <p>The returned factories are ordered in accordance with the {@link OrderComparator}.
 	 * @param factoryClass the interface or abstract class representing the factory
 	 * @param classLoader the ClassLoader to use for loading (can be {@code null} to use the default)
 	 */
 	public static <T> List<T> loadFactories(Class<T> factoryClass, ClassLoader classLoader) {
 		Assert.notNull(factoryClass, "'factoryClass' must not be null");
-		if (classLoader == null) {
-			classLoader = SpringFactoriesLoader.class.getClassLoader();
+		ClassLoader classLoaderToUse = classLoader;
+		if (classLoaderToUse == null) {
+			classLoaderToUse = SpringFactoriesLoader.class.getClassLoader();
 		}
-		List<String> factoryNames = loadFactoryNames(factoryClass, classLoader);
+		List<String> factoryNames = loadFactoryNames(factoryClass, classLoaderToUse);
 		if (logger.isTraceEnabled()) {
 			logger.trace("Loaded [" + factoryClass.getName() + "] names: " + factoryNames);
 		}
 		List<T> result = new ArrayList<T>(factoryNames.size());
 		for (String factoryName : factoryNames) {
-			result.add(instantiateFactory(factoryName, factoryClass, classLoader));
+			result.add(instantiateFactory(factoryName, factoryClass, classLoaderToUse));
 		}
 		OrderComparator.sort(result);
 		return result;
@@ -86,7 +87,8 @@ public abstract class SpringFactoriesLoader {
 		String factoryClassName = factoryClass.getName();
 		try {
 			List<String> result = new ArrayList<String>();
-			Enumeration<URL> urls = classLoader.getResources(FACTORIES_RESOURCE_LOCATION);
+			Enumeration<URL> urls = (classLoader != null ? classLoader.getResources(FACTORIES_RESOURCE_LOCATION) :
+					ClassLoader.getSystemResources(FACTORIES_RESOURCE_LOCATION));
 			while (urls.hasMoreElements()) {
 				URL url = urls.nextElement();
 				Properties properties = PropertiesLoaderUtils.loadProperties(new UrlResource(url));

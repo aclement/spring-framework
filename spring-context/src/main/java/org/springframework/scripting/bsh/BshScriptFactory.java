@@ -86,6 +86,7 @@ public class BshScriptFactory implements ScriptFactory, BeanClassLoaderAware {
 		this.scriptInterfaces = scriptInterfaces;
 	}
 
+
 	@Override
 	public void setBeanClassLoader(ClassLoader classLoader) {
 		this.beanClassLoader = classLoader;
@@ -132,7 +133,7 @@ public class BshScriptFactory implements ScriptFactory, BeanClassLoaderAware {
 					if (result instanceof Class) {
 						// A Class: We'll cache the Class here and create an instance
 						// outside of the synchronized block.
-						this.scriptClass = (Class) result;
+						this.scriptClass = (Class<?>) result;
 					}
 					else {
 						// Not a Class: OK, we'll simply create BeanShell objects

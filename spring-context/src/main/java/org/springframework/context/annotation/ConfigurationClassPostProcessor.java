@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package org.springframework.context.annotation;
 
 import java.beans.PropertyDescriptor;
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -28,6 +27,7 @@ import java.util.Set;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import org.springframework.aop.framework.autoproxy.AutoProxyUtils;
 import org.springframework.beans.PropertyValues;
 import org.springframework.beans.factory.BeanClassLoaderAware;
 import org.springframework.beans.factory.BeanDefinitionStoreException;
@@ -65,7 +65,6 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.classreading.CachingMetadataReaderFactory;
 import org.springframework.core.type.classreading.MetadataReaderFactory;
-import org.springframework.core.type.classreading.SimpleMetadataReaderFactory;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
@@ -255,8 +254,8 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 			throw new IllegalStateException(
 					"postProcessBeanFactory already called for this post-processor against " + beanFactory);
 		}
-		this.factoriesPostProcessed.add((factoryId));
-		if (!this.registriesPostProcessed.contains((factoryId))) {
+		this.factoriesPostProcessed.add(factoryId);
+		if (!this.registriesPostProcessed.contains(factoryId)) {
 			// BeanDefinitionRegistryPostProcessor hook apparently not supported...
 			// Simply call processConfigurationClasses lazily at this point then.
 			processConfigBeanDefinitions((BeanDefinitionRegistry) beanFactory);
@@ -308,7 +307,7 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 						"Reason: Environment must implement ConfigurableEnvironment");
 			}
 			else {
-				MutablePropertySources envPropertySources = ((ConfigurableEnvironment)this.environment).getPropertySources();
+				MutablePropertySources envPropertySources = ((ConfigurableEnvironment) this.environment).getPropertySources();
 				for (PropertySource<?> propertySource : parsedPropertySources) {
 					envPropertySources.addLast(propertySource);
 				}
@@ -361,7 +360,10 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 		ConfigurationClassEnhancer enhancer = new ConfigurationClassEnhancer();
 		for (Map.Entry<String, AbstractBeanDefinition> entry : configBeanDefs.entrySet()) {
 			AbstractBeanDefinition beanDef = entry.getValue();
+			// If a @Configuration class gets proxied, always proxy the target class
+			beanDef.setAttribute(AutoProxyUtils.PRESERVE_TARGET_CLASS_ATTRIBUTE, Boolean.TRUE);
 			try {
+				// Set enhanced subclass of the user-specified bean class
 				Class<?> configClass = beanDef.resolveBeanClass(this.beanClassLoader);
 				Class<?> enhancedClass = enhancer.enhance(configClass);
 				if (configClass != enhancedClass) {
@@ -379,14 +381,9 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 	}
 
 
-	private static class ImportAwareBeanPostProcessor implements BeanPostProcessor, PriorityOrdered, BeanFactoryAware {
+	private static class ImportAwareBeanPostProcessor implements BeanPostProcessor, BeanFactoryAware, PriorityOrdered {
 
 		private BeanFactory beanFactory;
-
-		@Override
-		public int getOrder() {
-			return Ordered.HIGHEST_PRECEDENCE;
-		}
 
 		@Override
 		public void setBeanFactory(BeanFactory beanFactory) {
@@ -394,23 +391,17 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 		}
 
 		@Override
+		public int getOrder() {
+			return Ordered.HIGHEST_PRECEDENCE;
+		}
+
+		@Override
 		public Object postProcessBeforeInitialization(Object bean, String beanName)  {
 			if (bean instanceof ImportAware) {
 				ImportRegistry importRegistry = this.beanFactory.getBean(IMPORT_REGISTRY_BEAN_NAME, ImportRegistry.class);
-				String importingClass = importRegistry.getImportingClassFor(bean.getClass().getSuperclass().getName());
+				AnnotationMetadata importingClass = importRegistry.getImportingClassFor(bean.getClass().getSuperclass().getName());
 				if (importingClass != null) {
-					try {
-						AnnotationMetadata metadata =
-								new SimpleMetadataReaderFactory().getMetadataReader(importingClass).getAnnotationMetadata();
-						((ImportAware) bean).setImportMetadata(metadata);
-					}
-					catch (IOException ex) {
-						// should never occur -> at this point we know the class is present anyway
-						throw new IllegalStateException(ex);
-					}
-				}
-				else {
-					// no importing class was found
+					((ImportAware) bean).setImportMetadata(importingClass);
 				}
 			}
 			return bean;

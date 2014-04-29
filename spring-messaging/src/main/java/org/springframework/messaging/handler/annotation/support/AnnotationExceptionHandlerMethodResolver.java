@@ -25,10 +25,9 @@ import java.util.Map;
 
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
-import org.springframework.messaging.handler.method.AbstractExceptionHandlerMethodResolver;
-import org.springframework.messaging.handler.method.HandlerMethodSelector;
+import org.springframework.messaging.handler.invocation.AbstractExceptionHandlerMethodResolver;
+import org.springframework.messaging.handler.HandlerMethodSelector;
 import org.springframework.util.ReflectionUtils.MethodFilter;
-
 
 /**
  * A sub-class of {@link AbstractExceptionHandlerMethodResolver} that looks for

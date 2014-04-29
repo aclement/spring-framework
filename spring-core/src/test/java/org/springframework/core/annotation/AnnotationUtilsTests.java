@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.junit.Test;
+
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.subpackage.NonPublicAnnotatedClass;
 import org.springframework.stereotype.Component;
@@ -37,6 +38,8 @@ import static org.junit.Assert.*;
 import static org.springframework.core.annotation.AnnotationUtils.*;
 
 /**
+ * Unit tests for {@link AnnotationUtils}.
+ *
  * @author Rod Johnson
  * @author Juergen Hoeller
  * @author Sam Brannen
@@ -97,15 +100,64 @@ public class AnnotationUtilsTests {
 	// }
 
 	@Test
-	public void findAnnotationPrefersInteracesOverLocalMetaAnnotations() {
+	public void findAnnotationFavorsInterfacesOverLocalMetaAnnotations() {
 		Component component = AnnotationUtils.findAnnotation(
 			ClassWithLocalMetaAnnotationAndMetaAnnotatedInterface.class, Component.class);
+		assertNotNull(component);
 
 		// By inspecting ClassWithLocalMetaAnnotationAndMetaAnnotatedInterface, one
 		// might expect that "meta2" should be found; however, with the current
 		// implementation "meta1" will be found.
-		assertNotNull(component);
 		assertEquals("meta1", component.value());
+	}
+
+	/**
+	 * @since 4.0.3
+	 */
+	@Test
+	public void findAnnotationFavorsInheritedAnnotationsOverMoreLocallyDeclaredComposedAnnotations() {
+		Transactional transactional = AnnotationUtils.findAnnotation(SubSubClassWithInheritedAnnotation.class,
+			Transactional.class);
+		assertNotNull(transactional);
+		assertTrue("readOnly flag for SubSubClassWithInheritedAnnotation", transactional.readOnly());
+	}
+
+	/**
+	 * @since 4.0.3
+	 */
+	@Test
+	public void findAnnotationFavorsInheritedComposedAnnotationsOverMoreLocallyDeclaredComposedAnnotations() {
+		Component component = AnnotationUtils.findAnnotation(SubSubClassWithInheritedMetaAnnotation.class,
+			Component.class);
+		assertNotNull(component);
+		assertEquals("meta2", component.value());
+	}
+
+	@Test
+	public void findAnnotationOnMetaMetaAnnotatedClass() {
+		Component component = AnnotationUtils.findAnnotation(MetaMetaAnnotatedClass.class, Component.class);
+		assertNotNull("Should find meta-annotation on composed annotation on class", component);
+		assertEquals("meta2", component.value());
+	}
+
+	@Test
+	public void findAnnotationOnMetaMetaMetaAnnotatedClass() {
+		Component component = AnnotationUtils.findAnnotation(MetaMetaMetaAnnotatedClass.class, Component.class);
+		assertNotNull("Should find meta-annotation on meta-annotation on composed annotation on class", component);
+		assertEquals("meta2", component.value());
+	}
+
+	@Test
+	public void findAnnotationOnAnnotatedClassWithMissingTargetMetaAnnotation() {
+		// TransactionalClass is NOT annotated or meta-annotated with @Component
+		Component component = AnnotationUtils.findAnnotation(TransactionalClass.class, Component.class);
+		assertNull("Should not find @Component on TransactionalClass", component);
+	}
+
+	@Test
+	public void findAnnotationOnMetaCycleAnnotatedClassWithMissingTargetMetaAnnotation() {
+		Component component = AnnotationUtils.findAnnotation(MetaCycleAnnotatedClass.class, Component.class);
+		assertNull("Should not find @Component on MetaCycleAnnotatedClass", component);
 	}
 
 	@Test
@@ -144,8 +196,7 @@ public class AnnotationUtilsTests {
 		// inherited class-level annotation; note: @Transactional is inherited
 		assertEquals(InheritedAnnotationInterface.class,
 			findAnnotationDeclaringClassForTypes(transactionalCandidateList, InheritedAnnotationInterface.class));
-		assertNull(findAnnotationDeclaringClassForTypes(transactionalCandidateList,
-				SubInheritedAnnotationInterface.class));
+		assertNull(findAnnotationDeclaringClassForTypes(transactionalCandidateList, SubInheritedAnnotationInterface.class));
 		assertEquals(InheritedAnnotationClass.class,
 			findAnnotationDeclaringClassForTypes(transactionalCandidateList, InheritedAnnotationClass.class));
 		assertEquals(InheritedAnnotationClass.class,
@@ -301,11 +352,17 @@ public class AnnotationUtilsTests {
 	}
 
 	@Test
-	public void findAnnotationFromInterfaceWhenSuperDoesNotImplementMethod()
-			throws Exception {
+	public void findAnnotationFromInterfaceWhenSuperDoesNotImplementMethod() throws Exception {
 		Method method = SubOfAbstractImplementsInterfaceWithAnnotatedMethod.class.getMethod("foo");
 		Order order = findAnnotation(method, Order.class);
 		assertNotNull(order);
+	}
+
+	@Test
+	public void findRepeatableAnnotationOnComposedAnnotation() {
+		Repeatable repeatable = findAnnotation(MyRepeatableMeta.class, Repeatable.class);
+		assertNotNull(repeatable);
+		assertEquals(MyRepeatableContainer.class, repeatable.value());
 	}
 
 	@Test
@@ -325,13 +382,39 @@ public class AnnotationUtilsTests {
 	@Component(value = "meta1")
 	@Order
 	@Retention(RetentionPolicy.RUNTIME)
+	@Inherited
 	@interface Meta1 {
 	}
 
 	@Component(value = "meta2")
-	@Transactional
+	@Transactional(readOnly = true)
 	@Retention(RetentionPolicy.RUNTIME)
 	@interface Meta2 {
+	}
+
+	@Meta2
+	@Retention(RetentionPolicy.RUNTIME)
+	@interface MetaMeta {
+	}
+
+	@MetaMeta
+	@Retention(RetentionPolicy.RUNTIME)
+	@interface MetaMetaMeta {
+	}
+
+	@MetaCycle3
+	@Retention(RetentionPolicy.RUNTIME)
+	@interface MetaCycle1 {
+	}
+
+	@MetaCycle1
+	@Retention(RetentionPolicy.RUNTIME)
+	@interface MetaCycle2 {
+	}
+
+	@MetaCycle2
+	@Retention(RetentionPolicy.RUNTIME)
+	@interface MetaCycle3 {
 	}
 
 	@Meta1
@@ -342,6 +425,39 @@ public class AnnotationUtilsTests {
 	static class ClassWithLocalMetaAnnotationAndMetaAnnotatedInterface implements InterfaceWithMetaAnnotation {
 	}
 
+	@Meta1
+	static class ClassWithInheritedMetaAnnotation {
+	}
+
+	@Meta2
+	static class SubClassWithInheritedMetaAnnotation extends ClassWithInheritedMetaAnnotation {
+	}
+
+	static class SubSubClassWithInheritedMetaAnnotation extends SubClassWithInheritedMetaAnnotation {
+	}
+
+	@Transactional
+	static class ClassWithInheritedAnnotation {
+	}
+
+	@Meta2
+	static class SubClassWithInheritedAnnotation extends ClassWithInheritedAnnotation {
+	}
+
+	static class SubSubClassWithInheritedAnnotation extends SubClassWithInheritedAnnotation {
+	}
+
+	@MetaMeta
+	static class MetaMetaAnnotatedClass {
+	}
+
+	@MetaMetaMeta
+	static class MetaMetaMetaAnnotatedClass {
+	}
+
+	@MetaCycle3
+	static class MetaCycleAnnotatedClass {
+	}
 
 	public static interface AnnotatedInterface {
 
@@ -353,25 +469,20 @@ public class AnnotationUtilsTests {
 
 		@Order(27)
 		public void annotatedOnRoot() {
-
 		}
 
 		public void overrideToAnnotate() {
-
 		}
 
 		@Order(27)
 		public void overrideWithoutNewAnnotation() {
-
 		}
 
 		public void notAnnotated() {
-
 		}
 
 		@Override
 		public void fromInterfaceImplementedByRoot() {
-
 		}
 	}
 
@@ -379,19 +490,23 @@ public class AnnotationUtilsTests {
 
 		@Order(25)
 		public void annotatedOnLeaf() {
-
 		}
 
 		@Override
 		@Order(1)
 		public void overrideToAnnotate() {
-
 		}
 
 		@Override
 		public void overrideWithoutNewAnnotation() {
-
 		}
+	}
+
+	@Retention(RetentionPolicy.RUNTIME)
+	@Inherited
+	@interface Transactional {
+
+		boolean readOnly() default false;
 	}
 
 	public static abstract class Foo<T> {
@@ -405,7 +520,6 @@ public class AnnotationUtilsTests {
 		@Override
 		@Transactional
 		public void something(final String arg) {
-
 		}
 	}
 
@@ -448,7 +562,7 @@ public class AnnotationUtilsTests {
 	}
 
 	@Order
-	public static class TransactionalAndOrderedClass {
+	public static class TransactionalAndOrderedClass extends TransactionalClass {
 	}
 
 	public static class SubTransactionalAndOrderedClass extends TransactionalAndOrderedClass {
@@ -474,16 +588,37 @@ public class AnnotationUtilsTests {
 		}
 	}
 
-	public abstract static class AbstractDoesNotImplementInterfaceWithAnnotatedMethod implements
-			InterfaceWithAnnotatedMethod {
+	public abstract static class AbstractDoesNotImplementInterfaceWithAnnotatedMethod
+			implements InterfaceWithAnnotatedMethod {
 	}
 
-	public static class SubOfAbstractImplementsInterfaceWithAnnotatedMethod extends
-			AbstractDoesNotImplementInterfaceWithAnnotatedMethod {
+	public static class SubOfAbstractImplementsInterfaceWithAnnotatedMethod
+			extends AbstractDoesNotImplementInterfaceWithAnnotatedMethod {
 
 		@Override
 		public void foo() {
 		}
+	}
+
+	@Retention(RetentionPolicy.RUNTIME)
+	@Inherited
+	@interface MyRepeatableContainer {
+
+		MyRepeatable[] value();
+	}
+
+	@Retention(RetentionPolicy.RUNTIME)
+	@Inherited
+	@Repeatable(MyRepeatableContainer.class)
+	@interface MyRepeatable {
+
+		String value();
+	}
+
+	@Retention(RetentionPolicy.RUNTIME)
+	@Inherited
+	@MyRepeatable("meta")
+	@interface MyRepeatableMeta {
 	}
 
 	public static interface InterfaceWithRepeated {
@@ -492,40 +627,6 @@ public class AnnotationUtilsTests {
 		@MyRepeatableContainer({ @MyRepeatable("b"), @MyRepeatable("c") })
 		@MyRepeatableMeta
 		void foo();
-
 	}
 
-}
-
-
-@Retention(RetentionPolicy.RUNTIME)
-@Inherited
-@interface Transactional {
-
-}
-
-
-@Retention(RetentionPolicy.RUNTIME)
-@Inherited
-@interface MyRepeatableContainer {
-
-	MyRepeatable[] value();
-
-}
-
-
-@Retention(RetentionPolicy.RUNTIME)
-@Inherited
-@Repeatable(MyRepeatableContainer.class)
-@interface MyRepeatable {
-
-	String value();
-
-}
-
-
-@Retention(RetentionPolicy.RUNTIME)
-@Inherited
-@MyRepeatable("meta")
-@interface MyRepeatableMeta {
 }

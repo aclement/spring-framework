@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,12 +22,11 @@ import java.util.Arrays;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
 import org.springframework.mock.web.test.MockHttpServletRequest;
 import org.springframework.mock.web.test.MockHttpServletResponse;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.ControllerAdvice;
-import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.SessionAttributes;
 import org.springframework.web.context.support.StaticWebApplicationContext;
@@ -46,7 +45,6 @@ import static org.junit.Assert.*;
  * Unit tests for {@link RequestMappingHandlerAdapter}.
  *
  * @author Rossen Stoyanchev
- *
  * @see ServletAnnotationControllerHandlerMethodTests
  * @see HandlerMethodAnnotationDetectionTests
  * @see RequestMappingHandlerAdapterIntegrationTests
@@ -66,6 +64,7 @@ public class RequestMappingHandlerAdapterTests {
 	private MockHttpServletResponse response;
 
 	private StaticWebApplicationContext webAppContext;
+
 
 	@BeforeClass
 	public static void setupOnce() {
@@ -87,23 +86,24 @@ public class RequestMappingHandlerAdapterTests {
 		this.response = new MockHttpServletResponse();
 	}
 
+
 	@Test
 	public void cacheControlWithoutSessionAttributes() throws Exception {
 		HandlerMethod handlerMethod = handlerMethod(new SimpleController(), "handle");
-		this.handlerAdapter.afterPropertiesSet();
 		this.handlerAdapter.setCacheSeconds(100);
-		this.handlerAdapter.handle(this.request, this.response, handlerMethod);
+		this.handlerAdapter.afterPropertiesSet();
 
-		assertTrue(response.getHeader("Cache-Control").toString().contains("max-age"));
+		this.handlerAdapter.handle(this.request, this.response, handlerMethod);
+		assertTrue(response.getHeader("Cache-Control").contains("max-age"));
 	}
 
 	@Test
 	public void cacheControlWithSessionAttributes() throws Exception {
 		SessionAttributeController handler = new SessionAttributeController();
-		this.handlerAdapter.afterPropertiesSet();
 		this.handlerAdapter.setCacheSeconds(100);
-		this.handlerAdapter.handle(this.request, this.response, handlerMethod(handler, "handle"));
+		this.handlerAdapter.afterPropertiesSet();
 
+		this.handlerAdapter.handle(this.request, this.response, handlerMethod(handler, "handle"));
 		assertEquals("no-cache", this.response.getHeader("Cache-Control"));
 	}
 
@@ -187,6 +187,22 @@ public class RequestMappingHandlerAdapterTests {
 	}
 
 	@Test
+	public void modelAttributeAdviceInParentContext() throws Exception {
+		StaticWebApplicationContext parent = new StaticWebApplicationContext();
+		parent.registerSingleton("maa", ModelAttributeAdvice.class);
+		parent.refresh();
+		this.webAppContext.setParent(parent);
+		this.webAppContext.refresh();
+
+		HandlerMethod handlerMethod = handlerMethod(new SimpleController(), "handle");
+		this.handlerAdapter.afterPropertiesSet();
+		ModelAndView mav = this.handlerAdapter.handle(this.request, this.response, handlerMethod);
+
+		assertEquals("lAttr1", mav.getModel().get("attr1"));
+		assertEquals("gAttr2", mav.getModel().get("attr2"));
+	}
+
+	@Test
 	public void modelAttributePackageNameAdvice() throws Exception {
 		this.webAppContext.registerSingleton("mapa", ModelAttributePackageAdvice.class);
 		this.webAppContext.registerSingleton("manupa", ModelAttributeNotUsedPackageAdvice.class);
@@ -227,6 +243,7 @@ public class RequestMappingHandlerAdapterTests {
 		}
 	}
 
+
 	@SessionAttributes("attr1")
 	private static class SessionAttributeController {
 
@@ -234,6 +251,7 @@ public class RequestMappingHandlerAdapterTests {
 		public void handle() {
 		}
 	}
+
 
 	@SuppressWarnings("unused")
 	private static class RedirectAttributeController {
@@ -243,6 +261,7 @@ public class RequestMappingHandlerAdapterTests {
 			return "redirect:/path";
 		}
 	}
+
 
 	@ControllerAdvice
 	private static class ModelAttributeAdvice {
@@ -254,6 +273,7 @@ public class RequestMappingHandlerAdapterTests {
 		}
 	}
 
+
 	@ControllerAdvice({"org.springframework.web.servlet.mvc.method.annotation","java.lang"})
 	private static class ModelAttributePackageAdvice {
 
@@ -263,6 +283,7 @@ public class RequestMappingHandlerAdapterTests {
 		}
 	}
 
+
 	@ControllerAdvice("java.lang")
 	private static class ModelAttributeNotUsedPackageAdvice {
 
@@ -271,4 +292,5 @@ public class RequestMappingHandlerAdapterTests {
 			model.addAttribute("attr3", "gAttr3");
 		}
 	}
+
 }

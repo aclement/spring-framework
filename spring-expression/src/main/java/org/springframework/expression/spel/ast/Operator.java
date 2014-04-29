@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,18 +20,26 @@ import org.springframework.asm.Label;
 import org.springframework.asm.MethodVisitor;
 import org.springframework.expression.spel.standard.CodeFlow;
 import org.springframework.expression.spel.standard.Utils;
+import java.math.BigDecimal;
+
+import org.springframework.expression.spel.ExpressionState;
+import org.springframework.util.ClassUtils;
+import org.springframework.util.NumberUtils;
+import org.springframework.util.ObjectUtils;
 
 /**
- * Common supertype for operators that operate on either one or two operands. In the case
- * of multiply or divide there would be two operands, but for unary plus or minus, there
- * is only one.
+ * Common supertype for operators that operate on either one or two operands.
+ * In the case of multiply or divide there would be two operands, but for
+ * unary plus or minus, there is only one.
  *
  * @author Andy Clement
+ * @author Juergen Hoeller
+ * @author Giovanni Dall'Oglio Risso
  * @since 3.0
  */
 public abstract class Operator extends SpelNodeImpl {
 
-	String operatorName;
+	private final String operatorName;
 
 
 	public Operator(String payload,int pos,SpelNodeImpl... operands) {
@@ -137,5 +145,49 @@ public abstract class Operator extends SpelNodeImpl {
 		mv.visitLabel(endOfIf);
 		codeflow.pushDescriptor("Z");	
 	}
-	
+
+	protected boolean equalityCheck(ExpressionState state, Object left, Object right) {
+		if (left instanceof Number && right instanceof Number) {
+			Number leftNumber = (Number) left;
+			Number rightNumber = (Number) right;
+
+			if (leftNumber instanceof BigDecimal || rightNumber instanceof BigDecimal) {
+				BigDecimal leftBigDecimal = NumberUtils.convertNumberToTargetClass(leftNumber, BigDecimal.class);
+				BigDecimal rightBigDecimal = NumberUtils.convertNumberToTargetClass(rightNumber, BigDecimal.class);
+				return (leftBigDecimal == null ? rightBigDecimal == null : leftBigDecimal.compareTo(rightBigDecimal) == 0);
+			}
+
+			if (leftNumber instanceof Double || rightNumber instanceof Double) {
+				return (leftNumber.doubleValue() == rightNumber.doubleValue());
+			}
+
+			if (leftNumber instanceof Float || rightNumber instanceof Float) {
+				return (leftNumber.floatValue() == rightNumber.floatValue());
+			}
+
+			if (leftNumber instanceof Long || rightNumber instanceof Long) {
+				return (leftNumber.longValue() == rightNumber.longValue());
+			}
+
+			return (leftNumber.intValue() == rightNumber.intValue());
+		}
+
+		if (left instanceof CharSequence && right instanceof CharSequence) {
+			return left.toString().equals(right.toString());
+		}
+
+		if (ObjectUtils.nullSafeEquals(left, right)) {
+			return true;
+		}
+
+		if (left instanceof Comparable && right instanceof Comparable) {
+			Class<?> ancestor = ClassUtils.determineCommonAncestor(left.getClass(), right.getClass());
+			if (ancestor != null && Comparable.class.isAssignableFrom(ancestor)) {
+				return (state.getTypeComparator().compare(left, right) == 0);
+			}
+		}
+
+		return false;
+	}
+
 }

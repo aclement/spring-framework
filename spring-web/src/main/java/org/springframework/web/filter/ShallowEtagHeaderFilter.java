@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,10 @@
 
 package org.springframework.web.filter;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
-
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
 import javax.servlet.ServletOutputStream;
@@ -29,18 +27,22 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpServletResponseWrapper;
 
+import org.springframework.http.HttpMethod;
 import org.springframework.util.Assert;
 import org.springframework.util.DigestUtils;
-import org.springframework.util.FileCopyUtils;
+import org.springframework.util.ResizableByteArrayOutputStream;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.util.WebUtils;
 
 /**
- * {@link javax.servlet.Filter} that generates an {@code ETag} value based on the content on the response.
- * This ETag is compared to the {@code If-None-Match} header of the request. If these headers are equal,
- * the response content is not sent, but rather a {@code 304 "Not Modified"} status instead.
+ * {@link javax.servlet.Filter} that generates an {@code ETag} value based on the
+ * content on the response. This ETag is compared to the {@code If-None-Match}
+ * header of the request. If these headers are equal, the response content is
+ * not sent, but rather a {@code 304 "Not Modified"} status instead.
  *
- * <p>Since the ETag is based on the response content, the response (or {@link org.springframework.web.servlet.View})
- * is still rendered. As such, this filter only saves bandwidth, not server performance.
+ * <p>Since the ETag is based on the response content, the response
+ * (e.g. a {@link org.springframework.web.servlet.View}) is still rendered.
+ * As such, this filter only saves bandwidth, not server performance.
  *
  * @author Arjen Poutsma
  * @author Rossen Stoyanchev
@@ -48,9 +50,13 @@ import org.springframework.web.util.WebUtils;
  */
 public class ShallowEtagHeaderFilter extends OncePerRequestFilter {
 
-	private static String HEADER_ETAG = "ETag";
+	private static final String HEADER_ETAG = "ETag";
 
-	private static String HEADER_IF_NONE_MATCH = "If-None-Match";
+	private static final String HEADER_IF_NONE_MATCH = "If-None-Match";
+
+	private static final String HEADER_CACHE_CONTROL = "Cache-Control";
+
+	private static final String DIRECTIVE_NO_STORE = "no-store";
 
 
 	/**
@@ -66,64 +72,72 @@ public class ShallowEtagHeaderFilter extends OncePerRequestFilter {
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
 			throws ServletException, IOException {
 
+		HttpServletResponse responseToUse = response;
 		if (!isAsyncDispatch(request)) {
-			response = new ShallowEtagResponseWrapper(response);
+			responseToUse = new ShallowEtagResponseWrapper(response);
 		}
 
-		filterChain.doFilter(request, response);
+		filterChain.doFilter(request, responseToUse);
 
 		if (!isAsyncStarted(request)) {
-			updateResponse(request, response);
+			updateResponse(request, responseToUse);
 		}
 	}
 
 	private void updateResponse(HttpServletRequest request, HttpServletResponse response) throws IOException {
-
-		ShallowEtagResponseWrapper  responseWrapper = WebUtils.getNativeResponse(response, ShallowEtagResponseWrapper.class);
+		ShallowEtagResponseWrapper responseWrapper =
+				WebUtils.getNativeResponse(response, ShallowEtagResponseWrapper.class);
 		Assert.notNull(responseWrapper, "ShallowEtagResponseWrapper not found");
 
-		response = (HttpServletResponse) responseWrapper.getResponse();
-
-		byte[] body = responseWrapper.toByteArray();
+		HttpServletResponse rawResponse = (HttpServletResponse) responseWrapper.getResponse();
 		int statusCode = responseWrapper.getStatusCode();
+		byte[] body = responseWrapper.toByteArray();
 
-		if (isEligibleForEtag(request, responseWrapper, statusCode, body)) {
+		if (rawResponse.isCommitted()) {
+			if (body.length > 0) {
+				StreamUtils.copy(body, rawResponse.getOutputStream());
+			}
+		}
+		else if (isEligibleForEtag(request, responseWrapper, statusCode, body)) {
 			String responseETag = generateETagHeaderValue(body);
-			response.setHeader(HEADER_ETAG, responseETag);
-
+			rawResponse.setHeader(HEADER_ETAG, responseETag);
 			String requestETag = request.getHeader(HEADER_IF_NONE_MATCH);
 			if (responseETag.equals(requestETag)) {
 				if (logger.isTraceEnabled()) {
 					logger.trace("ETag [" + responseETag + "] equal to If-None-Match, sending 304");
 				}
-				response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+				rawResponse.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
 			}
 			else {
 				if (logger.isTraceEnabled()) {
 					logger.trace("ETag [" + responseETag + "] not equal to If-None-Match [" + requestETag +
 							"], sending normal response");
 				}
-				copyBodyToResponse(body, response);
+				if (body.length > 0) {
+					rawResponse.setContentLength(body.length);
+					StreamUtils.copy(body, rawResponse.getOutputStream());
+				}
 			}
 		}
 		else {
 			if (logger.isTraceEnabled()) {
 				logger.trace("Response with status code [" + statusCode + "] not eligible for ETag");
 			}
-			copyBodyToResponse(body, response);
-		}
-	}
-
-	private void copyBodyToResponse(byte[] body, HttpServletResponse response) throws IOException {
-		if (body.length > 0) {
-			response.setContentLength(body.length);
-			FileCopyUtils.copy(body, response.getOutputStream());
+			if (body.length > 0) {
+				rawResponse.setContentLength(body.length);
+				StreamUtils.copy(body, rawResponse.getOutputStream());
+			}
 		}
 	}
 
 	/**
 	 * Indicates whether the given request and response are eligible for ETag generation.
-	 * <p>The default implementation returns {@code true} for response status codes in the {@code 2xx} series.
+	 * <p>The default implementation returns {@code true} if all conditions match:
+	 * <ul>
+	 * <li>response status codes in the {@code 2xx} series</li>
+	 * <li>request method is a GET</li>
+	 * <li>response Cache-Control header is not set or does not contain a "no-store" directive</li>
+	 * </ul>
 	 * @param request the HTTP request
 	 * @param response the HTTP response
 	 * @param responseStatusCode the HTTP response status code
@@ -133,7 +147,14 @@ public class ShallowEtagHeaderFilter extends OncePerRequestFilter {
 	protected boolean isEligibleForEtag(HttpServletRequest request, HttpServletResponse response,
 			int responseStatusCode, byte[] responseBody) {
 
-		return (responseStatusCode >= 200 && responseStatusCode < 300);
+		if (responseStatusCode >= 200 && responseStatusCode < 300 &&
+				HttpMethod.GET.name().equals(request.getMethod())) {
+			String cacheControl = response.getHeader(HEADER_CACHE_CONTROL);
+			if (cacheControl == null || !cacheControl.contains(DIRECTIVE_NO_STORE)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -158,7 +179,7 @@ public class ShallowEtagHeaderFilter extends OncePerRequestFilter {
 	 */
 	private static class ShallowEtagResponseWrapper extends HttpServletResponseWrapper {
 
-		private final ByteArrayOutputStream content = new ByteArrayOutputStream();
+		private final ResizableByteArrayOutputStream content = new ResizableByteArrayOutputStream(1024);
 
 		private final ServletOutputStream outputStream = new ResponseServletOutputStream();
 
@@ -166,7 +187,7 @@ public class ShallowEtagHeaderFilter extends OncePerRequestFilter {
 
 		private int statusCode = HttpServletResponse.SC_OK;
 
-		private ShallowEtagResponseWrapper(HttpServletResponse response) {
+		public ShallowEtagResponseWrapper(HttpServletResponse response) {
 			super(response);
 		}
 
@@ -185,18 +206,22 @@ public class ShallowEtagHeaderFilter extends OncePerRequestFilter {
 
 		@Override
 		public void sendError(int sc) throws IOException {
+			copyBodyToResponse();
 			super.sendError(sc);
 			this.statusCode = sc;
 		}
 
 		@Override
 		public void sendError(int sc, String msg) throws IOException {
+			copyBodyToResponse();
 			super.sendError(sc, msg);
 			this.statusCode = sc;
 		}
 
 		@Override
-		public void setContentLength(int len) {
+		public void sendRedirect(String location) throws IOException {
+			copyBodyToResponse();
+			super.sendRedirect(location);
 		}
 
 		@Override
@@ -215,6 +240,20 @@ public class ShallowEtagHeaderFilter extends OncePerRequestFilter {
 		}
 
 		@Override
+		public void setContentLength(int len) {
+			if (len > this.content.capacity()) {
+				this.content.resize(len);
+			}
+		}
+
+		@Override
+		public void setBufferSize(int size) {
+			if (size > this.content.capacity()) {
+				this.content.resize(size);
+			}
+		}
+
+		@Override
 		public void resetBuffer() {
 			this.content.reset();
 		}
@@ -222,16 +261,25 @@ public class ShallowEtagHeaderFilter extends OncePerRequestFilter {
 		@Override
 		public void reset() {
 			super.reset();
-			resetBuffer();
+			this.content.reset();
 		}
 
-		private int getStatusCode() {
-			return statusCode;
+		public int getStatusCode() {
+			return this.statusCode;
 		}
 
-		private byte[] toByteArray() {
+		public byte[] toByteArray() {
 			return this.content.toByteArray();
 		}
+
+		private void copyBodyToResponse() throws IOException {
+			if (this.content.size() > 0) {
+				getResponse().setContentLength(this.content.size());
+				StreamUtils.copy(this.content.toByteArray(), getResponse().getOutputStream());
+				this.content.reset();
+			}
+		}
+
 
 		private class ResponseServletOutputStream extends ServletOutputStream {
 
@@ -246,9 +294,10 @@ public class ShallowEtagHeaderFilter extends OncePerRequestFilter {
 			}
 		}
 
+
 		private class ResponsePrintWriter extends PrintWriter {
 
-			private ResponsePrintWriter(String characterEncoding) throws UnsupportedEncodingException {
+			public ResponsePrintWriter(String characterEncoding) throws UnsupportedEncodingException {
 				super(new OutputStreamWriter(content, characterEncoding));
 			}
 

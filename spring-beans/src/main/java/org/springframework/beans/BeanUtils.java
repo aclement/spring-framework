@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 the original author or authors.
+ * Copyright 2002-2013 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ public abstract class BeanUtils {
 
 	private static final Log logger = LogFactory.getLog(BeanUtils.class);
 
-	// using WeakHashMap as a Set
+	// Effectively using a WeakHashMap as a Set
 	private static final Map<Class<?>, Boolean> unknownEditorTypes =
 			Collections.synchronizedMap(new WeakHashMap<Class<?>, Boolean>());
 
@@ -127,7 +127,7 @@ public abstract class BeanUtils {
 	@SuppressWarnings("unchecked")
 	public static <T> T instantiateClass(Class<?> clazz, Class<T> assignableTo) throws BeanInstantiationException {
 		Assert.isAssignable(assignableTo, clazz);
-		return (T)instantiateClass(clazz);
+		return (T) instantiateClass(clazz);
 	}
 
 	/**
@@ -199,7 +199,7 @@ public abstract class BeanUtils {
 	 * @return the Method object, or {@code null} if not found
 	 * @see Class#getDeclaredMethod
 	 */
-	public static Method findDeclaredMethod(Class<?> clazz, String methodName, Class<?>[] paramTypes) {
+	public static Method findDeclaredMethod(Class<?> clazz, String methodName, Class<?>... paramTypes) {
 		try {
 			return clazz.getDeclaredMethod(methodName, paramTypes);
 		}
@@ -281,7 +281,7 @@ public abstract class BeanUtils {
 				}
 				else {
 					if (targetMethod.getParameterTypes().length == numParams) {
-						// Additional candidate with same length.
+						// Additional candidate with same length
 						numMethodsFoundWithCurrentMinimumArgs++;
 					}
 				}
@@ -317,10 +317,8 @@ public abstract class BeanUtils {
 	public static Method resolveSignature(String signature, Class<?> clazz) {
 		Assert.hasText(signature, "'signature' must not be empty");
 		Assert.notNull(clazz, "Class must not be null");
-
 		int firstParen = signature.indexOf("(");
 		int lastParen = signature.indexOf(")");
-
 		if (firstParen > -1 && lastParen == -1) {
 			throw new IllegalArgumentException("Invalid method signature '" + signature +
 					"': expected closing ')' for args list");
@@ -336,7 +334,7 @@ public abstract class BeanUtils {
 			String methodName = signature.substring(0, firstParen);
 			String[] parameterTypeNames =
 					StringUtils.commaDelimitedListToStringArray(signature.substring(firstParen + 1, lastParen));
-			Class<?>[] parameterTypes = new Class[parameterTypeNames.length];
+			Class<?>[] parameterTypes = new Class<?>[parameterTypeNames.length];
 			for (int i = 0; i < parameterTypeNames.length; i++) {
 				String parameterTypeName = parameterTypeNames[i].trim();
 				try {
@@ -455,7 +453,7 @@ public abstract class BeanUtils {
 	 * @param beanClasses the classes to check against
 	 * @return the property type, or {@code Object.class} as fallback
 	 */
-	public static Class<?> findPropertyType(String propertyName, Class<?>[] beanClasses) {
+	public static Class<?> findPropertyType(String propertyName, Class<?>... beanClasses) {
 		if (beanClasses != null) {
 			for (Class<?> beanClass : beanClasses) {
 				PropertyDescriptor pd = getPropertyDescriptor(beanClass, propertyName);
@@ -475,8 +473,7 @@ public abstract class BeanUtils {
 	 */
 	public static MethodParameter getWriteMethodParameter(PropertyDescriptor pd) {
 		if (pd instanceof GenericTypeAwarePropertyDescriptor) {
-			return new MethodParameter(
-					((GenericTypeAwarePropertyDescriptor) pd).getWriteMethodParameter());
+			return new MethodParameter(((GenericTypeAwarePropertyDescriptor) pd).getWriteMethodParameter());
 		}
 		else {
 			return new MethodParameter(pd.getWriteMethod(), 0);
@@ -528,7 +525,7 @@ public abstract class BeanUtils {
 	 * @see BeanWrapper
 	 */
 	public static void copyProperties(Object source, Object target) throws BeansException {
-		copyProperties(source, target, null, null);
+		copyProperties(source, target, null, (String[]) null);
 	}
 
 	/**
@@ -545,10 +542,8 @@ public abstract class BeanUtils {
 	 * @throws BeansException if the copying failed
 	 * @see BeanWrapper
 	 */
-	public static void copyProperties(Object source, Object target, Class<?> editable)
-			throws BeansException {
-
-		copyProperties(source, target, editable, null);
+	public static void copyProperties(Object source, Object target, Class<?> editable) throws BeansException {
+		copyProperties(source, target, editable, (String[]) null);
 	}
 
 	/**
@@ -565,9 +560,7 @@ public abstract class BeanUtils {
 	 * @throws BeansException if the copying failed
 	 * @see BeanWrapper
 	 */
-	public static void copyProperties(Object source, Object target, String[] ignoreProperties)
-			throws BeansException {
-
+	public static void copyProperties(Object source, Object target, String... ignoreProperties) throws BeansException {
 		copyProperties(source, target, null, ignoreProperties);
 	}
 
@@ -583,7 +576,7 @@ public abstract class BeanUtils {
 	 * @throws BeansException if the copying failed
 	 * @see BeanWrapper
 	 */
-	private static void copyProperties(Object source, Object target, Class<?> editable, String[] ignoreProperties)
+	private static void copyProperties(Object source, Object target, Class<?> editable, String... ignoreProperties)
 			throws BeansException {
 
 		Assert.notNull(source, "Source must not be null");
@@ -601,24 +594,27 @@ public abstract class BeanUtils {
 		List<String> ignoreList = (ignoreProperties != null) ? Arrays.asList(ignoreProperties) : null;
 
 		for (PropertyDescriptor targetPd : targetPds) {
-			if (targetPd.getWriteMethod() != null &&
-					(ignoreProperties == null || (!ignoreList.contains(targetPd.getName())))) {
+			Method writeMethod = targetPd.getWriteMethod();
+			if (writeMethod != null && (ignoreProperties == null || (!ignoreList.contains(targetPd.getName())))) {
 				PropertyDescriptor sourcePd = getPropertyDescriptor(source.getClass(), targetPd.getName());
-				if (sourcePd != null && sourcePd.getReadMethod() != null) {
-					try {
-						Method readMethod = sourcePd.getReadMethod();
-						if (!Modifier.isPublic(readMethod.getDeclaringClass().getModifiers())) {
-							readMethod.setAccessible(true);
+				if (sourcePd != null) {
+					Method readMethod = sourcePd.getReadMethod();
+					if (readMethod != null &&
+							ClassUtils.isAssignable(writeMethod.getParameterTypes()[0], readMethod.getReturnType())) {
+						try {
+							if (!Modifier.isPublic(readMethod.getDeclaringClass().getModifiers())) {
+								readMethod.setAccessible(true);
+							}
+							Object value = readMethod.invoke(source);
+							if (!Modifier.isPublic(writeMethod.getDeclaringClass().getModifiers())) {
+								writeMethod.setAccessible(true);
+							}
+							writeMethod.invoke(target, value);
 						}
-						Object value = readMethod.invoke(source);
-						Method writeMethod = targetPd.getWriteMethod();
-						if (!Modifier.isPublic(writeMethod.getDeclaringClass().getModifiers())) {
-							writeMethod.setAccessible(true);
+						catch (Throwable ex) {
+							throw new FatalBeanException(
+									"Could not copy property '" + targetPd.getName() + "' from source to target", ex);
 						}
-						writeMethod.invoke(target, value);
-					}
-					catch (Throwable ex) {
-						throw new FatalBeanException("Could not copy properties from source to target", ex);
 					}
 				}
 			}

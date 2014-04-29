@@ -29,6 +29,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.core.task.AsyncListenableTaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.scheduling.SchedulingTaskExecutor;
 import org.springframework.scheduling.TaskScheduler;
@@ -36,6 +37,8 @@ import org.springframework.scheduling.Trigger;
 import org.springframework.scheduling.support.TaskUtils;
 import org.springframework.util.Assert;
 import org.springframework.util.ErrorHandler;
+import org.springframework.util.concurrent.ListenableFuture;
+import org.springframework.util.concurrent.ListenableFutureTask;
 
 /**
  * Implementation of Spring's {@link TaskScheduler} interface, wrapping
@@ -50,7 +53,7 @@ import org.springframework.util.ErrorHandler;
  */
 @SuppressWarnings("serial")
 public class ThreadPoolTaskScheduler extends ExecutorConfigurationSupport
-		implements TaskScheduler, SchedulingTaskExecutor {
+		implements AsyncListenableTaskExecutor, SchedulingTaskExecutor, TaskScheduler {
 
 	private volatile int poolSize = 1;
 
@@ -190,10 +193,37 @@ public class ThreadPoolTaskScheduler extends ExecutorConfigurationSupport
 	public <T> Future<T> submit(Callable<T> task) {
 		ExecutorService executor = getScheduledExecutor();
 		try {
+			Callable<T> taskToUse = task;
 			if (this.errorHandler != null) {
-				task = new DelegatingErrorHandlingCallable<T>(task, this.errorHandler);
+				taskToUse = new DelegatingErrorHandlingCallable<T>(task, this.errorHandler);
 			}
-			return executor.submit(task);
+			return executor.submit(taskToUse);
+		}
+		catch (RejectedExecutionException ex) {
+			throw new TaskRejectedException("Executor [" + executor + "] did not accept task: " + task, ex);
+		}
+	}
+
+	@Override
+	public ListenableFuture<?> submitListenable(Runnable task) {
+		ExecutorService executor = getScheduledExecutor();
+		try {
+			ListenableFutureTask<Object> future = new ListenableFutureTask<Object>(task, null);
+			executor.execute(errorHandlingTask(future, false));
+			return future;
+		}
+		catch (RejectedExecutionException ex) {
+			throw new TaskRejectedException("Executor [" + executor + "] did not accept task: " + task, ex);
+		}
+	}
+
+	@Override
+	public <T> ListenableFuture<T> submitListenable(Callable<T> task) {
+		ExecutorService executor = getScheduledExecutor();
+		try {
+			ListenableFutureTask<T> future = new ListenableFutureTask<T>(task);
+			executor.execute(errorHandlingTask(future, false));
+			return future;
 		}
 		catch (RejectedExecutionException ex) {
 			throw new TaskRejectedException("Executor [" + executor + "] did not accept task: " + task, ex);
@@ -209,7 +239,7 @@ public class ThreadPoolTaskScheduler extends ExecutorConfigurationSupport
 	// TaskScheduler implementation
 
 	@Override
-	public ScheduledFuture schedule(Runnable task, Trigger trigger) {
+	public ScheduledFuture<?> schedule(Runnable task, Trigger trigger) {
 		ScheduledExecutorService executor = getScheduledExecutor();
 		try {
 			ErrorHandler errorHandler =
@@ -222,7 +252,7 @@ public class ThreadPoolTaskScheduler extends ExecutorConfigurationSupport
 	}
 
 	@Override
-	public ScheduledFuture schedule(Runnable task, Date startTime) {
+	public ScheduledFuture<?> schedule(Runnable task, Date startTime) {
 		ScheduledExecutorService executor = getScheduledExecutor();
 		long initialDelay = startTime.getTime() - System.currentTimeMillis();
 		try {
@@ -234,7 +264,7 @@ public class ThreadPoolTaskScheduler extends ExecutorConfigurationSupport
 	}
 
 	@Override
-	public ScheduledFuture scheduleAtFixedRate(Runnable task, Date startTime, long period) {
+	public ScheduledFuture<?> scheduleAtFixedRate(Runnable task, Date startTime, long period) {
 		ScheduledExecutorService executor = getScheduledExecutor();
 		long initialDelay = startTime.getTime() - System.currentTimeMillis();
 		try {
@@ -246,7 +276,7 @@ public class ThreadPoolTaskScheduler extends ExecutorConfigurationSupport
 	}
 
 	@Override
-	public ScheduledFuture scheduleAtFixedRate(Runnable task, long period) {
+	public ScheduledFuture<?> scheduleAtFixedRate(Runnable task, long period) {
 		ScheduledExecutorService executor = getScheduledExecutor();
 		try {
 			return executor.scheduleAtFixedRate(errorHandlingTask(task, true), 0, period, TimeUnit.MILLISECONDS);
@@ -257,7 +287,7 @@ public class ThreadPoolTaskScheduler extends ExecutorConfigurationSupport
 	}
 
 	@Override
-	public ScheduledFuture scheduleWithFixedDelay(Runnable task, Date startTime, long delay) {
+	public ScheduledFuture<?> scheduleWithFixedDelay(Runnable task, Date startTime, long delay) {
 		ScheduledExecutorService executor = getScheduledExecutor();
 		long initialDelay = startTime.getTime() - System.currentTimeMillis();
 		try {
@@ -269,7 +299,7 @@ public class ThreadPoolTaskScheduler extends ExecutorConfigurationSupport
 	}
 
 	@Override
-	public ScheduledFuture scheduleWithFixedDelay(Runnable task, long delay) {
+	public ScheduledFuture<?> scheduleWithFixedDelay(Runnable task, long delay) {
 		ScheduledExecutorService executor = getScheduledExecutor();
 		try {
 			return executor.scheduleWithFixedDelay(errorHandlingTask(task, true), 0, delay, TimeUnit.MILLISECONDS);
@@ -278,6 +308,7 @@ public class ThreadPoolTaskScheduler extends ExecutorConfigurationSupport
 			throw new TaskRejectedException("Executor [" + executor + "] did not accept task: " + task, ex);
 		}
 	}
+
 
 	private Runnable errorHandlingTask(Runnable task, boolean isRepeatingTask) {
 		return TaskUtils.decorateTaskWithErrorHandler(task, this.errorHandler, isRepeatingTask);
@@ -290,7 +321,7 @@ public class ThreadPoolTaskScheduler extends ExecutorConfigurationSupport
 
 		private final ErrorHandler errorHandler;
 
-		DelegatingErrorHandlingCallable(Callable<V> delegate, ErrorHandler errorHandler) {
+		public DelegatingErrorHandlingCallable(Callable<V> delegate, ErrorHandler errorHandler) {
 			this.delegate = delegate;
 			this.errorHandler = errorHandler;
 		}
@@ -298,7 +329,7 @@ public class ThreadPoolTaskScheduler extends ExecutorConfigurationSupport
 		@Override
 		public V call() throws Exception {
 			try {
-				return delegate.call();
+				return this.delegate.call();
 			}
 			catch (Throwable t) {
 				this.errorHandler.handleError(t);

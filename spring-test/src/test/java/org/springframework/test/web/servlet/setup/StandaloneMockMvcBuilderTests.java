@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,15 +18,14 @@ package org.springframework.test.web.servlet.setup;
 
 import org.junit.Test;
 import org.springframework.mock.web.test.MockHttpServletRequest;
-import org.springframework.mock.web.test.MockServletContext;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerExecutionChain;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import static org.junit.Assert.*;
-
 
 /**
  * @author Rossen Stoyanchev
@@ -39,12 +38,11 @@ public class StandaloneMockMvcBuilderTests {
 	@Test
 	public void placeHoldersInRequestMapping() throws Exception {
 
-		StubWebApplicationContext cxt = new StubWebApplicationContext(new MockServletContext());
-		StandaloneMockMvcBuilder builder = new StandaloneMockMvcBuilder(new PlaceholderController());
+		TestStandaloneMockMvcBuilder builder = new TestStandaloneMockMvcBuilder(new PlaceholderController());
 		builder.addPlaceHolderValue("sys.login.ajax", "/foo");
-		builder.initWebAppContext(cxt);
+		builder.build();
 
-		RequestMappingHandlerMapping hm = cxt.getBean(RequestMappingHandlerMapping.class);
+		RequestMappingHandlerMapping hm = builder.wac.getBean(RequestMappingHandlerMapping.class);
 
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/foo");
 		HandlerExecutionChain chain = hm.getHandler(request);
@@ -61,4 +59,19 @@ public class StandaloneMockMvcBuilderTests {
 		private void handleWithPlaceholders() { }
 	}
 
+
+	private static class TestStandaloneMockMvcBuilder extends StandaloneMockMvcBuilder {
+
+		private WebApplicationContext wac;
+
+		private TestStandaloneMockMvcBuilder(Object... controllers) {
+			super(controllers);
+		}
+
+		@Override
+		protected WebApplicationContext initWebAppContext() {
+			this.wac = super.initWebAppContext();
+			return this.wac;
+		}
+	}
 }

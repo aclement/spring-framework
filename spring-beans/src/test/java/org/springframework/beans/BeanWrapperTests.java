@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,13 +15,6 @@
  */
 
 package org.springframework.beans;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import java.beans.PropertyEditorSupport;
 import java.math.BigDecimal;
@@ -44,11 +37,16 @@ import java.util.TreeSet;
 
 import org.apache.commons.logging.LogFactory;
 import org.junit.Test;
+
 import org.springframework.beans.factory.annotation.Autowire;
 import org.springframework.beans.propertyeditors.CustomNumberEditor;
 import org.springframework.beans.propertyeditors.StringArrayPropertyEditor;
 import org.springframework.beans.propertyeditors.StringTrimmerEditor;
 import org.springframework.beans.support.DerivedFromProtectedBaseBean;
+import org.springframework.core.convert.ConversionFailedException;
+import org.springframework.core.convert.TypeDescriptor;
+import org.springframework.core.convert.support.DefaultConversionService;
+import org.springframework.core.convert.support.GenericConversionService;
 import org.springframework.tests.Assume;
 import org.springframework.tests.TestGroup;
 import org.springframework.tests.sample.beans.BooleanTestBean;
@@ -56,17 +54,11 @@ import org.springframework.tests.sample.beans.ITestBean;
 import org.springframework.tests.sample.beans.IndexedTestBean;
 import org.springframework.tests.sample.beans.NumberTestBean;
 import org.springframework.tests.sample.beans.TestBean;
-import org.springframework.core.convert.ConversionFailedException;
-import org.springframework.core.convert.TypeDescriptor;
-import org.springframework.core.convert.support.DefaultConversionService;
-import org.springframework.core.convert.support.GenericConversionService;
 import org.springframework.util.StopWatch;
 import org.springframework.util.StringUtils;
 
 import static org.hamcrest.Matchers.*;
-
 import static org.junit.Assert.*;
-
 
 /**
  * @author Rod Johnson
@@ -1557,28 +1549,55 @@ public final class BeanWrapperTests {
 	@Test
 	public void cornerSpr10115() {
 		Spr10115Bean foo = new Spr10115Bean();
-		BeanWrapperImpl bwi = new BeanWrapperImpl();
-		bwi.setWrappedInstance(foo);
+		BeanWrapperImpl bwi = new BeanWrapperImpl(foo);
 		bwi.setPropertyValue("prop1", "val1");
 		assertEquals("val1", Spr10115Bean.prop1);
 	}
 
 	@Test
-	public void testArrayToObject() throws Exception {
+	public void testArrayToObject() {
 		ArrayToObject foo = new ArrayToObject();
-		BeanWrapperImpl bwi = new BeanWrapperImpl();
-		bwi.setWrappedInstance(foo);
+		BeanWrapperImpl bwi = new BeanWrapperImpl(foo);
 
 		Object[] array = new Object[] {"1","2"};
-		bwi.setPropertyValue("object", array );
+		bwi.setPropertyValue("object", array);
 		assertThat(foo.getObject(), equalTo((Object) array));
 
 		array = new Object[] {"1"};
-		bwi.setPropertyValue("object", array );
+		bwi.setPropertyValue("object", array);
 		assertThat(foo.getObject(), equalTo((Object) array));
-}
+	}
+
+	@Test
+	public void testPropertyTypeMismatch() {
+		PropertyTypeMismatch foo = new PropertyTypeMismatch();
+		BeanWrapperImpl bwi = new BeanWrapperImpl(foo);
+		bwi.setPropertyValue("object", "a String");
+		assertEquals("a String", foo.value);
+		assertEquals(8, bwi.getPropertyValue("object"));
+	}
+
+	@Test
+	public void testGenericArraySetter() {
+		SkipReaderStub foo = new SkipReaderStub();
+		BeanWrapperImpl bwi = new BeanWrapperImpl(foo);
+		List<String> values = new LinkedList<String>();
+		values.add("1");
+		values.add("2");
+		values.add("3");
+		values.add("4");
+		bwi.setPropertyValue("items", values);
+		Object[] result = foo.items;
+		assertEquals(4, result.length);
+		assertEquals("1", result[0]);
+		assertEquals("2", result[1]);
+		assertEquals("3", result[2]);
+		assertEquals("4", result[3]);
+	}
+
 
 	static class Spr10115Bean {
+
 		private static String prop1;
 
 		public static void setProp1(String prop1) {
@@ -1963,10 +1982,9 @@ public final class BeanWrapperTests {
 	}
 
 
-	static class ArrayToObject {
+	public static class ArrayToObject {
 
 		private Object object;
-
 
 		public void setObject(Object object) {
 			this.object = object;
@@ -1975,6 +1993,37 @@ public final class BeanWrapperTests {
 		public Object getObject() {
 			return object;
 		}
-
 	}
+
+
+	public static class PropertyTypeMismatch {
+
+		public String value;
+
+		public void setObject(String object) {
+			this.value = object;
+		}
+
+		public Integer getObject() {
+			return (this.value != null ? this.value.length() : null);
+		}
+	}
+
+
+	public static class SkipReaderStub<T> {
+
+		public T[] items;
+
+		public SkipReaderStub() {
+		}
+
+		public SkipReaderStub(T... items) {
+			this.items = items;
+		}
+
+		public void setItems(T... items) {
+			this.items = items;
+		}
+	}
+
 }

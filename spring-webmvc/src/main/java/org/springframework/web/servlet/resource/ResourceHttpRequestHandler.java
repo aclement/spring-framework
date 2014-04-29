@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@ package org.springframework.web.servlet.resource;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
-
 import javax.activation.FileTypeMap;
 import javax.activation.MimetypesFileTypeMap;
 import javax.servlet.ServletException;
@@ -28,6 +28,7 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -35,7 +36,7 @@ import org.springframework.http.MediaType;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.FileCopyUtils;
+import org.springframework.util.StreamUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.HttpRequestHandler;
 import org.springframework.web.context.request.ServletWebRequest;
@@ -63,8 +64,13 @@ import org.springframework.web.servlet.support.WebContentGenerator;
  * is used in the URL  mapping pattern that selects this handler. Such patterns can be easily parameterized
  * using Spring EL. See the reference manual for further examples of this approach.
  *
- * <p>Rather than being directly configured as a bean, this handler will typically be configured
- * through use of the {@code <mvc:resources/>} XML configuration element.
+ * <p>For various front-end needs &mdash; such as ensuring that users with a primed browser cache get the
+ * latest changes, or serving variations of resources (e.g., minified versions) &mdash;
+ * {@link org.springframework.web.servlet.resource.ResourceResolver}s can be configured.
+ *
+ * <p>This handler can be configured through use of a
+ * {@link org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry} or the {@code <mvc:resources/>}
+ * XML configuration element.
  *
  * @author Keith Donald
  * @author Jeremy Grelle
@@ -78,12 +84,18 @@ public class ResourceHttpRequestHandler extends WebContentGenerator implements H
 	private static final boolean jafPresent =
 			ClassUtils.isPresent("javax.activation.FileTypeMap", ResourceHttpRequestHandler.class.getClassLoader());
 
+	private static final String CONTENT_ENCODING = "Content-Encoding";
+
 	private List<Resource> locations;
+
+	private final List<ResourceResolver> resourceResolvers = new ArrayList<ResourceResolver>();
 
 
 	public ResourceHttpRequestHandler() {
 		super(METHOD_GET, METHOD_HEAD);
+		this.resourceResolvers.add(new PathResourceResolver());
 	}
+
 
 	/**
 	 * Set a {@code List} of {@code Resource} paths to use as sources
@@ -93,6 +105,28 @@ public class ResourceHttpRequestHandler extends WebContentGenerator implements H
 		Assert.notEmpty(locations, "Locations list must not be empty");
 		this.locations = locations;
 	}
+
+	public List<Resource> getLocations() {
+		return this.locations;
+	}
+
+	/**
+	 * Configure the list of {@link ResourceResolver}s to use.
+	 * <p>
+	 * By default {@link PathResourceResolver} is configured. If using this property, it
+	 * is recommended to add {@link PathResourceResolver} as the last resolver.
+	 */
+	public void setResourceResolvers(List<ResourceResolver> resourceResolvers) {
+		this.resourceResolvers.clear();
+		if (resourceResolvers != null) {
+			this.resourceResolvers.addAll(resourceResolvers);
+		}
+	}
+
+	public List<ResourceResolver> getResourceResolvers() {
+		return this.resourceResolvers;
+	}
+
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
@@ -122,7 +156,7 @@ public class ResourceHttpRequestHandler extends WebContentGenerator implements H
 		// check whether a matching resource exists
 		Resource resource = getResource(request);
 		if (resource == null) {
-			logger.debug("No matching resource found - returning 404");
+			logger.trace("No matching resource found - returning 404");
 			response.sendError(HttpServletResponse.SC_NOT_FOUND);
 			return;
 		}
@@ -130,19 +164,19 @@ public class ResourceHttpRequestHandler extends WebContentGenerator implements H
 		// check the resource's media type
 		MediaType mediaType = getMediaType(resource);
 		if (mediaType != null) {
-			if (logger.isDebugEnabled()) {
-				logger.debug("Determined media type '" + mediaType + "' for " + resource);
+			if (logger.isTraceEnabled()) {
+				logger.trace("Determined media type '" + mediaType + "' for " + resource);
 			}
 		}
 		else {
-			if (logger.isDebugEnabled()) {
-				logger.debug("No media type found for " + resource + " - not sending a content-type header");
+			if (logger.isTraceEnabled()) {
+				logger.trace("No media type found for " + resource + " - not sending a content-type header");
 			}
 		}
 
 		// header phase
 		if (new ServletWebRequest(request, response).checkNotModified(resource.lastModified())) {
-			logger.debug("Resource not modified - returning 304");
+			logger.trace("Resource not modified - returning 304");
 			return;
 		}
 		setHeaders(response, resource, mediaType);
@@ -155,41 +189,23 @@ public class ResourceHttpRequestHandler extends WebContentGenerator implements H
 		writeContent(response, resource);
 	}
 
-	protected Resource getResource(HttpServletRequest request) {
+	protected Resource getResource(HttpServletRequest request) throws IOException{
 		String path = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
 		if (path == null) {
 			throw new IllegalStateException("Required request attribute '" +
 					HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE + "' is not set");
 		}
-
 		if (!StringUtils.hasText(path) || isInvalidPath(path)) {
-			if (logger.isDebugEnabled()) {
-				logger.debug("Ignoring invalid resource path [" + path + "]");
+			if (logger.isTraceEnabled()) {
+				logger.trace("Ignoring invalid resource path [" + path + "]");
 			}
 			return null;
 		}
+		return createResourceResolverChain().resolveResource(request, path, getLocations());
+	}
 
-		for (Resource location : this.locations) {
-			try {
-				if (logger.isDebugEnabled()) {
-					logger.debug("Trying relative path [" + path + "] against base location: " + location);
-				}
-				Resource resource = location.createRelative(path);
-				if (resource.exists() && resource.isReadable()) {
-					if (logger.isDebugEnabled()) {
-						logger.debug("Found matching resource: " + resource);
-					}
-					return resource;
-				}
-				else if (logger.isTraceEnabled()) {
-					logger.trace("Relative resource doesn't exist or isn't readable: " + resource);
-				}
-			}
-			catch (IOException ex) {
-				logger.debug("Failed to create relative resource - trying next resource location", ex);
-			}
-		}
-		return null;
+	ResourceResolverChain createResourceResolverChain() {
+		return new DefaultResourceResolverChain(getResourceResolvers());
 	}
 
 	/**
@@ -241,6 +257,10 @@ public class ResourceHttpRequestHandler extends WebContentGenerator implements H
 		if (mediaType != null) {
 			response.setContentType(mediaType.toString());
 		}
+
+		if (resource instanceof EncodedResource) {
+			response.setHeader(CONTENT_ENCODING, ((EncodedResource) resource).getContentEncoding());
+		}
 	}
 
 	/**
@@ -251,9 +271,24 @@ public class ResourceHttpRequestHandler extends WebContentGenerator implements H
 	 * @throws IOException in case of errors while writing the content
 	 */
 	protected void writeContent(HttpServletResponse response, Resource resource) throws IOException {
-		FileCopyUtils.copy(resource.getInputStream(), response.getOutputStream());
+		InputStream in = resource.getInputStream();
+		try {
+			StreamUtils.copy(in, response.getOutputStream());
+		}
+		finally {
+			try {
+				in.close();
+			}
+			catch (IOException ex) {
+			}
+		}
 	}
 
+	@Override
+	public String toString() {
+		return "ResourceHttpRequestHandler [locations=" +
+				getLocations() + ", resolvers=" + getResourceResolvers() + "]";
+	}
 
 	/**
 	 * Inner class to avoid hard-coded JAF dependency.
@@ -298,4 +333,4 @@ public class ResourceHttpRequestHandler extends WebContentGenerator implements H
 		}
 	}
 
-}
+ }

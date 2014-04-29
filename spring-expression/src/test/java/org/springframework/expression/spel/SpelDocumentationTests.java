@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ import org.springframework.expression.spel.testresources.PlaceOfBirth;
  *
  * @author Andy Clement
  */
-public class SpelDocumentationTests extends ExpressionTestCase {
+public class SpelDocumentationTests extends AbstractExpressionTests {
 
 	static Inventor tesla ;
 	static Inventor pupin ;
@@ -383,8 +383,8 @@ public class SpelDocumentationTests extends ExpressionTestCase {
 
 	@Test
 	public void testTypes() throws Exception {
-		Class dateClass = parser.parseExpression("T(java.util.Date)").getValue(Class.class);
-		assertEquals(Date.class,dateClass);
+		Class<?> dateClass = parser.parseExpression("T(java.util.Date)").getValue(Class.class);
+		assertEquals(Date.class, dateClass);
 		boolean trueValue = parser.parseExpression("T(java.math.RoundingMode).CEILING < T(java.math.RoundingMode).FLOOR").getValue(Boolean.class);
 		assertTrue(trueValue);
 	}

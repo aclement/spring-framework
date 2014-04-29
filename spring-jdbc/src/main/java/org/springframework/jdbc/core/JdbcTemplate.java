@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
 import javax.sql.DataSource;
 
 import org.springframework.dao.DataAccessException;
@@ -81,6 +80,8 @@ import org.springframework.util.StringUtils;
  *
  * <p>All SQL operations performed by this class are logged at debug level,
  * using "org.springframework.jdbc.core.JdbcTemplate" as log category.
+ *
+ * <p><b>NOTE: An instance of this class is thread-safe once configured.</b>
  *
  * @author Rod Johnson
  * @author Juergen Hoeller
@@ -371,7 +372,7 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 	protected Connection createConnectionProxy(Connection con) {
 		return (Connection) Proxy.newProxyInstance(
 				ConnectionProxy.class.getClassLoader(),
-				new Class[] {ConnectionProxy.class},
+				new Class<?>[] {ConnectionProxy.class},
 				new CloseSuppressingInvocationHandler(con));
 	}
 
@@ -1029,23 +1030,19 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 	}
 
 	@Override
-	public int[] batchUpdate(String sql, List<Object[]> batchArgs) {
+	public int[] batchUpdate(String sql, List<Object[]> batchArgs) throws DataAccessException {
 		return batchUpdate(sql, batchArgs, new int[0]);
 	}
 
 	@Override
-	public int[] batchUpdate(String sql, List<Object[]> batchArgs, int[] argTypes) {
+	public int[] batchUpdate(String sql, List<Object[]> batchArgs, int[] argTypes) throws DataAccessException {
 		return BatchUpdateUtils.executeBatchUpdate(sql, batchArgs, argTypes, this);
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * @see org.springframework.jdbc.core.JdbcOperations#batchUpdate(java.lang.String, java.util.Collection, int, org.springframework.jdbc.core.ParameterizedPreparedStatementSetter)
-	 *
-	 * Contribution by Nicolas Fabre
-	 */
 	@Override
-	public <T> int[][] batchUpdate(String sql, final Collection<T> batchArgs, final int batchSize, final ParameterizedPreparedStatementSetter<T> pss) {
+	public <T> int[][] batchUpdate(String sql, final Collection<T> batchArgs, final int batchSize,
+			final ParameterizedPreparedStatementSetter<T> pss) throws DataAccessException {
+
 		if (logger.isDebugEnabled()) {
 			logger.debug("Executing SQL batch update [" + sql + "] with a batch size of " + batchSize);
 		}
@@ -1199,28 +1196,29 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 	 * @param resultSetParameters Parameter list of declared resultSet parameters for the stored procedure
 	 * @return Map that contains returned results
 	 */
-	@SuppressWarnings("rawtypes")
-	protected Map<String, Object> extractReturnedResults(
-			CallableStatement cs, List updateCountParameters, List resultSetParameters, int updateCount)
+	protected Map<String, Object> extractReturnedResults(CallableStatement cs,
+			List<SqlParameter> updateCountParameters, List<SqlParameter> resultSetParameters, int updateCount)
 			throws SQLException {
 
 		Map<String, Object> returnedResults = new HashMap<String, Object>();
 		int rsIndex = 0;
 		int updateIndex = 0;
 		boolean moreResults;
-		if (!skipResultsProcessing) {
+		if (!this.skipResultsProcessing) {
 			do {
 				if (updateCount == -1) {
 					if (resultSetParameters != null && resultSetParameters.size() > rsIndex) {
-						SqlReturnResultSet declaredRsParam = (SqlReturnResultSet)resultSetParameters.get(rsIndex);
+						SqlReturnResultSet declaredRsParam = (SqlReturnResultSet) resultSetParameters.get(rsIndex);
 						returnedResults.putAll(processResultSet(cs.getResultSet(), declaredRsParam));
 						rsIndex++;
 					}
 					else {
-						if (!skipUndeclaredResults) {
+						if (!this.skipUndeclaredResults) {
 							String rsName = RETURN_RESULT_SET_PREFIX + (rsIndex + 1);
 							SqlReturnResultSet undeclaredRsParam = new SqlReturnResultSet(rsName, new ColumnMapRowMapper());
-							logger.info("Added default SqlReturnResultSet parameter named " + rsName);
+							if (logger.isDebugEnabled()) {
+								logger.debug("Added default SqlReturnResultSet parameter named '" + rsName + "'");
+							}
 							returnedResults.putAll(processResultSet(cs.getResultSet(), undeclaredRsParam));
 							rsIndex++;
 						}
@@ -1228,16 +1226,18 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 				}
 				else {
 					if (updateCountParameters != null && updateCountParameters.size() > updateIndex) {
-						SqlReturnUpdateCount ucParam = (SqlReturnUpdateCount)updateCountParameters.get(updateIndex);
+						SqlReturnUpdateCount ucParam = (SqlReturnUpdateCount) updateCountParameters.get(updateIndex);
 						String declaredUcName = ucParam.getName();
 						returnedResults.put(declaredUcName, updateCount);
 						updateIndex++;
 					}
 					else {
-						if (!skipUndeclaredResults) {
-							String undeclaredUcName = RETURN_UPDATE_COUNT_PREFIX + (updateIndex + 1);
-							logger.info("Added default SqlReturnUpdateCount parameter named " + undeclaredUcName);
-							returnedResults.put(undeclaredUcName, updateCount);
+						if (!this.skipUndeclaredResults) {
+							String undeclaredName = RETURN_UPDATE_COUNT_PREFIX + (updateIndex + 1);
+							if (logger.isDebugEnabled()) {
+								logger.debug("Added default SqlReturnUpdateCount parameter named '" + undeclaredName + "'");
+							}
+							returnedResults.put(undeclaredName, updateCount);
 							updateIndex++;
 						}
 					}
@@ -1281,8 +1281,10 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 						else {
 							String rsName = outParam.getName();
 							SqlReturnResultSet rsParam = new SqlReturnResultSet(rsName, new ColumnMapRowMapper());
-							returnedResults.putAll(processResultSet(cs.getResultSet(), rsParam));
-							logger.info("Added default SqlReturnResultSet parameter named " + rsName);
+							returnedResults.putAll(processResultSet((ResultSet) out, rsParam));
+							if (logger.isDebugEnabled()) {
+								logger.debug("Added default SqlReturnResultSet parameter named '" + rsName + "'");
+							}
 						}
 					}
 					else {
