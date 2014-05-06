@@ -55,7 +55,7 @@ public class SpelCompilationCoverageTests extends AbstractExpressionTests {
 	private SpelNodeImpl ast;
 	
 	/*
-	 * Further todos for compilation:
+	 * Further TODOs for compilation:
 	 * 
 	 * - OpMinus with a single literal operand could be treated as a negative literal. Will save a
 	 *   pointless loading of 0 and then a subtract instruction in code gen.
@@ -286,8 +286,10 @@ public class SpelCompilationCoverageTests extends AbstractExpressionTests {
 		assertCanCompile(expression);
 		assertEquals(new Integer(42),expression.getValue(null,Integer.class));
 		
-		// Code gen is different for -1 .. 6
-		// Not an int literal but an opminus with one operand
+		// Code gen is different for -1 .. 6 because there are bytecode instructions specifically for those
+		// values
+		
+		// Not an int literal but an opminus with one operand:
 //		expression = parser.parseExpression("-1");
 //		assertCanCompile(expression);
 //		assertEquals(-1,expression.getValue());
@@ -2177,7 +2179,7 @@ public class SpelCompilationCoverageTests extends AbstractExpressionTests {
 		
 		private Method method;
 		
-		public Class[] getSpecificTargetClasses() {
+		public Class<?>[] getSpecificTargetClasses() {
 			return new Class[]{Payload2.class};
 		}
 
@@ -2262,13 +2264,13 @@ public class SpelCompilationCoverageTests extends AbstractExpressionTests {
 
 		@Override
 		public boolean canRead(EvaluationContext context, Object target, String name) throws AccessException {
-			Map map = (Map) target;
+			Map<?,?> map = (Map<?,?>) target;
 			return map.containsKey(name);
 		}
 
 		@Override
 		public TypedValue read(EvaluationContext context, Object target, String name) throws AccessException {
-			Map map = (Map) target;
+			Map<?,?> map = (Map<?,?>) target;
 			Object value = map.get(name);
 			if (value == null && !map.containsKey(name)) {
 				throw new MapAccessException(name);
@@ -2284,12 +2286,12 @@ public class SpelCompilationCoverageTests extends AbstractExpressionTests {
 		@Override
 		@SuppressWarnings("unchecked")
 		public void write(EvaluationContext context, Object target, String name, Object newValue) throws AccessException {
-			Map map = (Map) target;
+			Map<String,Object> map = (Map<String,Object>) target;
 			map.put(name, newValue);
 		}
 
 		@Override
-		public Class[] getSpecificTargetClasses() {
+		public Class<?>[] getSpecificTargetClasses() {
 			return new Class[] {Map.class};
 		}
 
@@ -2366,7 +2368,7 @@ public class SpelCompilationCoverageTests extends AbstractExpressionTests {
 	private String stringify(Object object) {
 		StringBuilder s = new StringBuilder();
 		if (object instanceof List) {
-			List ls = (List)object;
+			List<?> ls = (List<?>)object;
 			for (Object l: ls) {
 				s.append(l);
 				s.append(" ");

@@ -63,7 +63,6 @@ public class SpelCompiler implements Opcodes {
 
 	public static boolean verbose = true;
 	
-	// TODO [spelcompiler] verify not leaking classloaders!
 	private static Map<ClassLoader,SpelCompiler> compilers = Collections.synchronizedMap(new WeakHashMap<ClassLoader,SpelCompiler>());
 	
 	private ChildClassLoader ccl;
@@ -91,7 +90,6 @@ public class SpelCompiler implements Opcodes {
 			return compiler;
 		}
 	}
-	
 	
 	private SpelCompiler(ClassLoader classloader) {
 		this.ccl = new ChildClassLoader(classloader);
