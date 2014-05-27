@@ -30,7 +30,7 @@ import static org.junit.Assert.*;
  * @author Andy Clement
  * @since 4.0
  */
-//@Ignore
+@Ignore
 public class SpelCompilationPerformanceTests extends AbstractExpressionTests {
 
 	int count = 50000; // Number of evaluations that are timed in one run
