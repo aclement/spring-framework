@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 
 package org.springframework.expression.spel;
+
+import org.springframework.core.SpringProperties;
 
 
 /**
@@ -40,8 +42,7 @@ public class SpelParserConfiguration {
 
 	static {
 		try {
-			// TODO [spelcompiler] is this something Spring ever does? Checking system properties?
-			String compilerMode = System.getProperty("spel.compiler.mode");
+			String compilerMode = SpringProperties.getProperty("spring.expression.compiler.mode");
 			if (compilerMode!=null) {
 				defaultCompilerMode = SpelCompilerMode.valueOf(compilerMode.toLowerCase());
 				System.out.println("SpelCompiler: switched to "+defaultCompilerMode+" mode");
