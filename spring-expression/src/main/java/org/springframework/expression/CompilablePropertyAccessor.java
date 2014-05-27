@@ -31,11 +31,22 @@ import org.springframework.expression.spel.standard.CodeFlow;
  */
 public interface CompilablePropertyAccessor extends PropertyAccessor, Opcodes {
 
-	// TODO javadoc
-	
+	/**
+	 * @return true if this property accessor is currently suitable for compilation.
+	 */
 	boolean isCompilable();
-	
+
+	/**
+	 * Generate the bytecode implementation of accessing this property into the specified MethodVisitor using 
+	 * state from the codeflow, where necessary.
+	 * @param propertyReference the property reference for which code is being generated
+	 * @param mv the Asm method visitor into which code should be generated
+	 * @param codeflow the current state of the expression compiler
+	 */
 	void generateCode(PropertyOrFieldReference propertyReference, MethodVisitor mv, CodeFlow codeflow);
 
+	/**
+	 * @return the class of the result of this expression - may only be known once an access has occurred.
+	 */
 	Class<?> getPropertyType();
 }
