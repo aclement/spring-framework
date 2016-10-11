@@ -28,6 +28,7 @@ import java.util.Set;
 import javax.servlet.http.HttpServletRequest;
 
 import org.springframework.util.AntPathMatcher;
+import org.springframework.util.ParsingPathMatcher;
 import org.springframework.util.PathMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.UrlPathHelper;
@@ -104,7 +105,7 @@ public final class PatternsRequestCondition extends AbstractRequestCondition<Pat
 
 		this.patterns = Collections.unmodifiableSet(prependLeadingSlash(patterns));
 		this.pathHelper = (urlPathHelper != null ? urlPathHelper : new UrlPathHelper());
-		this.pathMatcher = (pathMatcher != null ? pathMatcher : new AntPathMatcher());
+		this.pathMatcher = (pathMatcher != null ? pathMatcher : new ParsingPathMatcher());//AntPathMatcher());
 		this.useSuffixPatternMatch = useSuffixPatternMatch;
 		this.useTrailingSlashMatch = useTrailingSlashMatch;
 		if (fileExtensions != null) {

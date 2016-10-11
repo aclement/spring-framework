@@ -29,6 +29,7 @@ import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.core.Ordered;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.Assert;
+import org.springframework.util.ParsingPathMatcher;
 import org.springframework.util.PathMatcher;
 import org.springframework.web.HttpRequestHandler;
 import org.springframework.web.context.request.WebRequestInterceptor;
@@ -72,7 +73,7 @@ public abstract class AbstractHandlerMapping extends WebApplicationObjectSupport
 
 	private UrlPathHelper urlPathHelper = new UrlPathHelper();
 
-	private PathMatcher pathMatcher = new AntPathMatcher();
+	private PathMatcher pathMatcher = new ParsingPathMatcher();
 
 	private final List<Object> interceptors = new ArrayList<>();
 
