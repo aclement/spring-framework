@@ -13,16 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springframework.util.patterns;
+package org.springframework.web.util.patterns;
 
 import java.util.Comparator;
 
 /**
- * Basic PathPattern comparator.
+ * Similar to {@link PathPatternComparator} but this takes account of a specified path and
+ * sorts anything that exactly matches it to be first.
  * 
  * @author Andy Clement
  */
-public class PathPatternComparator implements Comparator<PathPattern> {
+public class PatternComparatorConsideringPath implements Comparator<PathPattern> {
+
+	private String path;
+	
+	public PatternComparatorConsideringPath(String path) {
+		this.path = path;
+	}
 
 	@Override
 	public int compare(PathPattern o1, PathPattern o2) {
@@ -31,6 +38,11 @@ public class PathPatternComparator implements Comparator<PathPattern> {
 			return (o2==null?0:+1);
 		} else if (o2 == null) {
 			return -1;
+		}
+		if (o1.getPatternString().equals(path)) {
+			return (o2.getPatternString().equals(path))?0:-1;
+		} else if (o2.getPatternString().equals(path)) {
+			return +1;
 		}
 		return o1.compareTo(o2);
 	}

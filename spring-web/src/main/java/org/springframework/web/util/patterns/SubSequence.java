@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springframework.util.patterns;
+package org.springframework.web.util.patterns;
 
 /**
  * Used to represent a subsection of an array, useful when wanting to pass that subset of data

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springframework.util.patterns;
+package org.springframework.web.util.patterns;
 
 /**
  * Exception that is thrown when there is a problem with the pattern being parsed.

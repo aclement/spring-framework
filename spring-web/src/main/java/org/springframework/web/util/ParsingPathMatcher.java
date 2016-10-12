@@ -20,9 +20,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.util.PathMatcher;
-import org.springframework.util.patterns.PathPattern;
-import org.springframework.util.patterns.PathPatternParser;
-import org.springframework.util.patterns.PatternComparatorConsideringPath;
+import org.springframework.web.util.patterns.PathPattern;
+import org.springframework.web.util.patterns.PathPatternParser;
+import org.springframework.web.util.patterns.PatternComparatorConsideringPath;
 
 
 /**
@@ -45,7 +45,6 @@ public class ParsingPathMatcher implements PathMatcher {
 		PathPattern p = getPathPattern(pattern);
 		return p.matches(path);
 	}
-	
 
 	@Override
 	public boolean matchStart(String pattern, String path) {

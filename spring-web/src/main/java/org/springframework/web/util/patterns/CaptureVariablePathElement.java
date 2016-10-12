@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springframework.util.patterns;
+package org.springframework.web.util.patterns;
 
 import java.util.regex.Matcher;
 
-import org.springframework.util.patterns.PathPattern.MatchingContext;
+import org.springframework.web.util.patterns.PathPattern.MatchingContext;
 
 /**
  * A path element representing capturing a piece of the path as a variable. In the pattern

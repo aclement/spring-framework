@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springframework.util.patterns;
+package org.springframework.web.util.patterns;
 
-import org.springframework.util.patterns.PathPattern.MatchingContext;
+import org.springframework.web.util.patterns.PathPattern.MatchingContext;
 
 /**
  * A wildcard path element. In the pattern '/foo/&ast;/goo' the * is

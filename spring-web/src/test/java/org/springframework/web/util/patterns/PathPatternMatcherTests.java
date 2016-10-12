@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.springframework.util.patterns;
+package org.springframework.web.util.patterns;
 
 import static org.junit.Assert.*;
 
@@ -29,9 +29,10 @@ import java.util.Map;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.springframework.util.patterns.PathPattern;
-import org.springframework.util.patterns.PatternComparatorConsideringPath;
-import org.springframework.util.patterns.PathPatternParser;
+import org.springframework.web.util.patterns.PathElement;
+import org.springframework.web.util.patterns.PathPattern;
+import org.springframework.web.util.patterns.PathPatternParser;
+import org.springframework.web.util.patterns.PatternComparatorConsideringPath;
 
 /**
  * Exercise matching of {@link PathPattern} objects.

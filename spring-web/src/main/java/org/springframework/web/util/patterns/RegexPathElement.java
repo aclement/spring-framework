@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springframework.util.patterns;
+package org.springframework.web.util.patterns;
 
 import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Matcher;
 
-import org.springframework.util.patterns.PathPattern.MatchingContext;
+import org.springframework.web.util.patterns.PathPattern.MatchingContext;
 
 /**
  * A regex path element. Used to represent any complicated element of the path.

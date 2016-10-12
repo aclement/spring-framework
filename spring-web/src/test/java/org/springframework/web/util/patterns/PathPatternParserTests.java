@@ -1,4 +1,4 @@
-package org.springframework.util.patterns;
+package org.springframework.web.util.patterns;
 /*
  * Copyright 2016 the original author or authors.
  *
@@ -24,11 +24,18 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.Test;
-import org.springframework.util.patterns.PathPattern;
-import org.springframework.util.patterns.PathPatternComparator;
-import org.springframework.util.patterns.PatternMessage;
-import org.springframework.util.patterns.PatternParseException;
-import org.springframework.util.patterns.PathPatternParser;
+import org.springframework.web.util.patterns.CaptureTheRestPathElement;
+import org.springframework.web.util.patterns.CaptureVariablePathElement;
+import org.springframework.web.util.patterns.PathElement;
+import org.springframework.web.util.patterns.PathPattern;
+import org.springframework.web.util.patterns.PathPatternComparator;
+import org.springframework.web.util.patterns.PathPatternParser;
+import org.springframework.web.util.patterns.PatternMessage;
+import org.springframework.web.util.patterns.PatternParseException;
+import org.springframework.web.util.patterns.RegexPathElement;
+import org.springframework.web.util.patterns.SeparatorPathElement;
+import org.springframework.web.util.patterns.SingleCharWildcardedPathElement;
+import org.springframework.web.util.patterns.WildcardPathElement;
 
 /**
  * Exercise the {@link PathPatternParser}.
