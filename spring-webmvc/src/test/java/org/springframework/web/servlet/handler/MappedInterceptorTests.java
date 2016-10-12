@@ -28,6 +28,7 @@ import org.springframework.util.PathMatcher;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.i18n.LocaleChangeInterceptor;
+import org.springframework.web.util.ParsingPathMatcher;
 
 import static org.junit.Assert.*;
 import static org.mockito.BDDMockito.*;

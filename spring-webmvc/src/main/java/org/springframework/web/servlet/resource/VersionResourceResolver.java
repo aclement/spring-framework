@@ -35,6 +35,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
+import org.springframework.web.util.ParsingPathMatcher;
 
 /**
  * Resolves request paths containing a version string that can be used as part

@@ -32,6 +32,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.support.WebContentGenerator;
+import org.springframework.web.util.ParsingPathMatcher;
 import org.springframework.web.util.UrlPathHelper;
 
 /**
@@ -53,7 +54,7 @@ public class WebContentInterceptor extends WebContentGenerator implements Handle
 
 	private UrlPathHelper urlPathHelper = new UrlPathHelper();
 
-	private PathMatcher pathMatcher = new AntPathMatcher();
+	private PathMatcher pathMatcher = new ParsingPathMatcher();
 
 	private Map<String, Integer> cacheMappings = new HashMap<>();
 

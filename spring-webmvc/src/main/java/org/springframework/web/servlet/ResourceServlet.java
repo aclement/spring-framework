@@ -26,6 +26,7 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.util.PathMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.support.ServletContextResource;
+import org.springframework.web.util.ParsingPathMatcher;
 
 /**
  * Simple servlet that can expose an internal resource, including a
@@ -181,7 +182,7 @@ public class ResourceServlet extends HttpServletBean {
 	 * @see org.springframework.util.AntPathMatcher
 	 */
 	protected PathMatcher getPathMatcher() {
-		return new AntPathMatcher();
+		return new ParsingPathMatcher();
 	}
 
 

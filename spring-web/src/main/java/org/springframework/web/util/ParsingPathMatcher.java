@@ -13,12 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springframework.util;
+package org.springframework.web.util;
 
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.util.PathMatcher;
 import org.springframework.util.patterns.PathPattern;
 import org.springframework.util.patterns.PathPatternParser;
 import org.springframework.util.patterns.PatternComparatorConsideringPath;

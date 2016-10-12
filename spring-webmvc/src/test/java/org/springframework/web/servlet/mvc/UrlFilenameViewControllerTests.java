@@ -28,6 +28,7 @@ import org.springframework.util.PathMatcher;
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.util.ParsingPathMatcher;
 
 /**
  * @author Juergen Hoeller
@@ -36,7 +37,7 @@ import org.springframework.web.servlet.ModelAndView;
  */
 public class UrlFilenameViewControllerTests {
 
-	private PathMatcher pathMatcher = new AntPathMatcher();
+	private PathMatcher pathMatcher = new ParsingPathMatcher();
 
 
 	@Test

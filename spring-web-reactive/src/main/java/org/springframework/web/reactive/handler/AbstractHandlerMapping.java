@@ -22,6 +22,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.PathMatcher;
 import org.springframework.web.reactive.HandlerMapping;
 import org.springframework.web.util.HttpRequestPathHelper;
+import org.springframework.web.util.ParsingPathMatcher;
 
 /**
  * Abstract base class for {@link org.springframework.web.reactive.HandlerMapping}
@@ -37,7 +38,7 @@ public abstract class AbstractHandlerMapping extends ApplicationObjectSupport
 
 	private HttpRequestPathHelper pathHelper = new HttpRequestPathHelper();
 
-	private PathMatcher pathMatcher = new AntPathMatcher();
+	private PathMatcher pathMatcher = new ParsingPathMatcher();
 
 
 	// TODO: CORS
