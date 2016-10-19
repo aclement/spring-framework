@@ -88,9 +88,9 @@ public class RequestMappingInfoTests {
 		assertEquals(expected, info.getMatchingCondition(this.exchange));
 
 		info = new RequestMappingInfo(
-				new PatternsRequestCondition("/**", "/foo*", "/foo"), null, null, null, null, null, null);
+				new PatternsRequestCondition("/*", "/foo*", "/foo"), null, null, null, null, null, null);
 		expected = new RequestMappingInfo(
-				new PatternsRequestCondition("/foo", "/foo*", "/**"), null, null, null, null, null, null);
+				new PatternsRequestCondition("/foo", "/foo*", "/*"), null, null, null, null, null, null);
 
 		assertEquals(expected, info.getMatchingCondition(this.exchange));
 	}
