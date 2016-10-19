@@ -108,6 +108,10 @@ public class PathPatternParser {
 		if (pathPattern == null) {
 			pathPattern = "";
 		}
+//		int starstar = pathPattern.indexOf("**");
+//		if (starstar!=-1 && starstar!=pathPattern.length()-2) {
+//			throw new IllegalStateException("Not allowed ** unless at end of pattern: "+pathPattern);
+//		}
 		pathPatternData = pathPattern.toCharArray();
 		pathPatternLength = pathPatternData.length;
 		headPE = null;
@@ -123,9 +127,12 @@ public class PathPatternParser {
 					pushPathElement(createPathElement());
 				}
 				if (peekDoubleWildcard()) {
-					// Warning message about /** no longer being treated as a multi section matcher
+					pushPathElement(new SeparatorPathElement(pos, separator));
+					pushPathElement(new WildcardTheRestPathElement(pos+1));
+					pos+=2;
+				} else {
+					pushPathElement(new SeparatorPathElement(pos, separator));
 				}
-				pushPathElement(new SeparatorPathElement(pos, separator));
 			} else {
 				if (pathElementStart == -1) {
 					pathElementStart = pos;
@@ -135,9 +142,9 @@ public class PathPatternParser {
 				} else if (ch == '{') {
 					if (insideVariableCapture) {
 						throw new PatternParseException(pos, pathPatternData, PatternMessage.ILLEGAL_NESTED_CAPTURE);
-					} else if (pos > 0 && pathPatternData[pos - 1] == '}') {
-						throw new PatternParseException(pos, pathPatternData,
-								PatternMessage.CANNOT_HAVE_ADJACENT_CAPTURES);
+//					} else if (pos > 0 && pathPatternData[pos - 1] == '}') {
+//						throw new PatternParseException(pos, pathPatternData,
+//								PatternMessage.CANNOT_HAVE_ADJACENT_CAPTURES);
 					}
 					insideVariableCapture = true;
 					variableCaptureStart = pos;
@@ -237,7 +244,7 @@ public class PathPatternParser {
 		if (pathPatternData[pos + 1] != '*' || pathPatternData[pos + 2] != '*') {
 			return false;
 		}
-		return (pos + 3 == pathPatternLength || pathPatternData[pos + 3] == separator);
+		return (pos + 3 == pathPatternLength);// || pathPatternData[pos + 3] == separator);
 	}
 
 	/**

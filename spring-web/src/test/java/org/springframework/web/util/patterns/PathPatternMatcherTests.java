@@ -56,8 +56,6 @@ public class PathPatternMatcherTests {
 		checkNoMatch("foo", "foobar");
 		checkMatches("/foo/bar", "/foo/bar");
 		checkNoMatch("/foo/bar", "/foo/baz");
-		checkMatches("/**/bar", "/foo/bar");
-		checkNoMatch("/**/bar", "/foo/baz");
 		checkMatches("/*/bar", "/foo/bar");
 		checkNoMatch("/*/bar", "/foo/baz");
 	}
@@ -118,12 +116,11 @@ public class PathPatternMatcherTests {
 	public void constrainedMatches() {
 		checkCapture("{foo:[0-9]*}", "123", "foo", "123");
 		checkNoMatch("{foo:[0-9]*}", "abc");
-		// checkCapture("/**/{foo:[0-9]*}/**","aaa/bbb/123/foo","foo","123"); // TODO no
 		// leading slash in pattern should this match?
 		checkNoMatch("/{foo:[0-9]*}", "abc");
 		checkNoMatch("/{foo:[0-9]*}", "abc");
-		// checkCapture("/**/{foo:....}/**","/foo/barg/foo","foo","barg");
-		// checkCapture("/**/{foo:....}/**","/foo/foo/barg/abc/def/ghi","foo","barg");
+		checkCapture("/*/{foo:....}/**","/foo/barg/foo","foo","barg");
+		checkCapture("/*/{foo:....}/**","/foo/barg/abc/def/ghi","foo","barg");
 		checkNoMatch("{foo:....}", "99");
 		checkMatches("{foo:..}", "99");
 		// TODO escaped curly braces in expression
@@ -183,9 +180,8 @@ public class PathPatternMatcherTests {
 
 		// test matching with **'s
 		// checkMatches("/**/foo", "/foo");
-		// checkMatches("/**", "/testing/testing");
-		// checkMatches("/*/**", "/testing/testing");
-		// checkMatches("/**/*", "/testing/testing");
+		 checkMatches("/**", "/testing/testing");
+		 checkMatches("/*/**", "/testing/testing");
 		// checkMatches("/bla/**/bla", "/bla/testing/testing/bla");
 		// checkMatches("/bla/**/bla", "/bla/testing/testing/bla/bla");
 		// checkMatches("/**/test", "/bla/bla/test");
@@ -217,7 +213,7 @@ public class PathPatternMatcherTests {
 
 		// checkNoMatch("/x/x/**/bla", "/x/x/x/");
 
-		// checkMatches("/foo/bar/**", "/foo/bar");
+		checkMatches("/foo/bar/**", "/foo/bar/");
 
 		checkMatches("", "");
 
@@ -502,7 +498,7 @@ public class PathPatternMatcherTests {
 		// What is the expected behaviour here? Is it an unwritten rule that trailing /
 		// are removed?
 		p = pp.parse("/welcome*/");
-		assertEquals("welcome/", p.extractPathWithinPattern("/welcome"));
+		assertEquals("welcome/", p.extractPathWithinPattern("/welcome/"));
 
 		p = pp.parse("/docs/commit.html");
 		assertEquals("", p.extractPathWithinPattern("/docs/commit.html"));
@@ -523,13 +519,6 @@ public class PathPatternMatcherTests {
 		assertEquals("daa/customer.html",
 				p.extractPathWithinPattern("/doo/daa/customer.html"));
 
-		p = pp.parse("/docs/**/*.html");
-		assertEquals("cvs/commit.html",
-				p.extractPathWithinPattern("/docs/cvs/commit.html"));
-
-		p = pp.parse("/docs/**/*.html");
-		assertEquals("commit.html", p.extractPathWithinPattern("/docs/commit.html"));
-
 		p = pp.parse("/*.html");
 		assertEquals("commit.html", p.extractPathWithinPattern("/commit.html"));
 
@@ -543,23 +532,15 @@ public class PathPatternMatcherTests {
 		assertEquals("/docs/commit.html",
 				p.extractPathWithinPattern("/docs/commit.html"));
 
-		p = pp.parse("**/*.*");
-		assertEquals("/docs/commit.html",
-				p.extractPathWithinPattern("/docs/commit.html"));
-
 		p = pp.parse("*");
 		assertEquals("/docs/commit.html",
 				p.extractPathWithinPattern("/docs/commit.html"));
 
-		p = pp.parse("**/commit.html");
-		assertEquals("/docs/cvs/other/commit.html",
-				p.extractPathWithinPattern("/docs/cvs/other/commit.html"));
-
-		p = pp.parse("/docs/**/commit.html");
+		p = pp.parse("/docs/*/commit.html");
 		assertEquals("cvs/other/commit.html",
 				p.extractPathWithinPattern("/docs/cvs/other/commit.html"));
 
-		p = pp.parse("/docs/**/**/**/**");
+		p = pp.parse("/docs/*/*/*/*");
 		assertEquals("cvs/other/commit.html",
 				p.extractPathWithinPattern("/docs/cvs/other/commit.html"));
 
@@ -573,7 +554,7 @@ public class PathPatternMatcherTests {
 		p = pp.parse("/d?cs/**");
 		assertEquals("docs/cvs/commit", p.extractPathWithinPattern("/docs/cvs/commit"));
 
-		p = pp.parse("/d?cs/**/*.html");
+		p = pp.parse("/d?cs/*/*.html");
 		assertEquals("docs/cvs/commit.html",
 				p.extractPathWithinPattern("/docs/cvs/commit.html"));
 
@@ -604,7 +585,7 @@ public class PathPatternMatcherTests {
 		expected.put("booking", "2");
 		assertEquals(expected, result);
 
-		p = pp.parse("/**/hotels/**/{hotel}");
+		p = pp.parse("/*/hotels/*/{hotel}");
 		result = p.matchAndExtract("/foo/hotels/bar/1");
 		assertEquals(Collections.singletonMap("hotel", "1"), result);
 
@@ -927,11 +908,11 @@ public class PathPatternMatcherTests {
 		comparator = new PatternComparatorConsideringPath(
 				"/web/endUser/action/login.html");
 		// pathMatcher.getPatternComparator("/web/endUser/action/login.html");
-		paths.add(pp.parse("/**/login.*"));
-		paths.add(pp.parse("/**/endUser/action/login.*"));
+		paths.add(pp.parse("/*/login.*"));
+		paths.add(pp.parse("/*/endUser/action/login.*"));
 		Collections.sort(paths, comparator);
-		assertEquals("/**/endUser/action/login.*", paths.get(0).getPatternString());
-		assertEquals("/**/login.*", paths.get(1).getPatternString());
+		assertEquals("/*/endUser/action/login.*", paths.get(0).getPatternString());
+		assertEquals("/*/login.*", paths.get(1).getPatternString());
 		paths.clear();
 	}
 

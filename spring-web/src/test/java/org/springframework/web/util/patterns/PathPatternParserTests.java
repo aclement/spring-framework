@@ -68,7 +68,7 @@ public class PathPatternParserTests {
 	public void multiwildcardPattern() {
 		// Verifying that /** is not recognized as anything 'special'
 		p = checkStructure("/**");
-		assertPathElements(p,SeparatorPathElement.class,RegexPathElement.class);
+		assertPathElements(p,SeparatorPathElement.class,WildcardTheRestPathElement.class);
 		p = checkStructure("/**acb"); // this is not double wildcard use, it is / then **acb (an odd, unnecessary use of double *)
 		assertPathElements(p,SeparatorPathElement.class,RegexPathElement.class);
 	}
@@ -116,8 +116,8 @@ public class PathPatternParserTests {
 		checkStructure("/*/");
 		p = checkStructure("/*a*/");
 		assertEquals(RegexPathElement.class.getName(),p.getHeadSection().next.getClass().getName());
-		p = checkStructure("**/");
-		assertEquals(RegexPathElement.class.getName(),p.getHeadSection().getClass().getName());
+		p = checkStructure("*/");
+		assertEquals(WildcardPathElement.class.getName(),p.getHeadSection().getClass().getName());
 		checkError("{foo}_{foo}", 0, PatternMessage.ILLEGAL_DOUBLE_CAPTURE, "foo");
 		checkError("/{bar}/{bar}", 7, PatternMessage.ILLEGAL_DOUBLE_CAPTURE, "bar");
 		checkError("/{bar}/{bar}_{foo}", 7, PatternMessage.ILLEGAL_DOUBLE_CAPTURE, "bar");
@@ -174,7 +174,7 @@ public class PathPatternParserTests {
 
 	@Test
 	public void badPatterns() {
-		checkError("/{foo}{bar}/",6,PatternMessage.CANNOT_HAVE_ADJACENT_CAPTURES);
+//		checkError("/{foo}{bar}/",6,PatternMessage.CANNOT_HAVE_ADJACENT_CAPTURES);
 		checkError("/{?}/",2,PatternMessage.ILLEGAL_CHARACTER_AT_START_OF_CAPTURE_DESCRIPTOR,"?");
 		checkError("/{a?b}/",3,PatternMessage.ILLEGAL_CHARACTER_IN_CAPTURE_DESCRIPTOR,"?");
 		checkError("/{%%$}",2,PatternMessage.ILLEGAL_CHARACTER_AT_START_OF_CAPTURE_DESCRIPTOR,"%");

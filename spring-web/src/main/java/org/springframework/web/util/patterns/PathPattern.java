@@ -15,9 +15,13 @@
  */
 package org.springframework.web.util.patterns;
 
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * Represents a parsed path pattern. Includes a chain of path elements
@@ -28,7 +32,8 @@ import java.util.Map;
  */
 public class PathPattern implements Comparable<PathPattern> {
 
-	private final static Map<String, String> NO_VARIABLES = Collections.emptyMap();
+	private final static List<Map.Entry<String,String>> NO_VARIABLES_LIST = Collections.emptyList();
+	private final static Map<String,String> NO_VARIABLES_MAP = Collections.emptyMap();
 
 	/** First path element in the parsed chain of path elements for this pattern */
 	private PathElement head;
@@ -82,7 +87,7 @@ public class PathPattern implements Comparable<PathPattern> {
 			this.capturedVariableCount += s.getCaptureCount();
 			this.normalizedLength += s.getNormalizedLength();
 			this.score += s.getScore();
-			if (s instanceof CaptureTheRestPathElement) {
+			if (s instanceof CaptureTheRestPathElement || s instanceof WildcardTheRestPathElement) {
 				this.isCatchAll = true;
 			}
 			if (s instanceof SeparatorPathElement && s.next!=null && s.next instanceof WildcardPathElement && s.next.next == null) {
@@ -119,14 +124,24 @@ public class PathPattern implements Comparable<PathPattern> {
 
 	/**
 	 * @param path a path to match against this pattern
-	 * @return a map of extracted variables - an empty map if no variables extracted
+	 * @return a map of extracted variables - an empty map if no variables extracted. 
 	 */
 	public Map<String, String> matchAndExtract(String path) {
 		MatchingContext matchingContext = new MatchingContext(path,true);
-		if (head.matches(0, matchingContext)) {
-			return matchingContext.getExtractedVariables();
+		if (head != null && head.matches(0, matchingContext)) {
+			 List<Entry<String, String>> extractedVariables = matchingContext.getExtractedVariables();
+			 if (extractedVariables.isEmpty()) {
+				 return NO_VARIABLES_MAP;
+			 } else {
+				 Map<String,String> vars = new LinkedHashMap<>();
+				 for (int v=extractedVariables.size()-1;v>=0;v--) {
+					 Map.Entry<String, String> entry = extractedVariables.get(v);
+					 vars.put(entry.getKey(),entry.getValue());
+				 }
+				 return vars;
+			 }
 		} else {
-			return NO_VARIABLES;
+			return NO_VARIABLES_MAP;
 		}
 	}
 
@@ -294,7 +309,7 @@ public class PathPattern implements Comparable<PathPattern> {
 
 		boolean isMatchStartMatching = false;
 
-		private Map<String, String> extractedVariables;
+		private List<Map.Entry<String, String>> extractedVariables;
 
 		public boolean extractingVariables;
 
@@ -310,14 +325,14 @@ public class PathPattern implements Comparable<PathPattern> {
 
 		public void set(String key, String value) {
 			if (this.extractedVariables == null) {
-				extractedVariables = new LinkedHashMap<>();
+				extractedVariables = new ArrayList<>();
 			}
-			extractedVariables.put(key, value);
+			extractedVariables.add(new AbstractMap.SimpleEntry<String,String>(key, value));
 		}
 
-		public Map<String, String> getExtractedVariables() {
+		public List<Map.Entry<String, String>> getExtractedVariables() {
 			if (this.extractedVariables == null) {
-				return NO_VARIABLES;
+				return NO_VARIABLES_LIST;
 			} else {
 				return this.extractedVariables;
 			}
