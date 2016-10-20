@@ -104,7 +104,7 @@ public class ResourceUrlProviderTests {
 		ResourceHttpRequestHandler otherHandler = new ResourceHttpRequestHandler();
 		otherHandler.setLocations(this.locations);
 		Map<String, VersionStrategy> versionStrategyMap = new HashMap<>();
-		versionStrategyMap.put("/*", new ContentVersionStrategy());
+		versionStrategyMap.put("/**", new ContentVersionStrategy());
 		VersionResourceResolver versionResolver = new VersionResourceResolver();
 		versionResolver.setStrategyMap(versionStrategyMap);
 
