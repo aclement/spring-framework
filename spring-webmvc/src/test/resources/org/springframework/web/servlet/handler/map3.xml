@@ -2,10 +2,12 @@
 <!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN 2.0//EN" "http://www.springframework.org/dtd/spring-beans-2.0.dtd">
 
 <beans>
+
 	<bean id="urlMapping" class="org.springframework.web.servlet.handler.SimpleUrlHandlerMapping">
 		<property name="urlDecode"><value>true</value></property>
 		<property name="mappings">
 			<value>
+				welcome.html=mainController
 				/path??matching.html=mainController
 				/pathmatchingTest.html=mainController
 				??path??matching.html=mainController
@@ -16,7 +18,6 @@
 				/administrator/*/pathmatching.html=mainController
 				/pathmatching??.html=mainController
 				/*.jsp=mainController
-				welcome.html=mainController
 				/administrator/another/bla.xml=mainController
 				/*test*.jpeg=mainController
 				/*/test.jpeg=mainController

@@ -17,7 +17,6 @@ package org.springframework.web.reactive.handler;
 
 import org.springframework.context.support.ApplicationObjectSupport;
 import org.springframework.core.Ordered;
-import org.springframework.util.AntPathMatcher;
 import org.springframework.util.Assert;
 import org.springframework.util.PathMatcher;
 import org.springframework.web.reactive.HandlerMapping;
