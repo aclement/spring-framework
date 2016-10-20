@@ -68,8 +68,8 @@ public class RequestMappingInfoTests {
 
 		assertEquals(expected, info.getMatchingCondition(request));
 
-		info = paths("/*", "/foo*", "/foo").build();
-		expected = paths("/foo", "/foo*", "/*").build();
+		info = paths("/**", "/foo*", "/foo").build();
+		expected = paths("/foo", "/foo*", "/**").build();
 
 		assertEquals(expected, info.getMatchingCondition(request));
 	}
