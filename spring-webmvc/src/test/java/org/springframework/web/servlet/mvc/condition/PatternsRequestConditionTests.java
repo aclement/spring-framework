@@ -90,9 +90,9 @@ public class PatternsRequestConditionTests {
 
 	@Test
 	public void matchSortPatterns() {
-		PatternsRequestCondition condition = new PatternsRequestCondition("/*/*", "/foo/bar", "/foo/*");
+		PatternsRequestCondition condition = new PatternsRequestCondition("/**", "/foo/bar", "/foo/*");
 		PatternsRequestCondition match = condition.getMatchingCondition(new MockHttpServletRequest("GET", "/foo/bar"));
-		PatternsRequestCondition expected = new PatternsRequestCondition("/foo/bar", "/foo/*", "/*/*");
+		PatternsRequestCondition expected = new PatternsRequestCondition("/foo/bar", "/foo/*", "/**");
 
 		assertEquals(expected, match);
 	}
