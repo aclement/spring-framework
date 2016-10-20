@@ -29,6 +29,7 @@ import java.util.Map;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.util.patterns.PathElement;
 import org.springframework.web.util.patterns.PathPattern;
 import org.springframework.web.util.patterns.PathPatternParser;
@@ -489,7 +490,7 @@ public class PathPatternMatcherTests {
 		PathPattern p = null;
 
 		p = pp.parse("/welcome*/");
-		assertEquals("welcome/", p.extractPathWithinPattern("/welcome/"));
+		assertEquals("welcome", p.extractPathWithinPattern("/welcome/"));
 		// assertEquals("welcome",pathMatcher.extractPathWithinPattern("/welcome*/",
 		// "/welcome/"));
 		// assertEquals("welcome/",pathMatcher.extractPathWithinPattern("/welcome*/",
@@ -498,7 +499,7 @@ public class PathPatternMatcherTests {
 		// What is the expected behaviour here? Is it an unwritten rule that trailing /
 		// are removed?
 		p = pp.parse("/welcome*/");
-		assertEquals("welcome/", p.extractPathWithinPattern("/welcome/"));
+		assertEquals("welcome", p.extractPathWithinPattern("/welcome/"));
 
 		p = pp.parse("/docs/commit.html");
 		assertEquals("", p.extractPathWithinPattern("/docs/commit.html"));
@@ -524,9 +525,6 @@ public class PathPatternMatcherTests {
 
 		p = pp.parse("/*.html");
 		assertEquals("docs/commit.html", p.extractPathWithinPattern("/docs/commit.html"));
-
-		p = pp.parse("*.html");
-		assertEquals("/commit.html", p.extractPathWithinPattern("/commit.html"));
 
 		p = pp.parse("*.html");
 		assertEquals("/docs/commit.html",

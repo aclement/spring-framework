@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.springframework.util.PathMatcher;
+
 /**
  * Represents a parsed path pattern. Includes a chain of path elements
  * for fast matching and accumulates computed state for quick comparison of
@@ -156,22 +158,18 @@ public class PathPattern implements Comparable<PathPattern> {
 		return head;
 	}
 
-	// TODO revisit this in light of /** not being supported
 	/**
 	 * Given a full path, determine the pattern-mapped part. <p>For example: <ul>
 	 * <li>'{@code /docs/cvs/commit.html}' and '{@code /docs/cvs/commit.html} -> ''</li>
 	 * <li>'{@code /docs/*}' and '{@code /docs/cvs/commit} -> '{@code cvs/commit}'</li>
 	 * <li>'{@code /docs/cvs/*.html}' and '{@code /docs/cvs/commit.html} -> '{@code commit.html}'</li>
 	 * <li>'{@code /docs/**}' and '{@code /docs/cvs/commit} -> '{@code cvs/commit}'</li>
-	 * <li>'{@code /docs/**\/*.html}' and '{@code /docs/cvs/commit.html} -> '{@code cvs/commit.html}'</li>
-	 * <li>'{@code /*.html}' and '{@code /docs/cvs/commit.html} -> '{@code docs/cvs/commit.html}'</li>
-	 * <li>'{@code *.html}' and '{@code /docs/cvs/commit.html} -> '{@code /docs/cvs/commit.html}'</li>
-	 * <li>'{@code *}' and '{@code /docs/cvs/commit.html} -> '{@code /docs/cvs/commit.html}'</li>
 	 * </ul>
 	 * <p>Assumes that {@link #matches} returns {@code true} for '{@code pattern}' and '{@code path}', but
-	 * does <strong>not</strong> enforce this.
-	 * @param path
-	 * @return
+	 * does <strong>not</strong> enforce this. As per the contract on {@link PathMatcher}, this
+	 * method will trim leading/trailing separators.
+	 * @param path a path that matches this pattern
+	 * @return the subset of the path that is matched by pattern or "" if none of it is matched by pattern elements
 	 */	
 	public String extractPathWithinPattern(String path) {
 		// assert this.matches(path)
@@ -197,7 +195,17 @@ public class PathPattern implements Comparable<PathPattern> {
 				separatorCount--;
 			}
 		}
-		return pos == len ? "" : path.substring(pos);
+		int end = len;
+		if (pos!=0) {
+			// TODO some testcases specifically on this bit, using short and long strings
+			if (path.charAt(pos) == separator) {
+				pos++;
+			}
+			if (path.charAt(end-1) == separator) {
+				end--;
+			}
+		}
+		return pos == len ? "" : path.substring(pos,end);
 	}
 	
 	/**

@@ -58,7 +58,7 @@ public class SimpleUrlHandlerMappingTests {
 
 		testUrl("/welcome.html", mainController, handlerMapping, "/welcome.html");
 		testUrl("/welcome.x", otherController, handlerMapping, "welcome.x");
-		testUrl("/welcome/", otherController, handlerMapping, "welcome/");
+		testUrl("/welcome/", otherController, handlerMapping, "welcome");
 		testUrl("/show.html", mainController, handlerMapping, "/show.html");
 		testUrl("/bookseats.html", mainController, handlerMapping, "/bookseats.html");
 	}
@@ -71,7 +71,7 @@ public class SimpleUrlHandlerMappingTests {
 		HandlerMapping handlerMapping = wac.getBean("mapping", HandlerMapping.class);
 		Object mainController = wac.getBean("mainController");
 
-		testUrl("/pathmatchingTest.html", mainController, handlerMapping, "/pathmatchingTest.html");
+		testUrl("/pathmatchingTest.html", mainController, handlerMapping, "pathmatchingTest.html");
 		testUrl("welcome.html", null, handlerMapping, null);
 		testUrl("/pathmatchingAA.html", mainController, handlerMapping, "pathmatchingAA.html");
 		testUrl("/pathmatchingA.html", null, handlerMapping, null);

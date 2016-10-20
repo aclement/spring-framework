@@ -8,7 +8,7 @@
 		<property name="mappings">
 			<value>
 				welcome.html=mainController
-				/pathmatchingTest.html=mainController
+				/*pathmatchingTest.html=mainController
 				/pathmatching??.html=mainController
 				/administrator/pathmatching.html=mainController
 				/administrator/*/pathmatching.html=mainController
