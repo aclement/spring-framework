@@ -23,7 +23,7 @@ import org.springframework.web.util.patterns.PathPattern.MatchingContext;
 
 /**
  * A regex path element. Used to represent any complicated element of the path.
- * For example in '/foo/&ast;_&ast;/&ast;_{foobar}' both *_* and *_{foobar}
+ * For example in '<tt>/foo/&ast;_&ast;/&ast;_{foobar}</tt>' both <tt>*_*</tt> and <tt>*_{foobar}</tt>
  * are {@link RegexPathElement} path elements.
  * 
  * @author Andy Clement
@@ -45,14 +45,14 @@ class RegexPathElement extends PathElement {
 
 	private int wildcardCount;
 
-	RegexPathElement(int pos, char[] regex, boolean caseSensitive) {
+	RegexPathElement(int pos, char[] regex, boolean caseSensitive, char[] completePattern) {
 		super(pos);
 		this.regex = regex;
 		this.caseSensitive = caseSensitive;
-		buildPattern(regex);
+		buildPattern(regex, completePattern);
 	}
 
-	public void buildPattern(char[] regex) {
+	public void buildPattern(char[] regex, char[] completePattern) {
 		StringBuilder patternBuilder = new StringBuilder();
 		String text = new String(regex);
 		Matcher matcher = GLOB_PATTERN.matcher(text);
@@ -71,7 +71,7 @@ class RegexPathElement extends PathElement {
 					patternBuilder.append(DEFAULT_VARIABLE_PATTERN);
 					String variableName = matcher.group(1);
 					if (variableNames.contains(variableName)) {
-						throw new PatternParseException(pos, regex, PatternMessage.ILLEGAL_DOUBLE_CAPTURE,
+						throw new PatternParseException(pos, completePattern, PatternMessage.ILLEGAL_DOUBLE_CAPTURE,
 								variableName);
 					}
 					this.variableNames.add(variableName);
@@ -82,7 +82,7 @@ class RegexPathElement extends PathElement {
 					patternBuilder.append(')');
 					String variableName = match.substring(1, colonIdx);
 					if (variableNames.contains(variableName)) {
-						throw new PatternParseException(pos, regex, PatternMessage.ILLEGAL_DOUBLE_CAPTURE,
+						throw new PatternParseException(pos, completePattern, PatternMessage.ILLEGAL_DOUBLE_CAPTURE,
 								variableName);
 					}
 					this.variableNames.add(variableName);
@@ -157,13 +157,6 @@ class RegexPathElement extends PathElement {
 
 	public String toString() {
 		return "Regex(" + new String(regex) + ")";
-	}
-
-	@Override
-	public String getText() {
-		StringBuilder buf = new StringBuilder();
-		buf.append(regex);
-		return buf.toString();
 	}
 
 	@Override

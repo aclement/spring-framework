@@ -49,15 +49,6 @@ class CaptureTheRestPathElement extends PathElement {
 		return true;
 	}
 
-	@Override
-	public String getText() {
-		StringBuilder buf = new StringBuilder();
-		buf.append("{*");
-		buf.append(variableName);
-		buf.append('}');
-		return buf.toString();
-	}
-
 	public String toString() {
 		return "CaptureTheRest({*" + variableName + "})";
 	}

@@ -34,11 +34,6 @@ class WildcardTheRestPathElement extends PathElement {
 		return true;
 	}
 
-	@Override
-	public String getText() {
-		return "**";
-	}
-
 	public String toString() {
 		return "WildcardTheRest(**)";
 	}

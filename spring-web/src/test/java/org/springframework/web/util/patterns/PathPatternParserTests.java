@@ -70,11 +70,22 @@ public class PathPatternParserTests {
 	
 	@Test
 	public void multiwildcardPattern() {
-		// Verifying that /** is not recognized as anything 'special'
 		p = checkStructure("/**");
 		assertPathElements(p,SeparatorPathElement.class,WildcardTheRestPathElement.class);
 		p = checkStructure("/**acb"); // this is not double wildcard use, it is / then **acb (an odd, unnecessary use of double *)
-		assertPathElements(p,SeparatorPathElement.class,RegexPathElement.class);
+		assertPathElements(p,SeparatorPathElement.class, RegexPathElement.class);
+	}
+	
+	@Test
+	public void toStringTests() {
+		assertEquals("Separator(/) CaptureTheRest({*foobar})", checkStructure("/{*foobar}").toChainString());
+		assertEquals("CaptureVariable({foobar})", checkStructure("{foobar}").toChainString());
+		assertEquals("Literal(abc)", checkStructure("abc").toChainString());
+		assertEquals("Regex({a}_*_{b})", checkStructure("{a}_*_{b}").toChainString());
+		assertEquals("Separator(/)", checkStructure("/").toChainString());
+		assertEquals("SingleCharWildcarding(?a?b?c)", checkStructure("?a?b?c").toChainString());
+		assertEquals("Wildcard(*)", checkStructure("*").toChainString());
+		assertEquals("Separator(/) WildcardTheRest(**)", checkStructure("/**").toChainString());
 	}
 	
 	@Test
@@ -94,17 +105,32 @@ public class PathPatternParserTests {
 	
 	@Test
 	public void equalsAndHashcode() {
-		PathPattern pp1 = parse("/abc");
-		PathPattern pp2 = parse("/abc");
-		PathPattern pp3 = parse("/def");
+		PathPatternParser caseInsensitiveParser = new PathPatternParser();
+		caseInsensitiveParser.setCaseSensitive(false);
+		PathPatternParser caseSensitiveParser = new PathPatternParser();
+		PathPattern pp1 = caseInsensitiveParser.parse("/abc");
+		PathPattern pp2 = caseInsensitiveParser.parse("/abc");
+		PathPattern pp3 = caseInsensitiveParser.parse("/def");
 		assertEquals(pp1,pp2);
 		assertEquals(pp1.hashCode(),pp2.hashCode());
 		assertNotEquals(pp1, pp3);
 		assertFalse(pp1.equals("abc"));
+		
+		pp1 = caseInsensitiveParser.parse("/abc");
+		pp2 = caseSensitiveParser.parse("/abc");
+		assertFalse(pp1.equals(pp2));
+		assertNotEquals(pp1.hashCode(),pp2.hashCode());
+		
+		PathPatternParser alternateSeparatorParser = new PathPatternParser(':');
+		pp1 = caseInsensitiveParser.parse("abc");
+		pp2 = alternateSeparatorParser.parse("abc");
+		assertFalse(pp1.equals(pp2));
+		assertNotEquals(pp1.hashCode(),pp2.hashCode());
+		
 	}
 	
 	@Test
-	public void wildcardPatterns() {
+	public void regexPathElementPatterns() {
 		checkError("/{var:[^/]*}", 8, PatternMessage.MISSING_CLOSE_CAPTURE);
 		checkError("/{var:abc", 8, PatternMessage.MISSING_CLOSE_CAPTURE);
 		checkError("/{var:a{{1,2}}}", 6, PatternMessage.JDK_PATTERN_SYNTAX_EXCEPTION);
@@ -193,8 +219,6 @@ public class PathPatternParserTests {
 
 	@Test
 	public void illegalCapturePatterns() {
-		new PathPatternParser().parse("/{abc:\\{\\}}");
-		new PathPatternParser().parse("/{abc:\\[\\]}");
 		checkError("{abc/",4,PatternMessage.MISSING_CLOSE_CAPTURE);
 		checkError("{abc:}/",5,PatternMessage.MISSING_REGEX_CONSTRAINT);
 		checkError("{",1,PatternMessage.MISSING_CLOSE_CAPTURE);
@@ -209,6 +233,22 @@ public class PathPatternParserTests {
 		checkError("//{abc{/}",6,PatternMessage.ILLEGAL_NESTED_CAPTURE);
 		checkError("/{0abc}/abc",2,PatternMessage.ILLEGAL_CHARACTER_AT_START_OF_CAPTURE_DESCRIPTOR);
 		checkError("/{a?bc}/abc",3,PatternMessage.ILLEGAL_CHARACTER_IN_CAPTURE_DESCRIPTOR);
+		checkError("/{abc}_{abc}",1,PatternMessage.ILLEGAL_DOUBLE_CAPTURE);
+		checkError("/foobar/{abc}_{abc}",8,PatternMessage.ILLEGAL_DOUBLE_CAPTURE);
+		checkError("/foobar/{abc:..}_{abc:..}",8,PatternMessage.ILLEGAL_DOUBLE_CAPTURE);
+		PathPattern pp = parse("/{abc:foo(bar)}");
+		try {
+			pp.matchAndExtract("/foo");
+			fail("Should have raised exception");
+		} catch (IllegalArgumentException iae) {
+			assertEquals("No capture groups allowed in the constraint regex: foo(bar)",iae.getMessage());
+		}
+		try {
+			pp.matchAndExtract("/foobar");
+			fail("Should have raised exception");
+		} catch (IllegalArgumentException iae) {
+			assertEquals("No capture groups allowed in the constraint regex: foo(bar)",iae.getMessage());
+		}
 	}
 
 	@Test
@@ -414,7 +454,7 @@ public class PathPatternParserTests {
 			p = parse(pattern);
 			fail("Expected to fail");
 		} catch (PatternParseException ppe) {
-			System.out.println(ppe.toDetailedString());
+//			System.out.println(ppe.toDetailedString());
 			assertEquals(ppe.toDetailedString(), expectedPos, ppe.getPosition());
 			assertEquals(ppe.toDetailedString(), expectedMessage, ppe.getMessageType());
 			if (expectedInserts.length!=0) {
@@ -443,5 +483,4 @@ public class PathPatternParserTests {
 		return capturedVariableCount+wildcardCount*100;
 	}
 
-	
 }

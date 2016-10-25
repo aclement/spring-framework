@@ -84,9 +84,4 @@ class LiteralPathElement extends PathElement {
 		return "Literal(" + new String(text) + ")";
 	}
 
-	@Override
-	public String getText() {
-		return new String(this.text);
-	}
-
 }

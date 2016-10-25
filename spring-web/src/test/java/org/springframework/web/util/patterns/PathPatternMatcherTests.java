@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.springframework.util.AntPathMatcher;
 
+import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.*;
 
 // TODO Extra curly braces in captured variable constraint regexes
@@ -125,6 +126,9 @@ public class PathPatternMatcherTests {
 		checkMatches("/*/bar", "/foo/bar");
 		checkMatches("/a*b*c*d/bar", "/abcd/bar");
 		checkMatches("*a*", "testa");
+		checkMatches("a/*","a/");
+		checkMatches("a/*","a/a");
+		checkNoMatch("a/*","a/a/");
 	}
 
 	@Test
@@ -141,6 +145,8 @@ public class PathPatternMatcherTests {
 		checkCapture("/*/{foo:....}/**","/foo/barg/abc/def/ghi","foo","barg");
 		checkNoMatch("{foo:....}", "99");
 		checkMatches("{foo:..}", "99");
+		checkCapture("/{abc:\\{\\}}","/{}","abc","{}");
+		checkCapture("/{abc:\\[\\]}","/[]","abc","[]");
 	}
 
 	@Test
@@ -293,6 +299,12 @@ public class PathPatternMatcherTests {
 		checkStartMatches("/*bla*/*/bla/**",
 		 "/XXXblaXXXX/testing/bla/testing/testing.jpg");
 
+		checkStartMatches("/abc/{foo}","/abc/def");
+		checkStartNoMatch("/abc/{foo}","/abc/def/");
+		checkStartMatches("/abc/{foo}/","/abc/def/");
+		checkStartNoMatch("/abc/{foo}/","/abc/def/ghi");
+		checkStartMatches("/abc/{foo}/","/abc/def");
+		
 		checkStartMatches("", "");
 		checkStartMatches("", null);
 		checkStartMatches("/abc", null);
@@ -307,6 +319,7 @@ public class PathPatternMatcherTests {
 		pp.setCaseSensitive(false);
 		PathPattern p = pp.parse("abc");
 		assertTrue(p.matches("AbC"));
+		assertFalse(p.matches("def"));
 		p = pp.parse("fOo");
 		assertTrue(p.matches("FoO"));
 		p = pp.parse("/fOo/bAr");
@@ -343,6 +356,7 @@ public class PathPatternMatcherTests {
 		assertTrue(p.matches("FoO"));
 		p = pp.parse("/fO?/bA?");
 		assertTrue(p.matches("/FoO/BaR"));
+		assertFalse(p.matches("/bAr/fOo"));
 
 		pp = new PathPatternParser();
 		pp.setCaseSensitive(true);
@@ -528,49 +542,33 @@ public class PathPatternMatcherTests {
 	@Test
 	public void extractUriTemplateVarsRegexQualifiers() {
 		PathPatternParser pp = new PathPatternParser();
-		PathPattern p = null;
 
-		p = pp.parse("{symbolicName:[\\p{L}\\.]+}-sources-{version:[\\p{N}\\.]+}.jar");
+		PathPattern p = pp.parse("{symbolicName:[\\p{L}\\.]+}-sources-{version:[\\p{N}\\.]+}.jar");
 		Map<String, String> result = p.matchAndExtract("com.example-sources-1.0.0.jar");
 		assertEquals("com.example", result.get("symbolicName"));
 		assertEquals("1.0.0", result.get("version"));
 
-		// p =
-		// pp.parse("{symbolicName:[\\w\\.]+}-sources-{version:[\\d\\.]+}-{year:\\d{4}}{month:\\d{2}}{day:\\d{2}}.jar");
-		// result = p.matchAndExtract("com.example-sources-1.0.0-20100220.jar");
-		//
-		// result = pathMatcher.extractUriTemplateVariables(
-		// "{symbolicName:[\\w\\.]+}-sources-{version:[\\d\\.]+}-{year:\\d{4}}{month:\\d{2}}{day:\\d{2}}.jar",
-		// "com.example-sources-1.0.0-20100220.jar");
-		// assertEquals("com.example", result.get("symbolicName"));
-		// assertEquals("1.0.0", result.get("version"));
-		// assertEquals("2010", result.get("year"));
-		// assertEquals("02", result.get("month"));
-		// assertEquals("20", result.get("day"));
-		//
-		p = pp.parse(
-				"{symbolicName:[\\p{L}\\.]+}-sources-{version:[\\p{N}\\.\\{\\}]+}.jar");
+		p = pp.parse("{symbolicName:[\\w\\.]+}-sources-{version:[\\d\\.]+}-{year:\\d{4}}{month:\\d{2}}{day:\\d{2}}.jar");
+		result = p.matchAndExtract("com.example-sources-1.0.0-20100220.jar");
+		assertEquals("com.example", result.get("symbolicName"));
+		assertEquals("1.0.0", result.get("version"));
+		assertEquals("2010", result.get("year"));
+		assertEquals("02", result.get("month"));
+		assertEquals("20", result.get("day"));
+		
+		p = pp.parse("{symbolicName:[\\p{L}\\.]+}-sources-{version:[\\p{N}\\.\\{\\}]+}.jar");
 		result = p.matchAndExtract("com.example-sources-1.0.0.{12}.jar");
-		// result = pathMatcher.extractUriTemplateVariables(
-		// "{symbolicName:[\\p{L}\\.]+}-sources-{version:[\\p{N}\\.\\{\\}]+}.jar",
-		// "com.example-sources-1.0.0.{12}.jar");
 		assertEquals("com.example", result.get("symbolicName"));
 		assertEquals("1.0.0.{12}", result.get("version"));
 	}
 
-	// TODO What was the spring bug here, why is this not supposed to work? is it because
-	// (..) is supposed to be a different group?
 	@Test
 	public void extractUriTemplateVarsRegexCapturingGroups() {
 		PathPatternParser pp = new PathPatternParser();
-		PathPattern p = pp.parse("/web/{id:foo(bar)?}");
-		Map<String, String> results = p.matchAndExtract("/web/foobar");
-		System.out.println(results);
-		// exception.expect(IllegalArgumentException.class);
-		// exception.expectMessage(containsString("The number of capturing groups in the
-		// pattern"));
-		// pathMatcher.extractUriTemplateVariables("/web/{id:foo(bar)?}",
-		// "/web/foobar");
+		PathPattern pathMatcher = pp.parse("/web/{id:foo(bar)?}_{goo}");
+		exception.expect(IllegalArgumentException.class);
+		exception.expectMessage(containsString("The number of capturing groups in the pattern"));
+		pathMatcher.matchAndExtract("/web/foobar_goo");
 	}
 
 	static class TestPathCombiner {
@@ -724,6 +722,15 @@ public class PathPatternMatcherTests {
 	}
 	
 	@Test
+	public void pathPatternComparator() {
+		PathPatternComparator ppc = new PathPatternComparator();
+		assertEquals(0,ppc.compare(null, null));
+		assertEquals(1,ppc.compare(null, parse("")));
+		assertEquals(-1,ppc.compare(parse(""), null));
+		assertEquals(0,ppc.compare(parse(""), parse("")));
+	}
+	
+	@Test
 	public void patternCompareTo() {
 		PathPatternParser p = new PathPatternParser();
 		PathPattern pp = p.parse("/abc");
@@ -841,6 +848,16 @@ public class PathPatternMatcherTests {
 		assertTrue(p.matches("/group/Sales/members"));
 	}
 
+	@Test
+	public void patternmessage() {
+		PatternMessage[] values = PatternMessage.values();
+		assertNotNull(values);
+		for (PatternMessage pm: values) {
+			String name = pm.toString();
+			assertEquals(pm.ordinal(),PatternMessage.valueOf(name).ordinal());
+		}
+	}
+	
 	private char separator = PathPatternParser.DEFAULT_SEPARATOR;
 
 	private void checkMatches(String uriTemplate, String path) {

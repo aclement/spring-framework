@@ -46,11 +46,6 @@ class WildcardPathElement extends PathElement {
 			return next.matches(nextPos, matchingContext);
 		}
 	}
-	
-	@Override
-	public String getText() {
-		return "*";
-	}
 
 	@Override
 	public int getNormalizedLength() {

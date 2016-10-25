@@ -86,11 +86,6 @@ class SingleCharWildcardedPathElement extends PathElement {
 		return questionMarkCount;
 	}
 
-	@Override
-	public String getText() {
-		return new String(this.text);
-	}
-	
 	public String toString() {
 		return "SingleCharWildcarding(" + new String(text) + ")";
 	}

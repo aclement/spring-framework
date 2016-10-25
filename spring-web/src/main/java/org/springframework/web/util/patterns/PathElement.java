@@ -47,11 +47,6 @@ abstract class PathElement {
 	}
 
 	/**
-	 * @return the textual version of this path element
-	 */
-	public abstract String getText();
-
-	/**
 	 * Attempt to match this path element.
 	 * 
 	 * @param candidatePos the current position within the candidate path

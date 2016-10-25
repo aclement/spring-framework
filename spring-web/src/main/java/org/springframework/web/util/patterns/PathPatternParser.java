@@ -296,7 +296,7 @@ public class PathPatternParser {
 					recordCapturedVariable(pathElementStart, ((CaptureVariablePathElement) newPE).getVariableName());
 				}
 			} else {
-				RegexPathElement newRegexSection = new RegexPathElement(pathElementStart, pathElementText, caseSensitive);
+				RegexPathElement newRegexSection = new RegexPathElement(pathElementStart, pathElementText, caseSensitive, pathPatternData);
 				for (String variableName : newRegexSection.getVariableNames()) {
 					recordCapturedVariable(pathElementStart, variableName);
 				}
@@ -307,7 +307,7 @@ public class PathPatternParser {
 				if (pos - 1 == pathElementStart) {
 					newPE = new WildcardPathElement(pathElementStart);
 				} else {
-					newPE = new RegexPathElement(pathElementStart, pathElementText, caseSensitive);
+					newPE = new RegexPathElement(pathElementStart, pathElementText, caseSensitive, pathPatternData);
 				}
 			} else if (singleCharWildcardCount!=0) {
 				newPE = new SingleCharWildcardedPathElement(pathElementStart, pathElementText, singleCharWildcardCount, caseSensitive);

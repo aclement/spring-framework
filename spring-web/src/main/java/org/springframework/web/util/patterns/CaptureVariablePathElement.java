@@ -71,6 +71,9 @@ class CaptureVariablePathElement extends PathElement {
 			// TODO could push the regex match such that we only try it if the rest of the pattern matches - what is faster?
 			candidateCapture = new SubSequence(matchingContext.candidate, candidateIndex, nextPos);
 			Matcher m = constraintPattern.matcher(candidateCapture);
+			if (m.groupCount() != 0) {
+				throw new IllegalArgumentException("No capture groups allowed in the constraint regex: "+constraintPattern.pattern());
+			}
 			if (!m.matches()) {
 				return false;
 			}
@@ -94,25 +97,9 @@ class CaptureVariablePathElement extends PathElement {
 	public String getVariableName() {
 		return this.variableName;
 	}
-	
-	@Override
-	public String getText() {
-		StringBuilder buf = new StringBuilder();
-		buf.append('{');
-		buf.append(variableName);
-		if (constraintPattern != null) {
-			buf.append(':').append(constraintPattern.pattern());
-		}
-		buf.append('}');
-		return buf.toString();
-	}
 
 	public String toString() {
 		return "CaptureVariable({" + variableName + (constraintPattern == null ? "" : ":" + constraintPattern.pattern()) + "})";
-	}
-
-	public boolean isCaseSensitive() {
-		return caseSensitive;
 	}
 	
 	@Override
