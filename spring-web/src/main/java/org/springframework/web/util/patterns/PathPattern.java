@@ -439,7 +439,6 @@ public class PathPattern implements Comparable<PathPattern> {
 				
 		// /*.html + /hotel => /hotel.html
 		// /*.html + /hotel.* => /hotel.html
-		// TODO badly handles /a/b/c/*.html + /d/e/f/hotel.* and produces /d/e/f/hotel.html !
 		String firstExtension = patternString.substring(starDotPos1+1); // looking for the first extension
 		int dotPos2 = pattern2string.indexOf('.');
 		String file2 = (dotPos2==-1?pattern2string:pattern2string.substring(0,dotPos2)); // TODO What about multiple dots?

@@ -68,7 +68,7 @@ class CaptureVariablePathElement extends PathElement {
 		int nextPos = matchingContext.scanAhead(candidateIndex);
 		CharSequence candidateCapture = null;
 		if (constraintPattern != null) {
-			// TODO could push the regex match such that we only try it if the rest of the pattern matches - what is faster?
+			// TODO possible optimization - only regex match if rest of pattern matches? Benefit likely to vary pattern to pattern
 			candidateCapture = new SubSequence(matchingContext.candidate, candidateIndex, nextPos);
 			Matcher m = constraintPattern.matcher(candidateCapture);
 			if (m.groupCount() != 0) {

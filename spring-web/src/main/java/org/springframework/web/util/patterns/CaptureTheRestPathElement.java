@@ -41,7 +41,6 @@ class CaptureTheRestPathElement extends PathElement {
 		// No need to handle 'match start' checking as this captures everything
 		// anyway and cannot be followed by anything else
 		// assert next == null
-		// TODO regex constraint on this?
 		if (matchingContext.extractingVariables) {
 			matchingContext.set(variableName, new String(matchingContext.candidate, candidateIndex,
 					matchingContext.candidateLength - candidateIndex));

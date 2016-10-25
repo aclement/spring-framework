@@ -59,7 +59,7 @@ class LiteralPathElement extends PathElement {
 			}
 		} else {
 			for (int i = 0; i < len; i++) {
-				// TODO consider performance of this?
+				// TODO revisit performance if doing a lot of case insensitive matching
 				if (Character.toLowerCase(matchingContext.candidate[candidateIndex++]) != text[i]) {
 					return false;
 				}

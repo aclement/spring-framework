@@ -40,6 +40,7 @@ import static org.junit.Assert.*;
 // TODO verify all state reset in PatternParser.parse()
 // TODO can {*foobar} have a regex? if it can, can that regex include / chars?
 // TODO how to deal with escaped characters in regex constraint expressions?
+// TODO For combine is /a/b/c/*.html + /d/e/f/hotel.* = /d/e/f/hotel.html ?
 
 /**
  * Exercise matching of {@link PathPattern} objects.

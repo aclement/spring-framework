@@ -19,12 +19,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Matcher;
 
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.util.patterns.PathPattern.MatchingContext;
 
 /**
  * A regex path element. Used to represent any complicated element of the path.
  * For example in '<tt>/foo/&ast;_&ast;/&ast;_{foobar}</tt>' both <tt>*_*</tt> and <tt>*_{foobar}</tt>
- * are {@link RegexPathElement} path elements.
+ * are {@link RegexPathElement} path elements. Derived from the general {@link AntPathMatcher} approach.
  * 
  * @author Andy Clement
  */
@@ -118,12 +119,7 @@ class RegexPathElement extends PathElement {
 		if (matches) {
 			if (next == null) {
 				// No more pattern, is there more data?
-				// TODO optimize
-				if (p == matchingContext.candidateLength) {
-					matches = true;
-				} else {
-					matches = false;
-				}
+				matches = (p == matchingContext.candidateLength);
 			} else {
 				if (matchingContext.isMatchStartMatching && p == matchingContext.candidateLength) {
 					return true; // no more data but matches up to this point
@@ -133,8 +129,6 @@ class RegexPathElement extends PathElement {
 		}
 		if (matches && matchingContext.extractingVariables) {
 			// Process captures
-			// if (somethingMatched && !matchingContext.matchStart) {
-			// // TODO
 			if (this.variableNames.size() != m.groupCount()) { // SPR-8455
 				throw new IllegalArgumentException("The number of capturing groups in the pattern segment "
 						+ this.pattern + " does not match the number of URI template variables it defines, "
@@ -146,14 +140,9 @@ class RegexPathElement extends PathElement {
 				String value = m.group(i);
 				matchingContext.set(name, value);
 			}
-			// // Need to do capture - TODO less object creation please
-			//// matchingContext.set(key,matchingContext.candidateText.substring(candidateIndex,
-			// matchingContext.separatorPositions[sn]));
-			// }
 		}
 		return matches;
 	}
-	// TODO testcase for double bind of sample capture key
 
 	public String toString() {
 		return "Regex(" + new String(regex) + ")";
