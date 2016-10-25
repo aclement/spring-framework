@@ -22,8 +22,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import org.junit.Ignore;
 import org.junit.Test;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.util.patterns.CaptureTheRestPathElement;
 import org.springframework.web.util.patterns.CaptureVariablePathElement;
 import org.springframework.web.util.patterns.PathElement;
@@ -74,21 +78,49 @@ public class PathPatternParserTests {
 	}
 	
 	@Test
-	public void multiSectionCapturePattern() {
+	public void captureTheRestPatterns() {
+		checkError("/{*foobar}x{abc}", 10, PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
 		p = checkStructure("{*foobar}");
 		assertPathElements(p	, CaptureTheRestPathElement.class);
 		p = checkStructure("/{*foobar}");
 		assertPathElements(p	, SeparatorPathElement.class, CaptureTheRestPathElement.class);
 		checkError("/{*foobar}/", 10, PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
 		checkError("/{*foobar}abc", 10, PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
-		checkError("/{*foobar}x{abc}", 10, PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
 		checkError("/{*f%obar}", 4, PatternMessage.ILLEGAL_CHARACTER_IN_CAPTURE_DESCRIPTOR);
 		checkError("/{*foobar}abc",10,PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
+		checkError("/{f*oobar}",3,PatternMessage.ILLEGAL_CHARACTER_IN_CAPTURE_DESCRIPTOR);
+		checkError("/{*foobar}/abc",10,PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
+	}
+	
+	@Test
+	public void equalsAndHashcode() {
+		PathPattern pp1 = parse("/abc");
+		PathPattern pp2 = parse("/abc");
+		PathPattern pp3 = parse("/def");
+		assertEquals(pp1,pp2);
+		assertEquals(pp1.hashCode(),pp2.hashCode());
+		assertNotEquals(pp1, pp3);
+		assertFalse(pp1.equals("abc"));
 	}
 	
 	@Test
 	public void wildcardPatterns() {
-		p = checkStructure("/{var:[^/]*}",1);
+		checkError("/{var:[^/]*}", 8, PatternMessage.MISSING_CLOSE_CAPTURE);
+		checkError("/{var:abc", 8, PatternMessage.MISSING_CLOSE_CAPTURE);
+		checkError("/{var:a{{1,2}}}", 6, PatternMessage.JDK_PATTERN_SYNTAX_EXCEPTION);
+
+		p = checkStructure("/{var:\\\\}");
+		assertEquals(CaptureVariablePathElement.class.getName(),p.getHeadSection().next.getClass().getName());		
+		assertTrue(p.matches("/\\"));
+
+		p = checkStructure("/{var:\\/}");
+		assertEquals(CaptureVariablePathElement.class.getName(),p.getHeadSection().next.getClass().getName());		
+		assertFalse(p.matches("/aaa"));		
+		
+		p = checkStructure("/{var:a{1,2}}",1);
+		assertEquals(CaptureVariablePathElement.class.getName(),p.getHeadSection().next.getClass().getName());
+		
+		p = checkStructure("/{var:[^\\/]*}",1);
 		assertEquals(CaptureVariablePathElement.class.getName(),p.getHeadSection().next.getClass().getName());
 		Map<String, String> result = p.matchAndExtract("/foo");
 		assertEquals("foo",result.get("var"));
@@ -98,12 +130,12 @@ public class PathPatternParserTests {
 		result = p.matchAndExtract("/[[[");
 		assertEquals("[[[",result.get("var"));
 
-		p = checkStructure("/{var:[{]*}",1);
+		p = checkStructure("/{var:[\\{]*}",1);
 		assertEquals(CaptureVariablePathElement.class.getName(),p.getHeadSection().next.getClass().getName());
 		result = p.matchAndExtract("/{{{");
 		assertEquals("{{{",result.get("var"));
 
-		p = checkStructure("/{var:[}]*}",1);
+		p = checkStructure("/{var:[\\}]*}",1);
 		assertEquals(CaptureVariablePathElement.class.getName(),p.getHeadSection().next.getClass().getName());
 		result = p.matchAndExtract("/}}}");
 		assertEquals("}}}",result.get("var"));
@@ -124,6 +156,7 @@ public class PathPatternParserTests {
 
 		p = checkStructure("{symbolicName:[\\p{L}\\.]+}-sources-{version:[\\p{N}\\.]+}.jar");
 		assertEquals(RegexPathElement.class.getName(),p.getHeadSection().getClass().getName());
+		
 		
 	}
 	
@@ -160,6 +193,10 @@ public class PathPatternParserTests {
 
 	@Test
 	public void illegalCapturePatterns() {
+		new PathPatternParser().parse("/{abc:\\{\\}}");
+		new PathPatternParser().parse("/{abc:\\[\\]}");
+		checkError("{abc/",4,PatternMessage.MISSING_CLOSE_CAPTURE);
+		checkError("{abc:}/",5,PatternMessage.MISSING_REGEX_CONSTRAINT);
 		checkError("{",1,PatternMessage.MISSING_CLOSE_CAPTURE);
 		checkError("{abc",4,PatternMessage.MISSING_CLOSE_CAPTURE);
 		checkError("{/}",1,PatternMessage.MISSING_CLOSE_CAPTURE);
@@ -170,6 +207,8 @@ public class PathPatternParserTests {
 		checkError("//{/}",3,PatternMessage.MISSING_CLOSE_CAPTURE);
 		checkError("//{{/}",3,PatternMessage.ILLEGAL_NESTED_CAPTURE);
 		checkError("//{abc{/}",6,PatternMessage.ILLEGAL_NESTED_CAPTURE);
+		checkError("/{0abc}/abc",2,PatternMessage.ILLEGAL_CHARACTER_AT_START_OF_CAPTURE_DESCRIPTOR);
+		checkError("/{a?bc}/abc",3,PatternMessage.ILLEGAL_CHARACTER_IN_CAPTURE_DESCRIPTOR);
 	}
 
 	@Test
@@ -223,6 +262,27 @@ public class PathPatternParserTests {
 		assertEquals(computeScore(2,0),parse("/{foo}/{bar}").getScore());
 		assertEquals(computeScore(4,0),parse("/{foo}/{bar}_{goo}_{wibble}/abc/bar").getScore());
 		assertEquals(computeScore(4,3),parse("/{foo}/*/*_*/{bar}_{goo}_{wibble}/abc/bar").getScore());
+	}
+	
+	@Test
+	public void multipleSeparatorPatterns() {
+		p = checkStructure("///aaa");
+		assertEquals(4,p.getNormalizedLength());
+		assertPathElements(p,SeparatorPathElement.class,LiteralPathElement.class);
+		p = checkStructure("///aaa////aaa/b");
+		assertEquals(10,p.getNormalizedLength());
+		assertPathElements(p,SeparatorPathElement.class, LiteralPathElement.class, 
+				SeparatorPathElement.class, LiteralPathElement.class, SeparatorPathElement.class, LiteralPathElement.class);
+		p = checkStructure("/////**");
+		System.out.println(p.toChainString());
+		assertEquals(2,p.getNormalizedLength());
+		assertPathElements(p,SeparatorPathElement.class,WildcardTheRestPathElement.class);
+	}
+
+	@Ignore
+	@Test
+	public void multipleSeparatorsAndExtractPathWithin() {
+
 	}
 	
 	@Test

@@ -17,6 +17,7 @@ package org.springframework.web.util.patterns;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * Parser for URI template patterns. It breaks the path pattern into a number of
@@ -126,6 +127,10 @@ public class PathPatternParser {
 				if (pathElementStart != -1) {
 					pushPathElement(createPathElement());
 				}
+				// Skip over multiple separators
+				while ((pos+1) < pathPatternLength && pathPatternData[pos+1] == separator) {
+					pos++;
+				}
 				if (peekDoubleWildcard()) {
 					pushPathElement(new SeparatorPathElement(pos, separator));
 					pushPathElement(new WildcardTheRestPathElement(pos+1));
@@ -198,25 +203,27 @@ public class PathPatternParser {
 	/**
 	 * Just hit a ':' and want to jump over the regex specification for this
 	 * variable. pos will be pointing at the ':', we want to skip until the }.
-	 * Need to handle nesting of } in the regex and escaped variants of 
-	 * brackets.
+	 * <p>
+	 * Nested {...} pairs don't have to be escaped: <tt>/abc/{var:x{1,2}}/def</tt>
+	 * <p>An escaped } will not be treated as the end of the regex: <tt>/abc/{var:x\\{y:}/def</tt>
+	 * <p>A separator that should not indicate the end of the regex can be escaped:
 	 */
 	private void skipCaptureRegex() {
 		pos++;
 		int regexStart = pos;
-		int squareBracketDepth = 0; // how deep in [...]
-		int curlyBracketDepth = 0; // how deep in further {...}
+		int curlyBracketDepth = 0; // how deep in nested {...} pairs
+		boolean previousBackslash = false;
 		while (pos < pathPatternLength) {
 			char ch = pathPatternData[pos];
-			if (ch == '[' && pathPatternData[pos - 1] != '\\') {
-				squareBracketDepth++;
-			} else if (ch == ']' && pathPatternData[pos - 1] != '\\') {
-				squareBracketDepth--;
-			}
-			if (ch == '{' && pathPatternData[pos - 1] != '\\' && squareBracketDepth == 0) {
+			if (ch == '\\' && !previousBackslash) {
+				pos++;
+				previousBackslash = true;
+				continue;
+			} 
+			if (ch == '{' && !previousBackslash) {
 				curlyBracketDepth++;
-			} else if (ch == '}' && pathPatternData[pos - 1] != '\\' && squareBracketDepth == 0) {
-				if (ch == '}' && squareBracketDepth == 0 && curlyBracketDepth == 0) {
+			} else if (ch == '}' && !previousBackslash) {
+				if (curlyBracketDepth == 0) {
 					if (regexStart == pos) {
 						throw new PatternParseException(regexStart, pathPatternData,
 								PatternMessage.MISSING_REGEX_CONSTRAINT);
@@ -225,10 +232,11 @@ public class PathPatternParser {
 				}
 				curlyBracketDepth--;
 			}
-			if (ch == separator && squareBracketDepth == 0) {
+			if (ch == separator && !previousBackslash) {
 				throw new PatternParseException(pos, pathPatternData, PatternMessage.MISSING_CLOSE_CAPTURE);
 			}
 			pos++;
+			previousBackslash=false;
 		}
 		throw new PatternParseException(pos - 1, pathPatternData, PatternMessage.MISSING_CLOSE_CAPTURE);
 	}
@@ -251,10 +259,6 @@ public class PathPatternParser {
 	 * @param newPathElement the new path element to add to the chain being built
 	 */
 	private void pushPathElement(PathElement newPathElement) {
-		if (currentPE instanceof CaptureTheRestPathElement) {
-			throw new PatternParseException(newPathElement.pos, pathPatternData,
-					PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
-		}
 		if (headPE == null) {
 			headPE = newPathElement;
 			currentPE = newPathElement;
@@ -284,14 +288,14 @@ public class PathPatternParser {
 					newPE = new CaptureTheRestPathElement(pathElementStart, pathElementText);
 				} else {
 					// It is a full capture of this element (possibly with constraint), for example: /foo/{abc}/
-					newPE = new CaptureVariablePathElement(pathElementStart, pathElementText, caseSensitive);
+					try {
+						newPE = new CaptureVariablePathElement(pathElementStart, pathElementText, caseSensitive);
+					} catch (PatternSyntaxException pse) {
+						throw new PatternParseException(pse, findRegexStart(pathPatternData,pathElementStart)+pse.getIndex(), pathPatternData, PatternMessage.JDK_PATTERN_SYNTAX_EXCEPTION);
+					}
 					recordCapturedVariable(pathElementStart, ((CaptureVariablePathElement) newPE).getVariableName());
 				}
 			} else {
-				if (isCaptureTheRestVariable) {
-					throw new PatternParseException(pathElementStart, pathPatternData,
-							PatternMessage.BADLY_FORMED_CAPTURE_THE_REST);
-				}
 				RegexPathElement newRegexSection = new RegexPathElement(pathElementStart, pathElementText, caseSensitive);
 				for (String variableName : newRegexSection.getVariableNames()) {
 					recordCapturedVariable(pathElementStart, variableName);
@@ -312,6 +316,24 @@ public class PathPatternParser {
 			}
 		}
 		return newPE;
+	}
+
+	/**
+	 * For a path element representing a captured variable, locate the constraint pattern.
+	 * Assumes there is a constraint pattern.
+	 * @param data a complete path expression, e.g. /aaa/bbb/{ccc:...}
+	 * @param offset the start of the capture pattern of interest 
+	 * @return the index of the character after the ':' within the pattern expression relative to the start of the whole expression
+	 */
+	private int findRegexStart(char[] data, int offset) {
+		int pos = offset;
+		while (pos<data.length) {
+			if (data[pos] == ':') {
+				return pos + 1;
+			}
+			pos++;
+		}
+		return -1;
 	}
 
 	/**

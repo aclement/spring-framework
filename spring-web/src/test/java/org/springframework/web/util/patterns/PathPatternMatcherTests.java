@@ -16,13 +16,10 @@
 
 package org.springframework.web.util.patterns;
 
-import static org.junit.Assert.*;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -30,10 +27,18 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.springframework.util.AntPathMatcher;
-import org.springframework.web.util.patterns.PathElement;
-import org.springframework.web.util.patterns.PathPattern;
-import org.springframework.web.util.patterns.PathPatternParser;
-import org.springframework.web.util.patterns.PatternComparatorConsideringPath;
+
+import static org.junit.Assert.*;
+
+// TODO Extra curly braces in captured variable constraint regexes
+// TODO Escaped curly braces in path patterns (and paths)
+// TODO Escaped separators in path patterns (and paths)
+// TODO when using /{*foobar} is the leading / part of the captured variable value?
+// TODO is "{*foobar}" an allowed construct? Or must it always include the leading /? In that case must the / match?
+// TODO the AntPathMatcher extractPathWithinPattern will trim groups of / in the answer, need to do that
+// TODO verify all state reset in PatternParser.parse()
+// TODO can {*foobar} have a regex? if it can, can that regex include / chars?
+// TODO how to deal with escaped characters in regex constraint expressions?
 
 /**
  * Exercise matching of {@link PathPattern} objects.
@@ -44,9 +49,15 @@ public class PathPatternMatcherTests {
 
 	@Test
 	public void basicMatching() {
+		checkMatches(null, null);
+		checkMatches("", "");
+		checkMatches("", null);
+		checkNoMatch("/abc", null);
+		checkMatches(null, "");
+		checkNoMatch(null, "/abc");
 		checkMatches("/", "/");
 		checkNoMatch("/", "/a");
-		checkMatches("foo", "foo");
+		checkMatches("f", "f");
 		checkMatches("/foo", "/foo");
 		checkMatches("/foo/", "/foo/");
 		checkMatches("/foo/bar", "/foo/bar");
@@ -57,8 +68,6 @@ public class PathPatternMatcherTests {
 		checkNoMatch("foo", "foobar");
 		checkMatches("/foo/bar", "/foo/bar");
 		checkNoMatch("/foo/bar", "/foo/baz");
-		checkMatches("/*/bar", "/foo/bar");
-		checkNoMatch("/*/bar", "/foo/baz");
 	}
 
 	@Test
@@ -74,18 +83,7 @@ public class PathPatternMatcherTests {
 		checkNoMatch("tes?", "testt");
 		checkNoMatch("tes?", "tsst");
 		checkMatches(".?.a", ".a.a");
-	}
-
-	@Test
-	public void capturing() {
-		checkCapture("{id}", "99", "id", "99");
-		checkCapture("/customer/{customerId}", "/customer/78", "customerId", "78");
-		checkCapture("/customer/{customerId}/banana", "/customer/42/banana", "customerId",
-				"42");
-		checkCapture("{id}/{id2}", "99/98", "id", "99", "id2", "98");
-		checkCapture("/foo/{bar}/boo/{baz}", "/foo/plum/boo/apple", "bar", "plum", "baz",
-				"apple");
-		checkCapture("/{bla}.*", "/testing.html", "bla", "testing");
+		checkNoMatch(".?.a", ".aba");
 	}
 
 	@Test
@@ -93,20 +91,36 @@ public class PathPatternMatcherTests {
 		checkCapture("/customer/{*something}", "/customer/99", "something", "99");
 		checkCapture("/customer/{*something}", "/customer/aa/bb/cc", "something",
 				"aa/bb/cc");
-		checkCapture("/customer/{*something}", "/customer/", "something", ""); // TODO
-																				// valid?
+		checkCapture("/customer/{*something}", "/customer/", "something", "");
 	}
 
 	@Test
-	public void captureMultiplePieces() {
-		// checkCapture("/{one}/**/{two}","/a/b","one","a","two","b");
-		// checkCapture("/{one}/**/{two}","/a/ccc/b","one","a","two","b");
-		// checkCapture("/{one}/**/{two}","/a/ddd/eee/fff/b","one","a","two","b");
-		checkCapture("/{one}/", "//", "one", ""); // TODO valid?
+	public void multipleSelectorsInPattern() {
+		checkMatches("///abc","/abc");
+		checkMatches("//","/");
+		checkMatches("abc","abc");
+		checkMatches("///abc//d/e","/abc/d/e");
+		checkMatches("///abc//{def}//////xyz","/abc/foo/xyz");
 	}
 
+	@Test
+	public void multipleSelectorsInPath() {
+		checkMatches("/abc","////abc");
+		checkMatches("/","//");
+		checkMatches("/abc//def///ghi","/abc/def/ghi");
+	}
+
+	@Test
+	public void multipleSelectorsInPatternAndPath() {
+		checkMatches("///one///two///three","//one/////two///////three");
+		checkMatches("//one//two//three","/one/////two/three");
+		checkCapture("///{foo}///bar","/one/bar","foo","one");
+	}
+	
 	@Test
 	public void wildcards() {
+		checkMatches("/*/bar", "/foo/bar");
+		checkNoMatch("/*/bar", "/foo/baz");
 		checkMatches("/f*/bar", "/foo/bar");
 		checkMatches("/*/bar", "/foo/bar");
 		checkMatches("/a*b*c*d/bar", "/abcd/bar");
@@ -114,21 +128,23 @@ public class PathPatternMatcherTests {
 	}
 
 	@Test
+	public void trailingSeparators() {
+		checkNoMatch("aaa/", "aaa");
+	}
+	
+	@Test
 	public void constrainedMatches() {
 		checkCapture("{foo:[0-9]*}", "123", "foo", "123");
 		checkNoMatch("{foo:[0-9]*}", "abc");
-		// leading slash in pattern should this match?
-		checkNoMatch("/{foo:[0-9]*}", "abc");
 		checkNoMatch("/{foo:[0-9]*}", "abc");
 		checkCapture("/*/{foo:....}/**","/foo/barg/foo","foo","barg");
 		checkCapture("/*/{foo:....}/**","/foo/barg/abc/def/ghi","foo","barg");
 		checkNoMatch("{foo:....}", "99");
 		checkMatches("{foo:..}", "99");
-		// TODO escaped curly braces in expression
 	}
 
 	@Test
-	public void oldAntPathMatcherTests() {
+	public void antPathMatcherTests() {
 		// test exact matching
 		checkMatches("test", "test");
 		checkMatches("/test", "/test");
@@ -179,60 +195,22 @@ public class PathPatternMatcherTests {
 		checkMatches("/a/??", "/a/bb");
 		checkMatches("/?", "/a");
 
-		// test matching with **'s
-		// checkMatches("/**/foo", "/foo");
-		 checkMatches("/**", "/testing/testing");
-		 checkMatches("/*/**", "/testing/testing");
-		// checkMatches("/bla/**/bla", "/bla/testing/testing/bla");
-		// checkMatches("/bla/**/bla", "/bla/testing/testing/bla/bla");
-		// checkMatches("/**/test", "/bla/bla/test");
-		// checkMatches("/bla/**/**/bla", "/bla/bla/bla/bla/bla/bla");
+		checkMatches("/**", "/testing/testing");
+		checkMatches("/*/**", "/testing/testing");
 		checkMatches("/bla*bla/test", "/blaXXXbla/test");
 		checkMatches("/*bla/test", "/XXXbla/test");
 		checkNoMatch("/bla*bla/test", "/blaXXXbl/test");
 		checkNoMatch("/*bla/test", "XXXblab/test");
 		checkNoMatch("/*bla/test", "XXXbl/test");
-
 		checkNoMatch("/????", "/bala/bla");
-		// checkNoMatch("/**/*bla", "/bla/bla/bla/bbb");
-
-		// checkMatches("/*bla*/**/bla/**",
-		// "/XXXblaXXXX/testing/testing/bla/testing/testing/");
-		// checkMatches("/*bla*/**/bla/*", "/XXXblaXXXX/testing/testing/bla/testing");
-		// checkMatches("/*bla*/**/bla/**",
-		// "/XXXblaXXXX/testing/testing/bla/testing/testing");
-		// checkMatches("/*bla*/**/bla/**",
-		// "/XXXblaXXXX/testing/testing/bla/testing/testing.jpg");
-
-		// checkMatches("*bla*/**/bla/**",
-		// "XXXblaXXXX/testing/testing/bla/testing/testing/");
-		// checkMatches("*bla*/**/bla/*", "XXXblaXXXX/testing/testing/bla/testing");
-		// checkMatches("*bla*/**/bla/**",
-		// "XXXblaXXXX/testing/testing/bla/testing/testing");
-		// checkNoMatch("*bla*/**/bla/*",
-		// "XXXblaXXXX/testing/testing/bla/testing/testing");
-
-		// checkNoMatch("/x/x/**/bla", "/x/x/x/");
-
 		checkMatches("/foo/bar/**", "/foo/bar/");
-
-		checkMatches("", "");
-
 		checkMatches("/{bla}.html", "/testing.html");
-
 		checkCapture("/{bla}.*", "/testing.html", "bla", "testing");
 	}
 
 	@Test
 	public void matchStart() {
-		// TODO findMatchSuccesses needs dealing with across all Segment nodes
-		// TODO wildcard pattern matching needs adjustment to $ anchoring for match start
-		// (otherwise it won't work for
-		// match start on partial input data)
-		// checkStartMatches("/**/foo","bananas"); // TODO huh? is that right or *must* it
-		// start with /?
 		checkStartMatches("test/{a}_{b}/foo", "test/a_b");
-		// checkStartMatches("test/**/foo","test/abc");
 		checkStartMatches("test/?/abc", "test/a");
 		checkStartMatches("test/{*foobar}", "test/");
 		checkStartMatches("test/*/bar", "test/a");
@@ -294,16 +272,10 @@ public class PathPatternMatcherTests {
 		checkStartMatches("/a/??", "/a/bb");
 		checkStartMatches("/?", "/a");
 
-		// test matching with **'s
-		// checkStartMatches("/**", "/testing/testing");
-		// checkStartMatches("/*/**", "/testing/testing");
-		// checkStartMatches("/**/*", "/testing/testing");
-		// checkStartMatches("test*/**", "test/");
-		// checkStartMatches("test*/**", "test/t");
-		// checkStartMatches("/bla/**/bla", "/bla/testing/testing/bla");
-		// checkStartMatches("/bla/**/bla", "/bla/testing/testing/bla/bla");
-		// checkStartMatches("/**/test", "/bla/bla/test");
-		// checkStartMatches("/bla/**/**/bla", "/bla/bla/bla/bla/bla/bla");
+		checkStartMatches("/**", "/testing/testing");
+		checkStartMatches("/*/**", "/testing/testing");
+		checkStartMatches("test*/**", "test/");
+		checkStartMatches("test*/**", "test/t");
 		checkStartMatches("/bla*bla/test", "/blaXXXbla/test");
 		checkStartMatches("/*bla/test", "/XXXbla/test");
 		checkStartNoMatch("/bla*bla/test", "/blaXXXbl/test");
@@ -311,28 +283,22 @@ public class PathPatternMatcherTests {
 		checkStartNoMatch("/*bla/test", "XXXbl/test");
 
 		checkStartNoMatch("/????", "/bala/bla");
-		// checkStartMatches("/**/*bla", "/bla/bla/bla/bbb");
 
-		// checkStartMatches("/*bla*/**/bla/**",
-		// "/XXXblaXXXX/testing/testing/bla/testing/testing/");
-		// checkStartMatches("/*bla*/**/bla/*",
-		// "/XXXblaXXXX/testing/testing/bla/testing");
-		// checkStartMatches("/*bla*/**/bla/**",
-		// "/XXXblaXXXX/testing/testing/bla/testing/testing");
-		// checkStartMatches("/*bla*/**/bla/**",
-		// "/XXXblaXXXX/testing/testing/bla/testing/testing.jpg");
-
-		// checkStartMatches("*bla*/**/bla/**",
-		// "XXXblaXXXX/testing/testing/bla/testing/testing/");
-		// checkStartMatches("*bla*/**/bla/*", "XXXblaXXXX/testing/testing/bla/testing");
-		// checkStartMatches("*bla*/**/bla/**",
-		// "XXXblaXXXX/testing/testing/bla/testing/testing");
-		// checkStartMatches("*bla*/**/bla/*",
-		// "XXXblaXXXX/testing/testing/bla/testing/testing");
-
-		// checkStartMatches("/x/x/**/bla", "/x/x/x/");
+		checkStartMatches("/*bla*/*/bla/**",
+		 "/XXXblaXXXX/testing/bla/testing/testing/");
+		checkStartMatches("/*bla*/*/bla/*",
+		 "/XXXblaXXXX/testing/bla/testing");
+		checkStartMatches("/*bla*/*/bla/**",
+		 "/XXXblaXXXX/testing/bla/testing/testing");
+		checkStartMatches("/*bla*/*/bla/**",
+		 "/XXXblaXXXX/testing/bla/testing/testing.jpg");
 
 		checkStartMatches("", "");
+		checkStartMatches("", null);
+		checkStartMatches("/abc", null);
+		checkStartMatches(null, "");
+		checkStartMatches(null, null);
+		checkStartNoMatch(null, "/abc");
 	}
 
 	@Test
@@ -463,13 +429,8 @@ public class PathPatternMatcherTests {
 			checkMatches(".?", ".a");
 
 			// test matching with **'s
-			// checkMatches(".**", ".testing.testing");
-			// checkMatches(".*.**", ".testing.testing");
-			// checkMatches(".**.*", ".testing.testing");
-			// checkMatches(".bla.**.bla", ".bla.testing.testing.bla");
-			// checkMatches(".bla.**.bla", ".bla.testing.testing.bla.bla");
-			// checkMatches(".**.test", ".bla.bla.test");
-			// checkMatches(".bla.**.**.bla", ".bla.bla.bla.bla.bla.bla");
+			checkMatches(".**", ".testing.testing");
+			checkMatches(".*.**", ".testing.testing");
 			checkMatches(".bla*bla.test", ".blaXXXbla.test");
 			checkMatches(".*bla.test", ".XXXbla.test");
 			checkNoMatch(".bla*bla.test", ".blaXXXbl.test");
@@ -480,131 +441,72 @@ public class PathPatternMatcherTests {
 			separator = PathPatternParser.DEFAULT_SEPARATOR;
 		}
 	}
-
-	// TODO needs tests using the range of sections
-	// TODO some of these probably fail the assertion that the pattern matches the pattern
-	// because of the removal of /**
+	
 	@Test
 	public void extractPathWithinPattern() throws Exception {
-		PathPatternParser pp = new PathPatternParser();
-		PathPattern p = null;
-
-		p = pp.parse("/welcome*/");
-		assertEquals("welcome", p.extractPathWithinPattern("/welcome/"));
-		// assertEquals("welcome",pathMatcher.extractPathWithinPattern("/welcome*/",
-		// "/welcome/"));
-		// assertEquals("welcome/",pathMatcher.extractPathWithinPattern("/welcome*/",
-		// "/welcome"));
-
-		// What is the expected behaviour here? Is it an unwritten rule that trailing /
-		// are removed?
-		p = pp.parse("/welcome*/");
-		assertEquals("welcome", p.extractPathWithinPattern("/welcome/"));
-
-		p = pp.parse("/docs/commit.html");
-		assertEquals("", p.extractPathWithinPattern("/docs/commit.html"));
-
-		p = pp.parse("/docs/*");
-		assertEquals("cvs/commit", p.extractPathWithinPattern("/docs/cvs/commit"));
-
-		p = pp.parse("/docs/cvs/*.html");
-		assertEquals("commit.html", p.extractPathWithinPattern("/docs/cvs/commit.html"));
-
-		p = pp.parse("/docs/**");
-		assertEquals("cvs/commit", p.extractPathWithinPattern("/docs/cvs/commit"));
-
-		p = pp.parse("/doo/{*foobar}");
-		assertEquals("customer.html", p.extractPathWithinPattern("/doo/customer.html"));
-
-		p = pp.parse("/doo/{*foobar}");
-		assertEquals("daa/customer.html",
-				p.extractPathWithinPattern("/doo/daa/customer.html"));
-
-		p = pp.parse("/*.html");
-		assertEquals("commit.html", p.extractPathWithinPattern("/commit.html"));
-
-		p = pp.parse("/*.html");
-		assertEquals("docs/commit.html", p.extractPathWithinPattern("/docs/commit.html"));
-
-		p = pp.parse("*.html");
-		assertEquals("/docs/commit.html",
-				p.extractPathWithinPattern("/docs/commit.html"));
-
-		p = pp.parse("*");
-		assertEquals("/docs/commit.html",
-				p.extractPathWithinPattern("/docs/commit.html"));
-
-		p = pp.parse("/docs/*/commit.html");
-		assertEquals("cvs/other/commit.html",
-				p.extractPathWithinPattern("/docs/cvs/other/commit.html"));
-
-		p = pp.parse("/docs/*/*/*/*");
-		assertEquals("cvs/other/commit.html",
-				p.extractPathWithinPattern("/docs/cvs/other/commit.html"));
-
-		p = pp.parse("/d?cs/*");
-		assertEquals("docs/cvs/commit", p.extractPathWithinPattern("/docs/cvs/commit"));
-
-		p = pp.parse("/docs/c?s/*.html");
-		assertEquals("cvs/commit.html",
-				p.extractPathWithinPattern("/docs/cvs/commit.html"));
-
-		p = pp.parse("/d?cs/**");
-		assertEquals("docs/cvs/commit", p.extractPathWithinPattern("/docs/cvs/commit"));
-
-		p = pp.parse("/d?cs/*/*.html");
-		assertEquals("docs/cvs/commit.html",
-				p.extractPathWithinPattern("/docs/cvs/commit.html"));
-
-		p = pp.parse("/a/b/c*d*/*.html");
-		assertEquals("cod/foo.html", p.extractPathWithinPattern("/a/b/cod/foo.html"));
-
+		checkExtractPathWithinPattern("/welcome*/", "/welcome/","welcome");
+		checkExtractPathWithinPattern("/docs/commit.html","/docs/commit.html","");
+		checkExtractPathWithinPattern("/docs/*","/docs/cvs/commit","cvs/commit");
+		checkExtractPathWithinPattern("/docs/cvs/*.html","/docs/cvs/commit.html","commit.html");
+		checkExtractPathWithinPattern("/docs/**","/docs/cvs/commit","cvs/commit");
+		checkExtractPathWithinPattern("/doo/{*foobar}","/doo/customer.html","customer.html");
+		checkExtractPathWithinPattern("/doo/{*foobar}","/doo/daa/customer.html","daa/customer.html");
+		checkExtractPathWithinPattern("/*.html","/commit.html","commit.html");
+		checkExtractPathWithinPattern("/docs/*/*/*/*","/docs/cvs/other/commit.html","cvs/other/commit.html");
+		checkExtractPathWithinPattern("/d?cs/**","/docs/cvs/commit","docs/cvs/commit");
+		checkExtractPathWithinPattern("/docs/c?s/*.html","/docs/cvs/commit.html","cvs/commit.html");
+		checkExtractPathWithinPattern("/d?cs/*/*.html","/docs/cvs/commit.html","docs/cvs/commit.html");
+		checkExtractPathWithinPattern("/a/b/c*d*/*.html","/a/b/cod/foo.html","cod/foo.html");
+		checkExtractPathWithinPattern("a/{foo}/b/{bar}","a/c/b/d","c/b/d");
+		checkExtractPathWithinPattern("a/{foo}_{bar}/d/e","a/b_c/d/e","b_c/d/e");
+		checkExtractPathWithinPattern("aaa//*///ccc///ddd","aaa/bbb/ccc/ddd","bbb/ccc/ddd");
+		checkExtractPathWithinPattern("aaa/*/ccc/ddd","aaa//bbb//ccc/ddd","bbb/ccc/ddd");
+		checkExtractPathWithinPattern("aaa//*///ccc///ddd","aaa//bbb//ccc/ddd","bbb/ccc/ddd");
+		checkExtractPathWithinPattern("aaa//*///ccc///ddd","aaa/////bbb//ccc/ddd","bbb/ccc/ddd");
+		checkExtractPathWithinPattern("aaa/c*/ddd/","aaa/ccc///ddd///","ccc/ddd");
+		checkExtractPathWithinPattern("", "", "");
+		checkExtractPathWithinPattern("/", "", "");
+		checkExtractPathWithinPattern("", "/", "");
+		checkExtractPathWithinPattern("//", "", "");
+		checkExtractPathWithinPattern("", "//", "");
+		checkExtractPathWithinPattern("//", "//", "");
+		checkExtractPathWithinPattern("//", "/", "");
+		checkExtractPathWithinPattern("/", "//", "");
 	}
 
 	@Test
 	public void extractUriTemplateVariables() throws Exception {
-		PathPatternParser pp = new PathPatternParser();
-		PathPattern p = null;
-		Map<String, String> result;
-
-		p = pp.parse("/hotels/{hotel}");
-		result = p.matchAndExtract("/hotels/1");
-		assertEquals(Collections.singletonMap("hotel", "1"), result);
-
-		// TODO check all state reset in PatternParser.parse()
-		p = pp.parse("/h?tels/{hotel}");
-		result = p.matchAndExtract("/hotels/1");
-		assertEquals(Collections.singletonMap("hotel", "1"), result);
-
-		p = pp.parse("/hotels/{hotel}/bookings/{booking}");
-		result = p.matchAndExtract("/hotels/1/bookings/2");
-		Map<String, String> expected = new LinkedHashMap<>();
-		expected.put("hotel", "1");
-		expected.put("booking", "2");
-		assertEquals(expected, result);
-
-		p = pp.parse("/*/hotels/*/{hotel}");
-		result = p.matchAndExtract("/foo/hotels/bar/1");
-		assertEquals(Collections.singletonMap("hotel", "1"), result);
-
-		p = pp.parse("/{page}.html");
-		result = p.matchAndExtract("/42.html");
-		assertEquals(Collections.singletonMap("page", "42"), result);
-
-		p = pp.parse("/{page}.*");
-		result = p.matchAndExtract("/42.html");
-		assertEquals(Collections.singletonMap("page", "42"), result);
-
-		p = pp.parse("/A-{B}-C");
-		result = p.matchAndExtract("/A-b-C");
-		assertEquals(Collections.singletonMap("B", "b"), result);
-
-		p = pp.parse("/{name}.{extension}");
-		result = p.matchAndExtract("/test.html");
-		expected = new LinkedHashMap<>();
-		expected.put("name", "test");
-		expected.put("extension", "html");
-		assertEquals(expected, result);
+		checkCapture("/hotels/{hotel}", "/hotels/1", "hotel","1");
+		checkCapture("/h?tels/{hotel}","/hotels/1","hotel","1");
+		checkCapture("/hotels/{hotel}/bookings/{booking}","/hotels/1/bookings/2","hotel","1","booking","2");
+		checkCapture("/*/hotels/*/{hotel}","/foo/hotels/bar/1","hotel","1");
+		checkCapture("/{page}.html","/42.html","page","42");
+		checkCapture("/{page}.*","/42.html","page","42");
+		checkCapture("/A-{B}-C","/A-b-C","B","b");
+		checkCapture("/{name}.{extension}","/test.html","name","test","extension","html");
+		try {
+			checkCapture("/{one}/", "//", "one", "");
+			fail("Expected exception");
+		} catch (IllegalStateException e) {
+			assertEquals("Pattern \"/{one}/\" is not a match for \"//\"",e.getMessage());
+		}
+		try {
+			checkCapture("", "/abc");
+			fail("Expected exception");
+		} catch (IllegalStateException e) {
+			assertEquals("Pattern \"\" is not a match for \"/abc\"",e.getMessage());
+		}
+		assertEquals(0,checkCapture("", "").size());
+		checkCapture("{id}", "99", "id", "99");
+		checkCapture("/customer/{customerId}", "/customer/78", "customerId", "78");
+		checkCapture("/customer/{customerId}/banana", "/customer/42/banana", "customerId",
+				"42");
+		checkCapture("{id}/{id2}", "99/98", "id", "99", "id2", "98");
+		checkCapture("/foo/{bar}/boo/{baz}", "/foo/plum/boo/apple", "bar", "plum", "baz",
+				"apple");
+		checkCapture("/{bla}.*", "/testing.html", "bla", "testing");
+		Map<String,String> extracted = checkCapture("/abc","/abc");
+		assertEquals(0,extracted.size());
 	}
 
 	@Test
@@ -721,6 +623,14 @@ public class PathPatternMatcherTests {
 		// SPR-10554
 		assertEquals("/hotel", pathMatcher.combine("/", "/hotel")); // SPR-12975
 		assertEquals("/hotel/booking", pathMatcher.combine("/hotel/", "/booking")); // SPR-12975
+		assertEquals("",pathMatcher.combine(null, null));
+		assertEquals("",pathMatcher.combine(null, ""));
+		assertEquals("",pathMatcher.combine("",null));
+		assertEquals("",pathMatcher.combine(null, null));
+		assertEquals("",pathMatcher.combine("", ""));
+		assertEquals("/hotel",pathMatcher.combine("", "/hotel"));
+		assertEquals("/hotel",pathMatcher.combine("/hotel", null));
+		assertEquals("/hotel",pathMatcher.combine("/hotel", ""));
 	}
 
 	@Test
@@ -811,6 +721,13 @@ public class PathPatternMatcherTests {
 		// SPR-13139
 		assertEquals(-1, comparator.compare(parse("*"), parse("*/**")));
 		assertEquals(1, comparator.compare(parse("*/**"), parse("*")));
+	}
+	
+	@Test
+	public void patternCompareTo() {
+		PathPatternParser p = new PathPatternParser();
+		PathPattern pp = p.parse("/abc");
+		assertEquals(-1,pp.compareTo(null));
 	}
 
 	@Test
@@ -936,23 +853,13 @@ public class PathPatternMatcherTests {
 	private void checkStartNoMatch(String uriTemplate, String path) {
 		PathPatternParser p = new PathPatternParser();
 		PathPattern pattern = p.parse(uriTemplate);
-		printPattern(pattern);
 		assertFalse(pattern.matchStart(path));
 	}
 
 	private void checkStartMatches(String uriTemplate, String path) {
 		PathPatternParser p = new PathPatternParser();
 		PathPattern pattern = p.parse(uriTemplate);
-		printPattern(pattern);
 		assertTrue(pattern.matchStart(path));
-	}
-
-	private void printPattern(PathPattern pattern) {
-		PathElement s = pattern.getHeadSection();
-		while (s != null) {
-			System.out.println(s);
-			s = s.next;
-		}
 	}
 
 	private void checkNoMatch(String uriTemplate, String path) {
@@ -961,7 +868,7 @@ public class PathPatternMatcherTests {
 		assertFalse(pattern.matches(path));
 	}
 
-	private void checkCapture(String uriTemplate, String path, String... keyValues) {
+	private Map<String,String> checkCapture(String uriTemplate, String path, String... keyValues) {
 		PathPatternParser parser = new PathPatternParser();
 		PathPattern pattern = parser.parse(uriTemplate);
 		Map<String, String> matchResults = pattern.matchAndExtract(path);
@@ -983,6 +890,14 @@ public class PathPatternMatcherTests {
 						+ "' but was '" + value + "'");
 			}
 		}
+		return capturedVariables;
+	}
+
+	private void checkExtractPathWithinPattern(String pattern, String path, String expected) {
+		PathPatternParser ppp = new PathPatternParser();
+		PathPattern pp = ppp.parse(pattern);
+		String s = pp.extractPathWithinPattern(path);
+		assertEquals(expected,s);
 	}
 
 }

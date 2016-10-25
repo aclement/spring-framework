@@ -40,6 +40,14 @@ public class PatternParseException extends RuntimeException {
 		this.inserts = inserts;
 	}
 
+	public PatternParseException(Throwable cause, int pos, char[] patternText, PatternMessage message, Object... inserts) {
+		super(message.formatMessage(inserts),cause);
+		this.pos = pos;
+		this.patternText = patternText;
+		this.message = message;
+		this.inserts = inserts;
+	}
+
 	/**
 	 * @return a formatted message with inserts applied
 	 */

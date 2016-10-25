@@ -42,6 +42,12 @@ class SeparatorPathElement extends PathElement {
 		boolean matched = false;
 		if (candidateIndex < matchingContext.candidateLength) {
 			if (matchingContext.candidate[candidateIndex] == separator) {
+				// Skip further separators in the path (they are all 'matched'
+				// by a single SeparatorPathElement)
+				while ((candidateIndex+1)<matchingContext.candidateLength &&
+						matchingContext.candidate[candidateIndex+1] == separator) {
+					candidateIndex++;
+				}
 				if (next == null) {
 					matched = ((candidateIndex + 1) == matchingContext.candidateLength);
 				} else {

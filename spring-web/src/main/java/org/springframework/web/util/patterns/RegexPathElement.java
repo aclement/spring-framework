@@ -91,7 +91,6 @@ class RegexPathElement extends PathElement {
 			end = matcher.end();
 		}
 		patternBuilder.append(quote(text, end, text.length()));
-		// if (DEBUG) System.out.println("Pattern out: "+patternBuilder.toString());
 		if (caseSensitive) {
 			pattern = java.util.regex.Pattern.compile(patternBuilder.toString());
 		} else {
@@ -145,9 +144,7 @@ class RegexPathElement extends PathElement {
 			for (int i = 1; i <= m.groupCount(); i++) {
 				String name = this.variableNames.get(i - 1);
 				String value = m.group(i);
-				System.out.println("Found " + name + " = " + value);
 				matchingContext.set(name, value);
-				// uriTemplateVariables.put(name, value);
 			}
 			// // Need to do capture - TODO less object creation please
 			//// matchingContext.set(key,matchingContext.candidateText.substring(candidateIndex,

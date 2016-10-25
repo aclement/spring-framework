@@ -104,10 +104,12 @@ public class PathPattern implements Comparable<PathPattern> {
 	 * @return true if the path matches this pattern
 	 */
 	public boolean matches(String path) {
-		MatchingContext matchingContext = new MatchingContext(path,false);
 		if (head == null) {
-			return (path.length() == 0);
+			return (path == null) || (path.length() == 0);
+		} else if (path == null || path.length() == 0) {
+			return false;
 		}
+		MatchingContext matchingContext = new MatchingContext(path,false);
 		return head.matches(0, matchingContext);
 	}
 	
@@ -116,11 +118,13 @@ public class PathPattern implements Comparable<PathPattern> {
 	 * @return true if the pattern matches as much of the path as is supplied
 	 */
 	public boolean matchStart(String path) {
+		if (head == null) {
+			return (path==null || path.length() == 0);
+		} else if (path == null || path.length() == 0) {
+			return true;
+		}
 		MatchingContext matchingContext = new MatchingContext(path,false);
 		matchingContext.setMatchStartMatching(true);
-		if (head == null) {
-			return (path.length() == 0);
-		}
 		return head.matches(0, matchingContext);
 	}
 
@@ -143,7 +147,11 @@ public class PathPattern implements Comparable<PathPattern> {
 				 return vars;
 			 }
 		} else {
-			return NO_VARIABLES_MAP;
+			if (path== null || path.length()==0) {
+				return NO_VARIABLES_MAP;
+			} else {
+				throw new IllegalStateException("Pattern \"" + this.toString() + "\" is not a match for \"" + path + "\"");
+			}
 		}
 	}
 
@@ -165,9 +173,10 @@ public class PathPattern implements Comparable<PathPattern> {
 	 * <li>'{@code /docs/cvs/*.html}' and '{@code /docs/cvs/commit.html} -> '{@code commit.html}'</li>
 	 * <li>'{@code /docs/**}' and '{@code /docs/cvs/commit} -> '{@code cvs/commit}'</li>
 	 * </ul>
-	 * <p>Assumes that {@link #matches} returns {@code true} for '{@code pattern}' and '{@code path}', but
+	 * <p><b>Note:</b> Assumes that {@link #matches} returns {@code true} for '{@code pattern}' and '{@code path}', but
 	 * does <strong>not</strong> enforce this. As per the contract on {@link PathMatcher}, this
-	 * method will trim leading/trailing separators.
+	 * method will trim leading/trailing separators. It will also remove duplicate separators in
+	 * the returned path.
 	 * @param path a path that matches this pattern
 	 * @return the subset of the path that is matched by pattern or "" if none of it is matched by pattern elements
 	 */	
@@ -175,6 +184,7 @@ public class PathPattern implements Comparable<PathPattern> {
 		// assert this.matches(path)
 		PathElement s = head;
 		int separatorCount = 0;
+		// Find first path element that is pattern based
 		while (s != null) {
 			if (s instanceof SeparatorPathElement) {
 				separatorCount++;
@@ -187,23 +197,51 @@ public class PathPattern implements Comparable<PathPattern> {
 		if (s == null) {
 			return ""; // There is no pattern mapped section
 		}
+		// Now separatorCount indicates how many sections of the path to skip
 		char[] pathChars = path.toCharArray();
 		int len = pathChars.length;
 		int pos = 0;
 		while (separatorCount > 0 && pos < len) {
 			if (path.charAt(pos++) == separator) {
+				// Skip any adjacent separators
+				while (path.charAt(pos) == separator) {
+					pos++;
+				}
 				separatorCount--;
 			}
 		}
 		int end = len;
-		if (pos!=0) {
-			// TODO some testcases specifically on this bit, using short and long strings
-			if (path.charAt(pos) == separator) {
-				pos++;
+		// Trim trailing separators
+		while (path.charAt(end-1) == separator) {
+			end--;
+		}
+		// Check if multiple separators embedded in the resulting path, if so trim them out.
+		// Example: aaa////bbb//ccc/d -> aaa/bbb/ccc/d
+		// The stringWithDuplicateSeparatorsRemoved is only computed if necessary
+		int c = pos;
+		StringBuilder stringWithDuplicateSeparatorsRemoved = null;
+		while (c<end) {
+			char ch = path.charAt(c);
+			if (ch == separator) {
+				if ((c+1)<end && path.charAt(c+1)==separator) {
+					// multiple separators
+					if (stringWithDuplicateSeparatorsRemoved == null) {
+						// first time seen, need to capture all data up to this point
+						stringWithDuplicateSeparatorsRemoved = new StringBuilder();
+						stringWithDuplicateSeparatorsRemoved.append(path.substring(pos,c));
+					}
+					do {
+						c++;						
+					} while ((c+1)<end && path.charAt(c+1)==separator);
+				}
 			}
-			if (path.charAt(end-1) == separator) {
-				end--;
+			if (stringWithDuplicateSeparatorsRemoved != null) {
+				stringWithDuplicateSeparatorsRemoved.append(ch);
 			}
+			c++;
+		}
+		if (stringWithDuplicateSeparatorsRemoved != null) {
+			return stringWithDuplicateSeparatorsRemoved.toString();
 		}
 		return pos == len ? "" : path.substring(pos,end);
 	}
@@ -261,10 +299,6 @@ public class PathPattern implements Comparable<PathPattern> {
 	 */
 	public int getNormalizedLength() {
 		return normalizedLength;
-	}
-
-	public boolean empty() {
-		return head == null;
 	}
 
 	public boolean equals(Object o) {
