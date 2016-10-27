@@ -16,30 +16,15 @@ package org.springframework.web.util.patterns;
  */
 
 
-import static org.junit.Assert.*;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.junit.Ignore;
 import org.junit.Test;
-import org.springframework.util.AntPathMatcher;
-import org.springframework.web.util.patterns.CaptureTheRestPathElement;
-import org.springframework.web.util.patterns.CaptureVariablePathElement;
-import org.springframework.web.util.patterns.PathElement;
-import org.springframework.web.util.patterns.PathPattern;
-import org.springframework.web.util.patterns.PathPatternComparator;
-import org.springframework.web.util.patterns.PathPatternParser;
-import org.springframework.web.util.patterns.PatternMessage;
-import org.springframework.web.util.patterns.PatternParseException;
-import org.springframework.web.util.patterns.RegexPathElement;
-import org.springframework.web.util.patterns.SeparatorPathElement;
-import org.springframework.web.util.patterns.SingleCharWildcardedPathElement;
-import org.springframework.web.util.patterns.WildcardPathElement;
+
+import static org.junit.Assert.*;
 
 /**
  * Exercise the {@link PathPatternParser}.

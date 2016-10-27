@@ -26,7 +26,6 @@ import java.util.Map;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.springframework.util.AntPathMatcher;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.*;
@@ -571,18 +570,7 @@ public class PathPatternMatcherTests {
 		exception.expectMessage(containsString("The number of capturing groups in the pattern"));
 		pathMatcher.matchAndExtract("/web/foobar_goo");
 	}
-
-	static class TestPathCombiner {
-
-		PathPatternParser pp = new PathPatternParser();
-
-		public String combine(String string1, String string2) {
-			PathPattern pattern1 = pp.parse(string1);
-			return pattern1.combine(string2);
-		}
-
-	}
-
+	
 	@Rule
 	public final ExpectedException exception = ExpectedException.none();
 
@@ -637,11 +625,6 @@ public class PathPatternMatcherTests {
 		TestPathCombiner pathMatcher = new TestPathCombiner();
 		exception.expect(IllegalArgumentException.class);
 		pathMatcher.combine("/*.html", "/*.txt");
-	}
-
-	private PathPattern parse(String path) {
-		PathPatternParser pp = new PathPatternParser();
-		return pp.parse(path);
 	}
 
 	@Test
@@ -838,7 +821,7 @@ public class PathPatternMatcherTests {
 		assertEquals("/*/login.*", paths.get(1).getPatternString());
 		paths.clear();
 	}
-
+	
 	@Test // SPR-13286
 	public void caseInsensitive() {
 		PathPatternParser pp = new PathPatternParser();
@@ -859,6 +842,11 @@ public class PathPatternMatcherTests {
 		}
 	}
 	
+	private PathPattern parse(String path) {
+		PathPatternParser pp = new PathPatternParser();
+		return pp.parse(path);
+	}
+
 	private char separator = PathPatternParser.DEFAULT_SEPARATOR;
 
 	private void checkMatches(String uriTemplate, String path) {
@@ -916,6 +904,17 @@ public class PathPatternMatcherTests {
 		PathPattern pp = ppp.parse(pattern);
 		String s = pp.extractPathWithinPattern(path);
 		assertEquals(expected,s);
+	}
+
+	static class TestPathCombiner {
+
+		PathPatternParser pp = new PathPatternParser();
+
+		public String combine(String string1, String string2) {
+			PathPattern pattern1 = pp.parse(string1);
+			return pattern1.combine(string2);
+		}
+
 	}
 
 }
