@@ -132,8 +132,7 @@ public class PathPatternParser {
 					pos++;
 				}
 				if (peekDoubleWildcard()) {
-					pushPathElement(new SeparatorPathElement(pos, separator));
-					pushPathElement(new WildcardTheRestPathElement(pos+1));
+					pushPathElement(new WildcardTheRestPathElement(pos,separator));
 					pos+=2;
 				} else {
 					pushPathElement(new SeparatorPathElement(pos, separator));
@@ -259,12 +258,35 @@ public class PathPatternParser {
 	 * @param newPathElement the new path element to add to the chain being built
 	 */
 	private void pushPathElement(PathElement newPathElement) {
-		if (headPE == null) {
-			headPE = newPathElement;
-			currentPE = newPathElement;
+		if (newPathElement instanceof CaptureTheRestPathElement) {
+			// There must be a separator ahead of this thing
+			// currentPE SHOULD be a SeparatorPathElement
+			if (currentPE == null) {
+				headPE = newPathElement;
+				currentPE = newPathElement;
+			} else if (currentPE instanceof SeparatorPathElement) {
+				PathElement peBeforeSeparator = currentPE.prev;
+				if (peBeforeSeparator == null) {
+					// /{*foobar} is at the start
+					headPE = newPathElement;
+					newPathElement.prev = peBeforeSeparator;
+				} else {
+					peBeforeSeparator.next = newPathElement;
+					newPathElement.prev = peBeforeSeparator;
+				}
+				currentPE = newPathElement;
+			} else {
+				throw new IllegalStateException("Expected SeparatorPathElement but was "+currentPE);
+			}
 		} else {
-			currentPE.next = newPathElement;
-			currentPE = currentPE.next;
+			if (headPE == null) {
+				headPE = newPathElement;
+				currentPE = newPathElement;
+			} else {
+				currentPE.next = newPathElement;
+				newPathElement.prev = currentPE;
+				currentPE = newPathElement;
+			}
 		}
 		resetPathElementState();
 	}
@@ -284,8 +306,8 @@ public class PathPatternParser {
 		if (variableCaptureCount > 0) {
 			if (variableCaptureCount == 1 && pathElementStart == variableCaptureStart && pathPatternData[pos - 1] == '}') {
 				if (isCaptureTheRestVariable) {
-					// It is {*....} 
-					newPE = new CaptureTheRestPathElement(pathElementStart, pathElementText);
+					// It is {*....}
+					newPE = new CaptureTheRestPathElement(pathElementStart, pathElementText, separator);
 				} else {
 					// It is a full capture of this element (possibly with constraint), for example: /foo/{abc}/
 					try {
@@ -296,6 +318,9 @@ public class PathPatternParser {
 					recordCapturedVariable(pathElementStart, ((CaptureVariablePathElement) newPE).getVariableName());
 				}
 			} else {
+				if (isCaptureTheRestVariable) {
+					throw new PatternParseException(pathElementStart, pathPatternData, PatternMessage.CAPTURE_ALL_IS_STANDALONE_CONSTRUCT);
+				}
 				RegexPathElement newRegexSection = new RegexPathElement(pathElementStart, pathElementText, caseSensitive, pathPatternData);
 				for (String variableName : newRegexSection.getVariableNames()) {
 					recordCapturedVariable(pathElementStart, variableName);

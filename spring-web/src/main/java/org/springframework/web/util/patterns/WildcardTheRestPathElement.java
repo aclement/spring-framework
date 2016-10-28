@@ -19,14 +19,17 @@ import org.springframework.web.util.patterns.PathPattern.MatchingContext;
 
 /**
  * A path element representing wildcarding the rest of a path. In the pattern
- * '/foo/**' the ** is represented as a {@link WildcardTheRestPathElement}.
+ * '/foo/**' the /** is represented as a {@link WildcardTheRestPathElement}.
  * 
  * @author Andy Clement
  */
 class WildcardTheRestPathElement extends PathElement {
 
-	WildcardTheRestPathElement(int pos) {
+	private char separator;
+	
+	WildcardTheRestPathElement(int pos, char separator) {
 		super(pos);
+		this.separator = separator;
 	}
 
 	@Override
@@ -35,7 +38,7 @@ class WildcardTheRestPathElement extends PathElement {
 	}
 
 	public String toString() {
-		return "WildcardTheRest(**)";
+		return "WildcardTheRest(/**)";
 	}
 
 	@Override

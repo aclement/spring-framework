@@ -37,6 +37,11 @@ abstract class PathElement {
 	 * The next path element in the chain
 	 */
 	protected PathElement next;
+	
+	/**
+	 * The previous path element in the chain
+	 */
+	protected PathElement prev;
 
 	/**
 	 * Create a new path element.

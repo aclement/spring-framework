@@ -19,21 +19,25 @@ import org.springframework.web.util.patterns.PathPattern.MatchingContext;
 
 /**
  * A path element representing capturing the rest of a path. In the pattern
- * '/foo/{*foobar}' the {*foobar} is represented as a {@link CaptureTheRestPathElement}.
+ * '/foo/{*foobar}' the /{*foobar} is represented as a {@link CaptureTheRestPathElement}.
  * 
  * @author Andy Clement
  */
 class CaptureTheRestPathElement extends PathElement {
 
 	private String variableName;
+	
+	private char separator;
 
 	/**
 	 * @param pos
 	 * @param captureDescriptor a character array containing contents like '{' '*' 'a' 'b' '}'
+	 * @param separator the separator ahead of this construct
 	 */
-	CaptureTheRestPathElement(int pos, char[] captureDescriptor) {
+	CaptureTheRestPathElement(int pos, char[] captureDescriptor, char separator) {
 		super(pos);
 		variableName = new String(captureDescriptor, 2, captureDescriptor.length - 3);
+		this.separator = separator;
 	}
 
 	@Override
@@ -41,6 +45,10 @@ class CaptureTheRestPathElement extends PathElement {
 		// No need to handle 'match start' checking as this captures everything
 		// anyway and cannot be followed by anything else
 		// assert next == null
+		while ((candidateIndex+1)<matchingContext.candidateLength &&
+				matchingContext.candidate[candidateIndex+1] == separator) {
+			candidateIndex++;
+		}
 		if (matchingContext.extractingVariables) {
 			matchingContext.set(variableName, new String(matchingContext.candidate, candidateIndex,
 					matchingContext.candidateLength - candidateIndex));
@@ -49,7 +57,7 @@ class CaptureTheRestPathElement extends PathElement {
 	}
 
 	public String toString() {
-		return "CaptureTheRest({*" + variableName + "})";
+		return "CaptureTheRest(/{*" + variableName + "})";
 	}
 
 	@Override

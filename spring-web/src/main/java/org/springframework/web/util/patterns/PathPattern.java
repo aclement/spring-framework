@@ -107,7 +107,11 @@ public class PathPattern implements Comparable<PathPattern> {
 		if (head == null) {
 			return (path == null) || (path.length() == 0);
 		} else if (path == null || path.length() == 0) {
-			return false;
+			if (head instanceof WildcardTheRestPathElement || head instanceof CaptureTheRestPathElement) {
+				path = ""; // Will allow CaptureTheRest to bind the variable to empty
+			} else {
+				return false;
+			}
 		}
 		MatchingContext matchingContext = new MatchingContext(path,false);
 		return head.matches(0, matchingContext);
@@ -186,7 +190,7 @@ public class PathPattern implements Comparable<PathPattern> {
 		int separatorCount = 0;
 		// Find first path element that is pattern based
 		while (s != null) {
-			if (s instanceof SeparatorPathElement) {
+			if (s instanceof SeparatorPathElement || s instanceof CaptureTheRestPathElement || s instanceof WildcardTheRestPathElement) {
 				separatorCount++;
 			}
 			if (s.getWildcardCount()!=0 || s.getCaptureCount()!=0) {
@@ -441,7 +445,7 @@ public class PathPattern implements Comparable<PathPattern> {
 		// /*.html + /hotel.* => /hotel.html
 		String firstExtension = patternString.substring(starDotPos1+1); // looking for the first extension
 		int dotPos2 = pattern2string.indexOf('.');
-		String file2 = (dotPos2==-1?pattern2string:pattern2string.substring(0,dotPos2)); // TODO What about multiple dots?
+		String file2 = (dotPos2==-1?pattern2string:pattern2string.substring(0,dotPos2));
 		String secondExtension = (dotPos2 == -1?"":pattern2string.substring(dotPos2));
 		boolean firstExtensionWild = (firstExtension.equals(".*") || firstExtension.equals(""));
 		boolean secondExtensionWild = (secondExtension.equals(".*") || secondExtension.equals(""));

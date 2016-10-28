@@ -56,36 +56,38 @@ public class PathPatternParserTests {
 	@Test
 	public void multiwildcardPattern() {
 		p = checkStructure("/**");
-		assertPathElements(p,SeparatorPathElement.class,WildcardTheRestPathElement.class);
+		assertPathElements(p,WildcardTheRestPathElement.class);
 		p = checkStructure("/**acb"); // this is not double wildcard use, it is / then **acb (an odd, unnecessary use of double *)
 		assertPathElements(p,SeparatorPathElement.class, RegexPathElement.class);
 	}
 	
 	@Test
 	public void toStringTests() {
-		assertEquals("Separator(/) CaptureTheRest({*foobar})", checkStructure("/{*foobar}").toChainString());
+		assertEquals("CaptureTheRest(/{*foobar})", checkStructure("/{*foobar}").toChainString());
 		assertEquals("CaptureVariable({foobar})", checkStructure("{foobar}").toChainString());
 		assertEquals("Literal(abc)", checkStructure("abc").toChainString());
 		assertEquals("Regex({a}_*_{b})", checkStructure("{a}_*_{b}").toChainString());
 		assertEquals("Separator(/)", checkStructure("/").toChainString());
 		assertEquals("SingleCharWildcarding(?a?b?c)", checkStructure("?a?b?c").toChainString());
 		assertEquals("Wildcard(*)", checkStructure("*").toChainString());
-		assertEquals("Separator(/) WildcardTheRest(**)", checkStructure("/**").toChainString());
+		assertEquals("WildcardTheRest(/**)", checkStructure("/**").toChainString());
 	}
 	
 	@Test
 	public void captureTheRestPatterns() {
 		checkError("/{*foobar}x{abc}", 10, PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
 		p = checkStructure("{*foobar}");
-		assertPathElements(p	, CaptureTheRestPathElement.class);
+		assertPathElements(p, CaptureTheRestPathElement.class);
 		p = checkStructure("/{*foobar}");
-		assertPathElements(p	, SeparatorPathElement.class, CaptureTheRestPathElement.class);
+		assertPathElements(p, CaptureTheRestPathElement.class);
 		checkError("/{*foobar}/", 10, PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
 		checkError("/{*foobar}abc", 10, PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
 		checkError("/{*f%obar}", 4, PatternMessage.ILLEGAL_CHARACTER_IN_CAPTURE_DESCRIPTOR);
 		checkError("/{*foobar}abc",10,PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
 		checkError("/{f*oobar}",3,PatternMessage.ILLEGAL_CHARACTER_IN_CAPTURE_DESCRIPTOR);
 		checkError("/{*foobar}/abc",10,PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
+		checkError("/{abc}{*foobar}",1,PatternMessage.CAPTURE_ALL_IS_STANDALONE_CONSTRUCT);
+		checkError("/{abc}{*foobar}{foo}",15,PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
 	}
 	
 	@Test
@@ -252,6 +254,7 @@ public class PathPatternParserTests {
 		assertEquals(1,parse("{foo}").getCapturedVariableCount());
 		assertEquals(0,parse("foo").getCapturedVariableCount());
 		assertEquals(1,parse("{*foobar}").getCapturedVariableCount());
+		assertEquals(1,parse("/{*foobar}").getCapturedVariableCount());
 		assertEquals(0,parse("/**").getCapturedVariableCount());
 		assertEquals(1,parse("{abc}asdf").getCapturedVariableCount());
 		assertEquals(1,parse("{abc}_*").getCapturedVariableCount());
@@ -299,9 +302,8 @@ public class PathPatternParserTests {
 		assertPathElements(p,SeparatorPathElement.class, LiteralPathElement.class, 
 				SeparatorPathElement.class, LiteralPathElement.class, SeparatorPathElement.class, LiteralPathElement.class);
 		p = checkStructure("/////**");
-		System.out.println(p.toChainString());
-		assertEquals(2,p.getNormalizedLength());
-		assertPathElements(p,SeparatorPathElement.class,WildcardTheRestPathElement.class);
+		assertEquals(1,p.getNormalizedLength());
+		assertPathElements(p,WildcardTheRestPathElement.class);
 	}
 
 	@Ignore
@@ -316,7 +318,8 @@ public class PathPatternParserTests {
 		assertEquals(1,parse("{foo}").getNormalizedLength());
 		assertEquals(3,parse("foo").getNormalizedLength());
 		assertEquals(1,parse("{*foobar}").getNormalizedLength());
-//		assertEquals(3,parse("/**").getNormalizedLength());
+		assertEquals(1,parse("/{*foobar}").getNormalizedLength());
+		assertEquals(1,parse("/**").getNormalizedLength());
 		assertEquals(5,parse("{abc}asdf").getNormalizedLength());
 		assertEquals(3,parse("{abc}_*").getNormalizedLength());
 		assertEquals(3,parse("{abc}_{def}").getNormalizedLength());
@@ -439,7 +442,7 @@ public class PathPatternParserTests {
 			p = parse(pattern);
 			fail("Expected to fail");
 		} catch (PatternParseException ppe) {
-//			System.out.println(ppe.toDetailedString());
+			System.out.println(ppe.toDetailedString());
 			assertEquals(ppe.toDetailedString(), expectedPos, ppe.getPosition());
 			assertEquals(ppe.toDetailedString(), expectedMessage, ppe.getMessageType());
 			if (expectedInserts.length!=0) {

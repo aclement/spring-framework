@@ -35,11 +35,14 @@ import static org.junit.Assert.*;
 // TODO Escaped separators in path patterns (and paths)
 // TODO when using /{*foobar} is the leading / part of the captured variable value?
 // TODO is "{*foobar}" an allowed construct? Or must it always include the leading /? In that case must the / match?
-// TODO the AntPathMatcher extractPathWithinPattern will trim groups of / in the answer, need to do that
 // TODO verify all state reset in PatternParser.parse()
 // TODO can {*foobar} have a regex? if it can, can that regex include / chars?
 // TODO how to deal with escaped characters in regex constraint expressions?
 // TODO For combine is /a/b/c/*.html + /d/e/f/hotel.* = /d/e/f/hotel.html ?
+// TODO the old comparator could return numbers higher than 1??
+// TODO Handling assertEquals(2, comparator.compare(parse("/hotels/{hotel}"), parse("/hotels/{hotel}.*"))); - should the '.*' trailing sequence be considered 'special'
+// TODO Handling assertEquals("/d/e/f/hotel.html", pathMatcher.combine("/a/b/c/*.html", "/d/e/f/hotel.*")); - is that true? There is a test for it that passes right now
+// TODO multiple dots in patterns passed to combine
 
 /**
  * Exercise matching of {@link PathPattern} objects.
@@ -89,10 +92,15 @@ public class PathPatternMatcherTests {
 
 	@Test
 	public void captureTheRest() {
-		checkCapture("/customer/{*something}", "/customer/99", "something", "99");
+		checkCapture("/customer/{*something}", "/customer/99", "something", "/99");
 		checkCapture("/customer/{*something}", "/customer/aa/bb/cc", "something",
-				"aa/bb/cc");
-		checkCapture("/customer/{*something}", "/customer/", "something", "");
+				"/aa/bb/cc");
+		checkCapture("/customer/{*something}", "/customer/", "something", "/");
+		checkCapture("/customer/////{*something}", "/customer/", "something", "/");
+		checkCapture("/customer/{*something}", "/customer//////99", "something", "/99");
+		checkCapture("/customer///{*something}", "/customer//////99", "something", "/99");
+		checkCapture("/customer/{*something}", "/customer", "something", "");
+		checkCapture("/{*something}", "", "something", "");
 	}
 
 	@Test
@@ -201,6 +209,10 @@ public class PathPatternMatcherTests {
 		checkMatches("/a/??", "/a/bb");
 		checkMatches("/?", "/a");
 
+		checkMatches("/**", "");
+		checkMatches("/books/**", "/books");
+		checkMatches("/books////**", "/books");
+		checkMatches("/books////**", "/books////");
 		checkMatches("/**", "/testing/testing");
 		checkMatches("/*/**", "/testing/testing");
 		checkMatches("/bla*bla/test", "/blaXXXbla/test");
@@ -596,9 +608,7 @@ public class PathPatternMatcherTests {
 		assertEquals("/hotel.html", pathMatcher.combine("/*.html", "/hotel.html"));
 		assertEquals("/hotel.html", pathMatcher.combine("/*.html", "/hotel"));
 		assertEquals("/hotel.html", pathMatcher.combine("/*.html", "/hotel.*"));
-		// TODO surely this is bogus?
-		assertEquals("/d/e/f/hotel.html",
-				pathMatcher.combine("/a/b/c/*.html", "/d/e/f/hotel.*"));
+		assertEquals("/d/e/f/hotel.html", pathMatcher.combine("/a/b/c/*.html", "/d/e/f/hotel.*"));
 		assertEquals("/*.html", pathMatcher.combine("/**", "/*.html"));
 		assertEquals("/*.html", pathMatcher.combine("/*", "/*.html"));
 		assertEquals("/*.html", pathMatcher.combine("/*.*", "/*.html"));
@@ -631,7 +641,6 @@ public class PathPatternMatcherTests {
 	public void patternComparator() {
 		Comparator<PathPattern> comparator = new PatternComparatorConsideringPath(
 				"/hotels/new");
-		// pathMatcher.getPatternComparator("/hotels/new");
 
 		assertEquals(0, comparator.compare(null, null));
 		assertEquals(1, comparator.compare(null, parse("/hotels/new")));
@@ -654,7 +663,6 @@ public class PathPatternMatcherTests {
 		assertEquals(1, comparator.compare(parse("/hotels/{hotel}/bookings/{booking}"),
 				parse("/hotels/{hotel}/booking")));
 
-		// SPR-10550 - TODO if ditching /** can ignore this
 		assertEquals(-1,
 				comparator.compare(
 						parse("/hotels/{hotel}/bookings/{booking}/cutomers/{customer}"),
@@ -673,9 +681,7 @@ public class PathPatternMatcherTests {
 		assertEquals(-1,
 				comparator.compare(parse("/hotels/new"), parse("/hotels/new.*")));
 
-		// TODO ?? 2s
-		// assertEquals(2, comparator.compare(parse("/hotels/{hotel}"),
-		// parse("/hotels/{hotel}.*")));
+		// assertEquals(2, comparator.compare(parse("/hotels/{hotel}"), parse("/hotels/{hotel}.*")));
 
 		// SPR-6741
 		assertEquals(-1,
@@ -688,11 +694,6 @@ public class PathPatternMatcherTests {
 				parse("/hotels/{hotel}")));
 		assertEquals(-1, comparator.compare(parse("/hotels/{hotel}"),
 				parse("/hotels/foo/bar/**")));
-		// TODO ?? 2s
-		// assertEquals(2, comparator.compare(parse("/hotels/**/bookings/**"),
-		// parse("/hotels/**")));
-		// assertEquals(-2, comparator.compare(parse("/hotels/**"),
-		// parse("/hotels/**/bookings/**")));
 
 		// SPR-8683
 		assertEquals(1, comparator.compare(parse("/**"), parse("/hotels/{hotel}")));
@@ -800,9 +801,7 @@ public class PathPatternMatcherTests {
 		assertEquals("/hotels/n*", paths.get(1).getPatternString());
 		paths.clear();
 
-		// TODO why is .* a single wildcard and ** a double wildcard, what is just a * ?
-		// comparator = new
-		// PatternComparatorConsideringPath("/hotels/new.html");//.getPatternComparator("/hotels/new.html");
+		// comparator = new PatternComparatorConsideringPath("/hotels/new.html");
 		// paths.add(pp.parse("/hotels/new.*"));
 		// paths.add(pp.parse("/hotels/{hotel}"));
 		// Collections.shuffle(paths);
@@ -811,9 +810,7 @@ public class PathPatternMatcherTests {
 		// assertEquals("/hotels/{hotel}", paths.get(1).toPatternString());
 		// paths.clear();
 
-		comparator = new PatternComparatorConsideringPath(
-				"/web/endUser/action/login.html");
-		// pathMatcher.getPatternComparator("/web/endUser/action/login.html");
+		comparator = new PatternComparatorConsideringPath("/web/endUser/action/login.html");
 		paths.add(pp.parse("/*/login.*"));
 		paths.add(pp.parse("/*/endUser/action/login.*"));
 		Collections.sort(paths, comparator);
