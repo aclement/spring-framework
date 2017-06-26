@@ -175,7 +175,8 @@ public class PathPattern implements Comparable<PathPattern> {
 	 */
 	public boolean matches(PathSegmentContainer pathSegmentContainer) {
 		if (this.head == null) { 
-			return pathSegmentContainer.pathSegments().size() == 0 && (this.startsWithSep?pathSegmentContainer.isAbsolute():true);
+			return pathSegmentContainer == null || (pathSegmentContainer.pathSegments().size() == 0 && 
+				(this.startsWithSep?pathSegmentContainer.isAbsolute():true));
 		}
 		else if ((pathSegmentContainer.isAbsolute() ^ this.startsWithSep) && !isPathElementStartingWithSeparator(this.head)) {
 			return false;
