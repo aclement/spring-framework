@@ -16,6 +16,7 @@
 
 package org.springframework.web.util.pattern;
 
+import org.springframework.http.server.reactive.PathSegment;
 import org.springframework.web.util.pattern.PathPattern.MatchingContext;
 
 /**
@@ -56,68 +57,46 @@ class SingleCharWildcardedPathElement extends PathElement {
 
 
 	@Override
-	public boolean matches(int candidateIndex, MatchingContext matchingContext) {
-		if (matchingContext.candidateLength < (candidateIndex + len)) {
-			return false;  // there isn't enough data to match
+	public boolean matches(int segmentIndex, MatchingContext matchingContext) {
+		if (segmentIndex >= matchingContext.pathSegmentCount) {
+			return false; // there are no more path segments to match this PathElement
 		}
-
-		char[] candidate = matchingContext.candidate;
+		PathSegment pathSegment = matchingContext.pathSegments.get(segmentIndex);
+		if (len != pathSegment.valueDecoded().length()) {
+			return false; // the next path segment doesn't have enough data to match this PathElement
+		}
+		char[] data = pathSegment.valueDecoded().toCharArray();
 		if (this.caseSensitive) {
 			for (int i = 0; i <this.len; i++) {
 				char t = this.text[i];
-				if (t == '?') {
-					if (candidate[candidateIndex] == '%') {
-						// encoded value, skip next two as well!
-						candidateIndex += 2;
-					}
+				if ((t != '?') && (data[i] != t)) {
+					return false;
 				}
-				else if (candidate[candidateIndex] != t) {
-					// TODO unfortunate performance hit here on comparison when encoded data is the less likely case
-					if (i < 3 || matchingContext.candidate[candidateIndex-2] != '%' ||
-							Character.toUpperCase(matchingContext.candidate[candidateIndex]) != this.text[i]) {
-						return false;
-					}
-				}
-				candidateIndex++;
 			}
 		}
 		else {
 			for (int i = 0; i < this.len; i++) {
 				char t = this.text[i];
-				if (t == '?') {
-					if (candidate[candidateIndex] == '%') {
-						// encoded value, skip next two as well!
-						candidateIndex += 2;
-					}
-				}
-				else if (Character.toLowerCase(candidate[candidateIndex]) != t) {
+				if ((t != '?') && Character.toLowerCase(data[i]) != t) {
 					return false;
 				}
-				candidateIndex++;
 			}
 		}
 
-		if (this.next == null) {
-			if (matchingContext.determineRemainingPath && nextIfExistsIsSeparator(candidateIndex, matchingContext)) {
-				matchingContext.remainingPathIndex = candidateIndex;
+		if (isNoMorePattern()) {
+			if (matchingContext.determineRemainingPath) {
+				matchingContext.remainingPathIndex = segmentIndex + 1;
 				return true;
 			}
 			else {
-				if (candidateIndex == matchingContext.candidateLength) {
-					return true;
-				}
-				else {
-					return (matchingContext.isAllowOptionalTrailingSlash() &&
-							(candidateIndex + 1) == matchingContext.candidateLength &&
-							matchingContext.candidate[candidateIndex] == separator);
-				}
+				return verifyEndOfPath(segmentIndex + 1, matchingContext);
 			}
 		}
 		else {
-			if (matchingContext.isMatchStartMatching && candidateIndex == matchingContext.candidateLength) {
+			if (matchingContext.isMatchStartMatching && noMoreData(segmentIndex + 1, matchingContext)) {
 				return true;  // no more data but matches up to this point
 			}
-			return this.next.matches(candidateIndex, matchingContext);
+			return this.next.matches(segmentIndex + 1, matchingContext);
 		}
 	}
 
@@ -131,9 +110,13 @@ class SingleCharWildcardedPathElement extends PathElement {
 		return len;
 	}
 
-
 	public String toString() {
 		return "SingleCharWildcarded(" + String.valueOf(this.text) + ")";
+	}
+
+	@Override
+	public char[] getText() {
+		return this.text;
 	}
 
 }

@@ -200,6 +200,7 @@ class DefaultPathSegmentContainer implements PathSegmentContainer {
 			return EMPTY_PATH;
 		}
 
+		// This is not always true in the case of foo/  where you want the trailing slash
 		Assert.isTrue(fromIndex < toIndex, "fromIndex: " + fromIndex + " should be < toIndex " + toIndex);
 		Assert.isTrue(fromIndex >= 0 && fromIndex < segments.size(), "Invalid fromIndex: " + fromIndex);
 		Assert.isTrue(toIndex >= 0 && toIndex <= segments.size(), "Invalid toIndex: " + toIndex);

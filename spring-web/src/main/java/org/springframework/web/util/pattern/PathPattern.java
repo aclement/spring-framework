@@ -16,11 +16,16 @@
 
 package org.springframework.web.util.pattern;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.server.reactive.PathSegment;
+import org.springframework.http.server.reactive.PathSegmentContainer;
 import org.springframework.lang.Nullable;
+import org.springframework.util.MultiValueMap;
 import org.springframework.util.PathMatcher;
 import org.springframework.util.StringUtils;
 
@@ -63,9 +68,12 @@ import org.springframework.util.StringUtils;
  */
 public class PathPattern implements Comparable<PathPattern> {
 
+	/** The parser used to construct this pattern */
+	private PathPatternParser parser;
+	
 	/** First path element in the parsed chain of path elements for this pattern */
 	private PathElement head;
-
+	
 	/** The text of the parsed pattern */
 	private String patternString;
 
@@ -106,19 +114,27 @@ public class PathPattern implements Comparable<PathPattern> {
 
 	/** Does the pattern end with {*...} */
 	private boolean catchAll = false;
+	
+	boolean startsWithSep, endsWithSep;
 
 
-	PathPattern(String patternText, PathElement head, char separator, boolean caseSensitive,
+	PathPattern(String patternText, PathPatternParser parser, PathElement head, char separator, boolean caseSensitive,
+			boolean startsWithSep, boolean endsWithSep,
 			boolean allowOptionalTrailingSlash) {
 
+		this.parser = parser;
 		this.patternString = patternText;
 		this.head = head;
 		this.separator = separator;
+		this.startsWithSep = startsWithSep;
+		this.endsWithSep = endsWithSep;
 		this.caseSensitive = caseSensitive;
 		this.allowOptionalTrailingSlash = allowOptionalTrailingSlash;
 
+		this.normalizedLength = (this.startsWithSep && !isPathElementStartingWithSeparator(head))?1:0;
 		// Compute fields for fast comparison
 		PathElement elem = head;
+		int counter = 0;
 		while (elem != null) {
 			this.capturedVariableCount += elem.getCaptureCount();
 			this.normalizedLength += elem.getNormalizedLength();
@@ -126,12 +142,18 @@ public class PathPattern implements Comparable<PathPattern> {
 			if (elem instanceof CaptureTheRestPathElement || elem instanceof WildcardTheRestPathElement) {
 				this.catchAll = true;
 			}
-			if (elem instanceof SeparatorPathElement && elem.next != null &&
+			if ((counter>0 || (counter == 0 && startsWithSep)) && elem.next != null &&
 					elem.next instanceof WildcardPathElement && elem.next.next == null) {
 				this.endsWithSeparatorWildcard = true;
 			}
 			elem = elem.next;
+			if (elem != null && !isPathElementStartingWithSeparator(elem)) {
+				// Between elements is an implied separator
+				this.normalizedLength++;
+			}
+			counter++;
 		}
+		this.normalizedLength+=this.endsWithSep?1:0;
 	}
 
 
@@ -146,75 +168,135 @@ public class PathPattern implements Comparable<PathPattern> {
 		return this.head;
 	}
 
-
 	/**
 	 * @param path the candidate path to attempt to match against this pattern
 	 * @return true if the path matches this pattern
 	 */
-	public boolean matches(String path) {
-		if (this.head == null) {
-			return !StringUtils.hasLength(path);
+	public boolean matches(PathSegmentContainer pathSegmentContainer) {
+		if (this.head == null) { 
+			return pathSegmentContainer.pathSegments().size() == 0 && (this.startsWithSep?pathSegmentContainer.isAbsolute():true);
 		}
-		else if (!StringUtils.hasLength(path)) {
-			if (this.head instanceof WildcardTheRestPathElement || this.head instanceof CaptureTheRestPathElement) {
-				path = ""; // Will allow CaptureTheRest to bind the variable to empty
-			}
-			else {
-				return false;
-			}
+		else if ((pathSegmentContainer.isAbsolute() ^ this.startsWithSep) && !isPathElementStartingWithSeparator(this.head)) {
+			return false;
 		}
-		MatchingContext matchingContext = new MatchingContext(path, false);
+		MatchingContext matchingContext = new MatchingContext(pathSegmentContainer, false);
+		matchingContext.pp = this;
 		return this.head.matches(0, matchingContext);
 	}
+	
+	private final static PathSegmentContainer EMPTY_PATH_SEGMENT_CONTAINER = PathSegmentContainer.parse("", StandardCharsets.UTF_8);
+
+	private final static PathSegmentContainer SEPARATOR_PATH_SEGMENT_CONTAINER = PathSegmentContainer.parse("/", StandardCharsets.UTF_8);
 
 	/**
 	 * For a given path return the remaining piece that is not covered by this PathPattern.
-	 * @param path a path that may or may not match this path pattern
+	 * @param pathSegmentContainer a path that may or may not match this path pattern
 	 * @return a {@link PathRemainingMatchInfo} describing the match result,
 	 * or {@code null} if the path does not match this pattern
 	 */
 	@Nullable
-	public PathRemainingMatchInfo getPathRemaining(String path) {
+	public PathRemainingMatchInfo getPathRemaining(PathSegmentContainer pathSegmentContainer) {
 		if (this.head == null) {
-			return new PathRemainingMatchInfo(path);
+			if (this.startsWithSep) {
+				if (pathSegmentContainer.isAbsolute()) {
+					// TODO urgh performance with all this rebuilding of stuff we already know
+					return new PathRemainingMatchInfo(PathSegmentContainer.parse(pathSegmentContainer.value().substring(1), StandardCharsets.UTF_8));
+				}
+				else {
+					return null;
+				}
+			}
+			else {
+				return new PathRemainingMatchInfo(pathSegmentContainer);
+			}
 		}
-		else if (!StringUtils.hasLength(path)) {
+		else if (!hasLength(pathSegmentContainer)) {
 			return null;
 		}
 
-		MatchingContext matchingContext = new MatchingContext(path, true);
+		MatchingContext matchingContext = new MatchingContext(pathSegmentContainer, true);
 		matchingContext.setMatchAllowExtraPath();
+		matchingContext.pp = this;
 		boolean matches = this.head.matches(0, matchingContext);
 		if (!matches) {
 			return null;
 		}
 		else {
 			PathRemainingMatchInfo info;
-			if (matchingContext.remainingPathIndex == path.length()) {
-				info = new PathRemainingMatchInfo("", matchingContext.getExtractedVariables());
+			if (matchingContext.remainingPathIndex >= matchingContext.pathSegmentCount) {
+				// don't want data but want trailing slash
+				if (matchingContext.candidate.hasTrailingSlash()) {
+					info = new PathRemainingMatchInfo(SEPARATOR_PATH_SEGMENT_CONTAINER, matchingContext.getExtractedVariables());
+				}
+				else {
+					info = new PathRemainingMatchInfo(EMPTY_PATH_SEGMENT_CONTAINER, matchingContext.getExtractedVariables());					
+				}
 			}
 			else {
-				info = new PathRemainingMatchInfo(path.substring(matchingContext.remainingPathIndex),
+			// TODO reactivate if detect leading/trailing slashes too...
+//			if (matchingContext.remainingPathIndex == pathSegmentContainer.pathSegments().size()) {
+//				// TODO move to constant
+//				info = new PathRemainingMatchInfo(PathSegmentContainer.parse("", StandardCharsets.UTF_8), matchingContext.getExtractedVariables());
+//			}
+//			else {
+				String pathRemaining = PathSegmentContainer.subPath(pathSegmentContainer,matchingContext.remainingPathIndex).value();
+				// For /foo// against /foo///bar need to cope with removing enough separators. Before this change pathRemaining=//bar
+				if (pathRemaining.startsWith("/") && this.endsWithSep) {
+					pathRemaining = pathRemaining.substring(1);
+				}
+				info = new PathRemainingMatchInfo(PathSegmentContainer.parse(pathRemaining, StandardCharsets.UTF_8),
 						 matchingContext.getExtractedVariables());
 			}
+//			}
 			return info;
 		}
 	}
 
+	private boolean obviouslyDifferent(PathSegmentContainer pathSegmentContainer) {
+		if (this.head == null) {
+			if (pathSegmentContainer.pathSegments().size() != 0) {
+				return true;
+			}
+			return (this.startsWithSep ^ pathSegmentContainer.isAbsolute());
+		}
+		else {
+			if (pathSegmentContainer.pathSegments().size() == 0 ) {
+				return true;
+			}
+			if ((this.startsWithSep || isPathElementStartingWithSeparator(this.head))) {
+				if (!pathSegmentContainer.isAbsolute()) {
+					return true;
+				}
+			}
+			else if (pathSegmentContainer.isAbsolute()) {
+				return true;
+			}
+		}
+		return false;
+	}
 	/**
 	 * @param path the path to check against the pattern
 	 * @return true if the pattern matches as much of the path as is supplied
 	 */
-	public boolean matchStart(String path) {
+	public boolean matchStart(PathSegmentContainer pathSegmentContainer) {
 		if (this.head == null) {
-			return !StringUtils.hasLength(path);
+			return !hasLength(pathSegmentContainer);
 		}
-		else if (!StringUtils.hasLength(path)) {
+		else if (!hasLength(pathSegmentContainer)) {
 			return true;
 		}
-		MatchingContext matchingContext = new MatchingContext(path, false);
+		// TODO not right, because 'match start' doesn't require the pathSegmentContainer contain as much data as this pathpattern
+		if (obviouslyDifferent(pathSegmentContainer)) {
+			return false;
+		}
+		MatchingContext matchingContext = new MatchingContext(pathSegmentContainer, false);
 		matchingContext.setMatchStartMatching(true);
+		matchingContext.pp = this;
 		return this.head.matches(0, matchingContext);
+	}
+	
+	private boolean isPathElementStartingWithSeparator(PathElement pe) {
+		return (pe instanceof SeparatorPathElement || pe instanceof WildcardTheRestPathElement || pe instanceof CaptureTheRestPathElement);
 	}
 
 	/**
@@ -222,17 +304,73 @@ public class PathPattern implements Comparable<PathPattern> {
 	 * @return a map of extracted variables - an empty map if no variables extracted. 
 	 * @throws IllegalStateException if the path does not match the pattern
 	 */
-	public Map<String, String> matchAndExtract(String path) {
+	public Map<String, PathMatchResult> matchAndExtract(PathSegmentContainer path) {
 		MatchingContext matchingContext = new MatchingContext(path, true);
+		matchingContext.pp = this;
 		if (this.head != null && this.head.matches(0, matchingContext)) {
 			return matchingContext.getExtractedVariables();
 		}
-		else if (!StringUtils.hasLength(path)) {
-			return Collections.emptyMap();
-		}
+//		else if (!StringUtils.hasLength(path)) {
+//			return Collections.emptyMap();
+//		}
 		else {
-			throw new IllegalStateException("Pattern \"" + this + "\" is not a match for \"" + path + "\"");
+			if (!hasLength(path)) {
+				return Collections.emptyMap();
+			}
+			else {
+				throw new IllegalStateException("Pattern \"" + this + "\" is not a match for \"" + path.value() + "\"");
+			}
 		}
+	}
+
+	/**
+	 * Represents the result of a successful variable match. This holds the key that matched, the
+	 * value that was found for that key and, if any, the parameters attached to that path element.
+	 * For example: "/{var}" against "/foo;a=b" will return a PathMathResult with 'key=var', 
+	 * 'value=foo' and parameters 'a=b'.
+	 */
+	public static class PathMatchResult {
+		
+		private final String key;
+		
+		private final String value;
+		
+		private final MultiValueMap<String,String> parameters;
+
+		public PathMatchResult(String key, String value, MultiValueMap<String, String> parameters) {
+			this.key = key;
+			this.value = value;
+			this.parameters = parameters;
+		}
+
+		/**
+		 * @return match result key
+		 */
+		public String key() {
+			return key;
+		}
+		
+		/**
+		 * @return match result value
+		 */
+		public String value() {
+			return this.value;
+		}
+		
+		/**
+		 * @return match result parameters (empty map if no parameters)
+		 */
+		public MultiValueMap<String,String> parameters() {
+			return this.parameters;
+		}
+	}
+	
+	private boolean hasLength(PathSegmentContainer pathSegmentContainer) {
+		return pathSegmentContainer != null && pathSegmentContainer.pathSegments().size() > 0;
+	}
+
+	private boolean hasLength(String string) {
+		return StringUtils.hasLength(string);
 	}
 
 	/**
@@ -252,14 +390,14 @@ public class PathPattern implements Comparable<PathPattern> {
 	public String extractPathWithinPattern(String path) {
 		// assert this.matches(path)
 		PathElement elem = head;
-		int separatorCount = 0;
+		int separatorCount = (this.startsWithSep && !(elem instanceof CaptureTheRestPathElement && elem instanceof WildcardTheRestPathElement)?1:0);
 		boolean matchTheRest = false;
 
 		// Find first path element that is pattern based
 		while (elem != null) {
-			if (elem instanceof SeparatorPathElement || elem instanceof CaptureTheRestPathElement ||
+			if (elem instanceof CaptureTheRestPathElement ||
 					elem instanceof WildcardTheRestPathElement) {
-				separatorCount++;
+//				separatorCount++;
 				if (elem instanceof WildcardTheRestPathElement || elem instanceof CaptureTheRestPathElement) {
 					matchTheRest = true;
 				}
@@ -268,6 +406,9 @@ public class PathPattern implements Comparable<PathPattern> {
 				break;
 			}
 			elem = elem.next;
+			if (elem != null) {
+				separatorCount++;
+			}
 		}
 
 		if (elem == null) {
@@ -390,23 +531,22 @@ public class PathPattern implements Comparable<PathPattern> {
 	int getCapturedVariableCount() {
 		return this.capturedVariableCount;
 	}
-
-
+		
 	/**
 	 * Combine this pattern with another. Currently does not produce a new PathPattern, just produces a new string.
 	 */
-	public String combine(String pattern2string) {
+	public PathPattern combine(PathPattern pattern2string) {
 		// If one of them is empty the result is the other. If both empty the result is ""
-		if (!StringUtils.hasLength(this.patternString)) {
-			if (!StringUtils.hasLength(pattern2string)) {
-				return "";
+		if (!hasLength(this.patternString)) {
+			if (!hasLength(pattern2string.patternString)) {
+				return parser.parse(""); // TODO [ASC] verify quick
 			}
 			else {
 				return pattern2string;
 			}
 		}
-		else if (!StringUtils.hasLength(pattern2string)) {
-			return this.patternString;
+		else if (!hasLength(pattern2string.patternString)) {
+			return this;
 		}
 
 		// /* + /hotel => /hotel
@@ -414,36 +554,39 @@ public class PathPattern implements Comparable<PathPattern> {
 		// However:
 		// /usr + /user => /usr/user 
 		// /{foo} + /bar => /{foo}/bar
-		if (!this.patternString.equals(pattern2string) &&this. capturedVariableCount == 0 && matches(pattern2string)) {
+		if (!this.patternString.equals(pattern2string.patternString) && this.capturedVariableCount == 0 && 
+			matches(PathSegmentContainer.parse(pattern2string.patternString,StandardCharsets.UTF_8))) {
 			return pattern2string;
 		}
 
 		// /hotels/* + /booking => /hotels/booking
 		// /hotels/* + booking => /hotels/booking
 		if (this.endsWithSeparatorWildcard) {
-			return concat(this.patternString.substring(0, this.patternString.length() - 2), pattern2string);
+			String concatenatedPath = concat(this.patternString.substring(0, this.patternString.length() - 2), pattern2string.patternString);
+			return parser.parse(concatenatedPath);
 		}
 
 		// /hotels + /booking => /hotels/booking
 		// /hotels + booking => /hotels/booking
 		int starDotPos1 = this.patternString.indexOf("*.");  // Are there any file prefix/suffix things to consider?
 		if (this.capturedVariableCount != 0 || starDotPos1 == -1 || this.separator == '.') {
-			return concat(this.patternString, pattern2string);
+			return parser.parse(concat(this.patternString, pattern2string.patternString));
 		}
 
 		// /*.html + /hotel => /hotel.html
 		// /*.html + /hotel.* => /hotel.html
 		String firstExtension = this.patternString.substring(starDotPos1 + 1);  // looking for the first extension
-		int dotPos2 = pattern2string.indexOf('.');
-		String file2 = (dotPos2 == -1 ? pattern2string : pattern2string.substring(0, dotPos2));
-		String secondExtension = (dotPos2 == -1 ? "" : pattern2string.substring(dotPos2));
+		String p2string = pattern2string.patternString;
+		int dotPos2 = p2string.indexOf('.');
+		String file2 = (dotPos2 == -1 ? p2string : p2string.substring(0, dotPos2));
+		String secondExtension = (dotPos2 == -1 ? "" : p2string.substring(dotPos2));
 		boolean firstExtensionWild = (firstExtension.equals(".*") || firstExtension.equals(""));
 		boolean secondExtensionWild = (secondExtension.equals(".*") || secondExtension.equals(""));
 		if (!firstExtensionWild && !secondExtensionWild) {
 			throw new IllegalArgumentException(
 					"Cannot combine patterns: " + this.patternString + " and " + pattern2string);
 		}
-		return file2 + (firstExtensionWild ? secondExtension : firstExtension);
+		return parser.parse(file2 + (firstExtensionWild ? secondExtension : firstExtension));
 	}
 
 	/**
@@ -490,13 +633,37 @@ public class PathPattern implements Comparable<PathPattern> {
 	String toChainString() {
 		StringBuilder buf = new StringBuilder();
 		PathElement pe = this.head;
+		if (this.startsWithSep && !isPathElementStartingWithSeparator(pe)) {
+			buf.append("(/) ");
+		}
 		while (pe != null) {
 			buf.append(pe.toString()).append(" ");
 			pe = pe.next;
 		}
+		if (this.endsWithSep) {
+			buf.append(" (/)");
+		}
 		return buf.toString().trim();
 	}
 
+	String toPatternString() {
+		StringBuilder buf = new StringBuilder();
+		PathElement pe = this.head;
+		if (this.startsWithSep && !isPathElementStartingWithSeparator(pe)) {
+			buf.append("/");
+		}
+		while (pe != null) {
+			buf.append(pe.getText());
+			if (pe.next != null && !isPathElementStartingWithSeparator(pe.next)) {
+				buf.append("/");
+			}
+			pe = pe.next;
+		}
+		if (this.endsWithSep) {
+			buf.append("/");
+		}
+		return buf.toString();
+	}
 
 	/**
 	 * A holder for the result of a {@link PathPattern#getPathRemaining(String)} call. Holds
@@ -505,31 +672,34 @@ public class PathPattern implements Comparable<PathPattern> {
 	 */
 	public static class PathRemainingMatchInfo {
 
-		private final String pathRemaining;
+//		private final String pathRemaining;
 
-		private final Map<String, String> matchingVariables;
+		private final PathSegmentContainer pathRemainingContainer;
 
-		PathRemainingMatchInfo(String pathRemaining) {
+		private final Map<String, PathMatchResult> matchingVariables;
+
+
+		PathRemainingMatchInfo(PathSegmentContainer pathRemaining) {
 			this(pathRemaining, Collections.emptyMap());
 		}
-
-		PathRemainingMatchInfo(String pathRemaining, Map<String, String> matchingVariables) {
-			this.pathRemaining = pathRemaining;
+		
+		PathRemainingMatchInfo(PathSegmentContainer pathRemaining, Map<String, PathMatchResult> matchingVariables) {
+			this.pathRemainingContainer = pathRemaining;
 			this.matchingVariables = matchingVariables;
 		}
-
+		
 		/**
 		 * Return the part of a path that was not matched by a pattern.
 		 */
 		public String getPathRemaining() {
-			return this.pathRemaining;
+			return this.pathRemainingContainer.value();
 		}
 
 		/**
 		 * Return variables that were bound in the part of the path that was successfully matched.
 		 * Will be an empty map if no variables were bound
 		 */
-		public Map<String, String> getMatchingVariables() {
+		public Map<String, PathMatchResult> getMatchingVariables() {
 			return this.matchingVariables;
 		}
 	}
@@ -543,14 +713,15 @@ public class PathPattern implements Comparable<PathPattern> {
 	class MatchingContext {
 
 		// The candidate path to attempt a match against
-		char[] candidate;
-
-		// The length of the candidate path
-		int candidateLength;
+		PathSegmentContainer candidate;
+		
+		List<PathSegment> pathSegments;
+		
+		int pathSegmentCount;
 
 		boolean isMatchStartMatching = false;
 
-		private Map<String, String> extractedVariables;
+		private Map<String, PathMatchResult> extractedVariables;
 
 		boolean extractingVariables;
 
@@ -561,9 +732,12 @@ public class PathPattern implements Comparable<PathPattern> {
 		// points to the remaining path that wasn't consumed
 		int remainingPathIndex;
 
-		public MatchingContext(String path, boolean extractVariables) {
-			candidate = path.toCharArray();
-			candidateLength = candidate.length;
+		public PathPattern pp;
+
+		public MatchingContext(PathSegmentContainer candidate, boolean extractVariables) {
+			this.candidate = candidate;
+			this.pathSegments = candidate.pathSegments();
+			this.pathSegmentCount = pathSegments.size();
 			this.extractingVariables = extractVariables;
 		}
 
@@ -579,14 +753,14 @@ public class PathPattern implements Comparable<PathPattern> {
 			isMatchStartMatching = b;
 		}
 
-		public void set(String key, String value) {
+		public void set(String key, String value, MultiValueMap<String, String> parameters) {
 			if (this.extractedVariables == null) {
 				extractedVariables = new HashMap<>();
 			}
-			extractedVariables.put(key, value);
+			extractedVariables.put(key, new PathMatchResult(key, value, parameters));
 		}
 
-		public Map<String, String> getExtractedVariables() {
+		public Map<String, PathMatchResult> getExtractedVariables() {
 			if (this.extractedVariables == null) {
 				return Collections.emptyMap();
 			}
@@ -594,22 +768,30 @@ public class PathPattern implements Comparable<PathPattern> {
 				return this.extractedVariables;
 			}
 		}
-
-		/**
-		 * Scan ahead from the specified position for either the next separator
-		 * character or the end of the candidate.
-		 * @param pos the starting position for the scan
-		 * @return the position of the next separator or the end of the candidate
-		 */
-		public int scanAhead(int pos) {
-			while (pos < candidateLength) {
-				if (candidate[pos] == separator) {
-					return pos;
-				}
-				pos++;
-			}
-			return candidateLength;
+		
+		boolean isSegmentEmpty(int index) {
+			return index >= pathSegmentCount ? false: pathSegments.get(index).isEmpty();
 		}
+
+		public String getSegmentValue(int index) {
+			return index < pathSegmentCount ? pathSegments.get(index).valueDecoded() : null;
+		}
+		
+//		/**
+//		 * Scan ahead from the specified position for either the next separator
+//		 * character or the end of the candidate.
+//		 * @param pos the starting position for the scan
+//		 * @return the position of the next separator or the end of the candidate
+//		 */
+//		public int scanAhead(int pos) {
+//			while (pos < candidateLength) {
+//				if (candidate[pos] == separator) {
+//					return pos;
+//				}
+//				pos++;
+//			}
+//			return candidateLength;
+//		}
 	}
 
 }

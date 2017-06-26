@@ -88,7 +88,7 @@ public class PathPatternParser {
 	 */
 	public PathPattern parse(String pathPattern) throws PatternParseException {
 		InternalPathPatternParser parserDelegate =
-				new InternalPathPatternParser(this.separator, this.caseSensitive, this.matchOptionalTrailingSlash);
+				new InternalPathPatternParser(this, this.separator, this.caseSensitive, this.matchOptionalTrailingSlash);
 		return parserDelegate.parse(pathPattern);
 	}
 

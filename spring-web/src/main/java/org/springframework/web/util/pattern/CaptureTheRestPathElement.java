@@ -16,6 +16,12 @@
 
 package org.springframework.web.util.pattern;
 
+import java.util.List;
+
+import org.springframework.http.server.reactive.PathSegment;
+import org.springframework.http.server.reactive.PathSegmentContainer;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.util.pattern.PathPattern.MatchingContext;
 
 /**
@@ -27,6 +33,10 @@ import org.springframework.web.util.pattern.PathPattern.MatchingContext;
  */
 class CaptureTheRestPathElement extends PathElement {
 
+	public final static MultiValueMap<String,String> NO_PARAMETERS = new LinkedMultiValueMap<>();
+	
+	public final static char SEPARATOR = '/';
+	
 	private final String variableName;
 
 
@@ -40,26 +50,51 @@ class CaptureTheRestPathElement extends PathElement {
 		this.variableName = new String(captureDescriptor, 2, captureDescriptor.length - 3);
 	}
 
-
 	@Override
-	public boolean matches(int candidateIndex, MatchingContext matchingContext) {
+	public boolean matches(int segmentIndex, MatchingContext matchingContext) {
 		// No need to handle 'match start' checking as this captures everything
 		// anyway and cannot be followed by anything else
 		// assert next == null
-
-		// If there is more data, it must start with the separator
-		if (candidateIndex < matchingContext.candidateLength &&
-				matchingContext.candidate[candidateIndex] != separator) {
-			return false;
-		}
 		if (matchingContext.determineRemainingPath) {
-			matchingContext.remainingPathIndex = matchingContext.candidateLength;
+			matchingContext.remainingPathIndex = matchingContext.pathSegmentCount;
 		}
 		if (matchingContext.extractingVariables) {
-			matchingContext.set(variableName, decode(new String(matchingContext.candidate, candidateIndex,
-					matchingContext.candidateLength - candidateIndex)));
+			// Collect the parameters from all the remaining segments
+			MultiValueMap<String,String> parametersCollector = null;
+			for (int i = segmentIndex; i < matchingContext.pathSegmentCount; i++) {
+				PathSegment pathSegment = matchingContext.pathSegments.get(i);
+				MultiValueMap<String, String> parameters = pathSegment.parameters();
+				if (parameters != null && parameters.size()!=0) {
+					if (parametersCollector == null) {
+						parametersCollector = new LinkedMultiValueMap<>();
+					}
+					parametersCollector.addAll(parameters);
+				}
+			}
+			matchingContext.set(variableName, pathToString(segmentIndex, matchingContext.candidate),
+					parametersCollector == null?NO_PARAMETERS:parametersCollector);
 		}
 		return true;
+	}
+	
+	private String pathToString(int fromSegment, PathSegmentContainer pathSegmentContainer) {
+		StringBuilder buf = new StringBuilder();
+		List<PathSegment> pathSegments = pathSegmentContainer.pathSegments();
+		for (int i = fromSegment, max = pathSegments.size(); i < max; i++) {
+			if (i == 0) {
+				if (pathSegmentContainer.isAbsolute()) {
+					buf.append(SEPARATOR);
+				}
+			}
+			else {
+				buf.append(SEPARATOR);
+			}
+			buf.append(pathSegments.get(i).valueDecoded());
+		}
+		if (pathSegmentContainer.hasTrailingSlash()) {
+			buf.append(SEPARATOR);
+		}
+		return buf.toString();
 	}
 
 	@Override
@@ -77,9 +112,15 @@ class CaptureTheRestPathElement extends PathElement {
 		return 1;
 	}
 
-
 	public String toString() {
-		return "CaptureTheRest(/{*" + this.variableName + "})";
+		return "CaptureTheRest("+this.separator+"{*" + this.variableName + "})";
+	}
+
+	@Override
+	public char[] getText() {
+		StringBuilder buf = new StringBuilder();
+		buf.append(separator).append("{*").append(this.variableName).append("}");
+		return buf.toString().toCharArray();
 	}
 
 }

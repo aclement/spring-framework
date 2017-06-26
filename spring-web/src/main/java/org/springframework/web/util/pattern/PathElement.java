@@ -16,9 +16,6 @@
 
 package org.springframework.web.util.pattern;
 
-import java.nio.charset.StandardCharsets;
-
-import org.springframework.web.util.UriUtils;
 import org.springframework.web.util.pattern.PathPattern.MatchingContext;
 
 /**
@@ -47,6 +44,7 @@ abstract class PathElement {
 	// The previous path element in the chain
 	protected PathElement prev;
 
+	protected PathPattern pp;
 
 	/**
 	 * Create a new path element.
@@ -61,16 +59,21 @@ abstract class PathElement {
 
 	/**
 	 * Attempt to match this path element.
-	 * @param candidatePos the current position within the candidate path
+	 * @param segmentIndex the index of the path segment to match this PathElement against
 	 * @param matchingContext encapsulates context for the match including the candidate
 	 * @return {@code true} if it matches, otherwise {@code false}
 	 */
-	public abstract boolean matches(int candidatePos, MatchingContext matchingContext);
+	public abstract boolean matches(int segmentIndex, MatchingContext matchingContext);
 
 	/**
 	 * @return the length of the path element where captures are considered to be one character long.
 	 */
 	public abstract int getNormalizedLength();
+
+	/**
+	 * @return the textual representation of this element
+	 */
+	public abstract char[] getText();
 
 	/**
 	 * Return the number of variables captured by the path element.
@@ -93,53 +96,71 @@ abstract class PathElement {
 		return 0;
 	}
 
+	public boolean outOfData(int i, MatchingContext matchingContext) {
+		// Out of data if there is no more segments and if there is a trailing slash then
+		// allowTrailingSlash is set
+		boolean remainingSegments = (i + 1) < matchingContext.pathSegmentCount;
+		if (remainingSegments) {
+			return false;
+		}
+		if (matchingContext.candidate.hasTrailingSlash()) {
+			return matchingContext.pp.endsWithSep || matchingContext.isAllowOptionalTrailingSlash();
+		}
+		else {
+			return !matchingContext.pp.endsWithSep;
+		}
+	}
+
+
 	/**
-	 * Return {@code true} if there is no next character, or if there is then it is a separator.
+	 * When the pattern has 'run out' this checks the remainder of the path segment container.
+	 * <ul>
+	 * <li>If there is more data, then this pattern does not match.
+	 * <li>If the pattern ends with a separator then it may not match if the path doesn't
+	 * have a trailing slash, depending on whether this is just a match start check
+	 * <li>If the pattern has no trailing slash it is a match if the allow trailing slash
+	 * option is on.
+	 * </ul>
+	 * @param segmentIndex the index of the element 
+	 * @param matchingContext context in which match is occurring
+	 * @return true if rest of the path is OK
 	 */
-	protected boolean nextIfExistsIsSeparator(int nextIndex, MatchingContext matchingContext) {
-		return (nextIndex >= matchingContext.candidateLength ||
-				matchingContext.candidate[nextIndex] == this.separator);
+	protected boolean verifyEndOfPath(int segmentIndex, MatchingContext matchingContext) {
+		if (segmentIndex < matchingContext.pathSegmentCount) {
+			// more data, can't be a match
+			return false;
+		}
+		// What about separators?
+		if (matchingContext.pp.endsWithSep) {
+			if (!matchingContext.candidate.hasTrailingSlash()) {
+				if (matchingContext.isMatchStartMatching) {
+					return true;
+				}
+				else {
+					return false;
+				}
+			}
+		}
+		else if (matchingContext.candidate.hasTrailingSlash()) {
+			return matchingContext.isAllowOptionalTrailingSlash();
+		}
+		return true;
 	}
 
 	/**
-	 * Decode an input CharSequence if necessary.
-	 * @param toDecode the input char sequence that should be decoded if necessary
-	 * @return the decoded result
+	 * @return true if the there are no more PathElements in the pattern
 	 */
-	protected String decode(CharSequence toDecode) {
-		CharSequence decoded = toDecode;
-		if (includesPercent(toDecode)) {
-			decoded = UriUtils.decode(toDecode.toString(), StandardCharsets.UTF_8);
-		}
-		return decoded.toString();
+	protected final boolean isNoMorePattern() {
+		return this.next == null;
 	}
 
 	/**
-	 * @param chars sequence of characters
-	 * @param from start position (included in check)
-	 * @param to end position (excluded from check)
-	 * @return true if the chars array includes a '%' character between the specified positions
+	 * @param index the index of the next segment to consider
+	 * @param matchingContext the context in which the match is occurring
+	 * @return true if there is more data
 	 */
-	protected boolean includesPercent(char[] chars, int from, int to) {
-		for (int i = from; i < to; i++) {
-			if (chars[i] == '%') {
-				return true;
-			}
-		}
-		return false;
-	}
-	
-	/**
-	 * @param chars string that may include a '%' character indicating it is encoded
-	 * @return true if the string contains a '%' character
-	 */
-	protected boolean includesPercent(CharSequence chars) {
-		for (int i = 0, max = chars.length(); i < max; i++) {
-			if (chars.charAt(i) == '%') {
-				return true;
-			}
-		}
-		return false;
+	protected final boolean noMoreData(int index, MatchingContext matchingContext) {
+		return index >= matchingContext.pathSegmentCount;
 	}
 
 }

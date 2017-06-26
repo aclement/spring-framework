@@ -28,46 +28,57 @@ import org.springframework.web.util.pattern.PathPattern.MatchingContext;
  */
 class WildcardPathElement extends PathElement {
 
+	private final static char[] WILDCARD_CHARS = "*".toCharArray();
+
 	public WildcardPathElement(int pos, char separator) {
 		super(pos, separator);
 	}
 
-
 	/**
-	 * Matching on a WildcardPathElement is quite straight forward. Scan the 
-	 * candidate from the candidateIndex onwards for the next separator or the end of the
-	 * candidate.
+	 * WildcardPathElement will match an intermediate segment if it has at least one character
+	 * or any trailing segment
 	 */
 	@Override
-	public boolean matches(int candidateIndex, MatchingContext matchingContext) {
-		int nextPos = matchingContext.scanAhead(candidateIndex);
-		if (this.next == null) {
-			if (matchingContext.determineRemainingPath) {
-				matchingContext.remainingPathIndex = nextPos;
-				return true;
-			}
-			else {
-				if (nextPos == matchingContext.candidateLength) {
-					return true;
+	public boolean matches(int segmentIndex, MatchingContext matchingContext) {
+		CharSequence segmentValue = matchingContext.getSegmentValue(segmentIndex);
+		boolean matched = false;
+		if (isNoMorePattern()) {
+			matched = matchingContext.pp.endsWithSep?matchingContext.candidate.hasTrailingSlash():true;
+			if (matched) {
+				if (segmentValue == null) { // there is no more path data
+					// Matches if the there was a trailing slash or path is simply '/'
+					matched = matchingContext.candidate.hasTrailingSlash() ||
+							  (segmentIndex == 0 && matchingContext.candidate.isAbsolute());
 				}
 				else {
-					return (matchingContext.isAllowOptionalTrailingSlash() &&  // if optional slash is on...
-							nextPos > candidateIndex &&  // and there is at least one character to match the *...
-							(nextPos + 1) == matchingContext.candidateLength &&   // and the nextPos is the end of the candidate...
-							matchingContext.candidate[nextPos] == separator);  // and the final character is a separator
+					matched = (segmentValue.length() > 0); // this segment must have some data in it (more than zero chars)
+					if (matched && ((segmentIndex + 1) == matchingContext.pathSegmentCount)) {
+						matched = matched && (matchingContext.candidate.hasTrailingSlash()?(matchingContext.isAllowOptionalTrailingSlash()||matchingContext.pp.endsWithSep):true);
+					}
+					else if (matched && ((segmentIndex + 1) < matchingContext.pathSegmentCount )) {
+						if (matchingContext.determineRemainingPath) {
+							matchingContext.remainingPathIndex = segmentIndex + 1;
+						} 
+						else {
+							// there is more data, not a match
+							matched = false;
+						}
+					}
 				}
 			}
 		}
 		else { 
-			if (matchingContext.isMatchStartMatching && nextPos == matchingContext.candidateLength) {
-				return true; // no more data but matches up to this point
-			}
-			// Within a path (e.g. /aa/*/bb) there must be at least one character to match the wildcard
-			if (nextPos == candidateIndex) {
+			if ((segmentIndex >= matchingContext.pathSegmentCount)  // there is no data to match
+					|| matchingContext.pathSegments.get(segmentIndex).valueDecoded().length() < 1) {
 				return false;
 			}
-			return this.next.matches(nextPos, matchingContext);
+
+			if (matchingContext.isMatchStartMatching && noMoreData(segmentIndex + 1, matchingContext)) {
+				return true; // no more data but matches up to this point
+			}
+			return this.next.matches(segmentIndex + 1, matchingContext);
 		}
+		return matched;
 	}
 
 	@Override
@@ -85,9 +96,13 @@ class WildcardPathElement extends PathElement {
 		return WILDCARD_WEIGHT;
 	}
 
-
 	public String toString() {
 		return "Wildcard(*)";
+	}
+
+	@Override
+	public char[] getText() {
+		return WILDCARD_CHARS;
 	}
 
 }

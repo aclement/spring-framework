@@ -29,16 +29,11 @@ class WildcardTheRestPathElement extends PathElement {
 		super(pos, separator);
 	}
 
-
 	@Override
-	public boolean matches(int candidateIndex, PathPattern.MatchingContext matchingContext) {
+	public boolean matches(int segmentIndex, PathPattern.MatchingContext matchingContext) {
 		// If there is more data, it must start with the separator
-		if (candidateIndex < matchingContext.candidateLength &&
-				matchingContext.candidate[candidateIndex] != separator) {
-			return false;
-		}
 		if (matchingContext.determineRemainingPath) {
-			matchingContext.remainingPathIndex = matchingContext.candidateLength;
+			matchingContext.remainingPathIndex = matchingContext.pathSegmentCount;
 		}
 		return true;
 	}
@@ -53,9 +48,15 @@ class WildcardTheRestPathElement extends PathElement {
 		return 1;
 	}
 
-
 	public String toString() {
 		return "WildcardTheRest(" + this.separator + "**)";
+	}
+
+	@Override
+	public char[] getText() {
+		StringBuilder buf = new StringBuilder();
+		buf.append(this.separator).append("**");
+		return buf.toString().toCharArray();
 	}
 
 }

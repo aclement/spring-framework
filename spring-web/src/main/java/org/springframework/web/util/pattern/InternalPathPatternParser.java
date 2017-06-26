@@ -78,6 +78,13 @@ class InternalPathPatternParser {
 	// Variables captures in this path pattern
 	List<String> capturedVariableNames;
 
+	private boolean startsWithSeparator;
+	
+	private boolean endsWithSeparator;
+
+	// The PathPatternParser using this InternalPathPatternParser
+	private PathPatternParser parser;
+
 	// The head of the path element chain currently being built
 	PathElement headPE;
 
@@ -85,13 +92,16 @@ class InternalPathPatternParser {
 	PathElement currentPE;
 
 
+
 	/**
+	 * @param parser the PathPatternParser using this internal parser
 	 * @param separator the path separator to look for when parsing
 	 * @param caseSensitive true if PathPatterns should be sensitive to case
 	 * @param matchOptionalTrailingSlash true if patterns without a trailing slash
 	 * can match paths that do have a trailing slash
 	 */
-	public InternalPathPatternParser(char separator, boolean caseSensitive, boolean matchOptionalTrailingSlash) {
+	public InternalPathPatternParser(PathPatternParser parser,char separator, boolean caseSensitive, boolean matchOptionalTrailingSlash) {
+		this.parser = parser;
 		this.separator = separator;
 		this.caseSensitive = caseSensitive;
 		this.matchOptionalTrailingSlash = matchOptionalTrailingSlash;
@@ -108,8 +118,13 @@ class InternalPathPatternParser {
 	 * @throws PatternParseException in case of parse errors
 	 */
 	public PathPattern parse(String pathPattern) throws PatternParseException {
+		if (pathPattern == null) {
+			pathPattern = "";
+		}
 		this.pathPatternData = pathPattern.toCharArray();
 		this.pathPatternLength = pathPatternData.length;
+		this.startsWithSeparator = false;
+		this.endsWithSeparator = false;
 		this.headPE = null;
 		this.currentPE = null;
 		this.capturedVariableNames = null;
@@ -123,12 +138,26 @@ class InternalPathPatternParser {
 				if (this.pathElementStart != -1) {
 					pushPathElement(createPathElement());
 				}
+				else if (pos > 0) {
+					pushPathElement(new EmptyPathElement(this.pos, this.separator));
+				}
 				if (peekDoubleWildcard()) {
 					pushPathElement(new WildcardTheRestPathElement(this.pos, this.separator));
+					if (this.pos == 0) {
+						startsWithSeparator = true;
+					}
 					this.pos += 2;
 				}
+				else if (this.pos == 0) {
+//					pushPathElement(new SeparatorPathElement(this.pos, this.separator));
+					startsWithSeparator = true;
+				}
+				else if (this.pos > 0 && this.pos == this.pathPatternLength - 1) {
+//					pushPathElement(new SeparatorPathElement(this.pos, this.separator));
+					endsWithSeparator = true;
+				}
 				else {
-					pushPathElement(new SeparatorPathElement(this.pos, this.separator));
+//					pushPathElement(new SeparatorPathElement(this.pos, this.separator));
 				}
 			}
 			else {
@@ -201,7 +230,8 @@ class InternalPathPatternParser {
 			pushPathElement(createPathElement());
 		}
 		return new PathPattern(
-				pathPattern, this.headPE, this.separator, this.caseSensitive, this.matchOptionalTrailingSlash);
+				pathPattern, parser, this.headPE, this.separator, this.caseSensitive, 
+				this.startsWithSeparator, this.endsWithSeparator, this.matchOptionalTrailingSlash);
 	}
 
 	/**
@@ -276,6 +306,7 @@ class InternalPathPatternParser {
 				this.currentPE = newPathElement;
 			}
 			else if (this.currentPE instanceof SeparatorPathElement) {
+				// currentPE will be the leading separator
 				PathElement peBeforeSeparator = this.currentPE.prev;
 				if (peBeforeSeparator == null) {
 					// /{*foobar} is at the start
@@ -289,7 +320,9 @@ class InternalPathPatternParser {
 				this.currentPE = newPathElement;
 			}
 			else {
-				throw new IllegalStateException("Expected SeparatorPathElement but was " + this.currentPE);
+				this.currentPE.next = newPathElement;
+				newPathElement.prev = this.currentPE;
+				this.currentPE = newPathElement;
 			}
 		}
 		else {

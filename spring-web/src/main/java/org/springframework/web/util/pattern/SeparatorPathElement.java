@@ -38,30 +38,101 @@ class SeparatorPathElement extends PathElement {
 	 * must be the separator.
 	 */
 	@Override
-	public boolean matches(int candidateIndex, MatchingContext matchingContext) {
+	public boolean matches(int segmentIndex, MatchingContext matchingContext) {
 		boolean matched = false;
-		if (candidateIndex < matchingContext.candidateLength &&
-			matchingContext.candidate[candidateIndex] == separator) {
+		if (prev == null) {
+			// this is a leading separator
+			if (segmentIndex != 0 || !matchingContext.candidate.isAbsolute()) {
+				return false;
+			}
 			if (this.next == null) {
 				if (matchingContext.determineRemainingPath) {
-					matchingContext.remainingPathIndex = candidateIndex + 1;
+					matchingContext.remainingPathIndex = segmentIndex;
 					matched = true;
 				}
 				else {
-					matched = (candidateIndex + 1 == matchingContext.candidateLength);
+					matched = (segmentIndex == matchingContext.pathSegmentCount);
 				}
 			}
 			else {
-				candidateIndex++;
-				if (matchingContext.isMatchStartMatching && candidateIndex == matchingContext.candidateLength) {
+				if (matchingContext.isMatchStartMatching && segmentIndex == matchingContext.pathSegmentCount) {
 					return true; // no more data but matches up to this point
 				}
-				matched = this.next.matches(candidateIndex, matchingContext);
+				matched = this.next.matches(segmentIndex, matchingContext);
+			}
+
+		}
+		else if (next == null) {
+			// this is a trailing separator
+//			if (segmentIndex < matchingContext.pathSegmentCount || 
+//				matchingContext.candidate.trailingSeparator()) {
+//				return false;
+//			}
+//			if (segmentIndex != 0 || !matchingContext.candidate.leadingSeparator()) {
+//				return false;
+//			}
+			
+//			assert this.next == null;
+			if (matchingContext.determineRemainingPath) {
+				matchingContext.remainingPathIndex = segmentIndex;
+				matched = true;
+			}
+			else {
+				matched = matchingContext.candidate.hasTrailingSlash() && 
+						  ((segmentIndex) == matchingContext.pathSegmentCount);
 			}
 		}
+		else {
+			// separator in the middle
+			if (next instanceof SeparatorPathElement) { // adjacent path separators in the pattern
+				if (!matchingContext.isSegmentEmpty(segmentIndex)) {
+					return false;
+				}
+			}
+
+			// An empty next path segment indicates multiple adjacent separators in the path
+			// TODO [ASC] range check on segmentIndex
+			if (matchingContext.determineRemainingPath) { // TODO [ASC] what about checking end of pathpattern?
+				matchingContext.remainingPathIndex = segmentIndex;
+				matched = true;
+			}
+			else {
+				// TODO [ASC]
+				if (matchingContext.isMatchStartMatching && segmentIndex == matchingContext.pathSegmentCount && matchingContext.candidate.hasTrailingSlash()) {
+					return true; // no more data but matches up to this point
+				}
+				
+				matched = this.next.matches(segmentIndex + (isSeparatorPrefixedElement(this.next) && matchingContext.isSegmentEmpty(segmentIndex)?1:0), matchingContext);
+			}
+		}
+		
+//		
+//		if (candidateIndex < matchingContext.candidateLength &&
+//			matchingContext.candidate[candidateIndex] == separator) {
+//			if (this.next == null) {
+//				if (matchingContext.determineRemainingPath) {
+//					matchingContext.remainingPathIndex = candidateIndex + 1;
+//					matched = true;
+//				}
+//				else {
+//					matched = ((candidateIndex + 1) == matchingContext.candidateLength);
+//				}
+//			}
+//			else {
+//				candidateIndex++;
+//				if (matchingContext.isMatchStartMatching && candidateIndex == matchingContext.candidateLength) {
+//					return true; // no more data but matches up to this point
+//				}
+//				matched = this.next.matches(candidateIndex, matchingContext);
+//			}
+//		}
 		return matched;
 	}
 
+	boolean isSeparatorPrefixedElement(PathElement pe) {
+		return pe instanceof SeparatorPathElement;// || pe instanceof WildcardTheRestPathElement || pe instanceof CaptureTheRestPathElement;
+	}
+	
 	@Override
 	public int getNormalizedLength() {
 		return 1;
@@ -70,6 +141,12 @@ class SeparatorPathElement extends PathElement {
 
 	public String toString() {
 		return "Separator(" + this.separator + ")";
+	}
+
+
+	@Override
+	public char[] getText() {
+		return new char[] { this.separator };
 	}
 
 }

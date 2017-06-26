@@ -135,45 +135,38 @@ class RegexPathElement extends PathElement {
 		encodedRegexBuilder.append(encodedSubString);
 		return Pattern.quote(substring);
 	}
-
+	
 	@Override
-	public boolean matches(int candidateIndex, MatchingContext matchingContext) {
-		int pos = matchingContext.scanAhead(candidateIndex);
-		
-		CharSequence textToMatch = null;
-		if (includesPercent(matchingContext.candidate, candidateIndex, pos)) {
-			textToMatch = decode(new SubSequence(matchingContext.candidate, candidateIndex, pos));
-		}
-		else {
-			textToMatch = new SubSequence(matchingContext.candidate, candidateIndex, pos);
+	public boolean matches(int segmentIndex, MatchingContext matchingContext) {
+		String textToMatch = matchingContext.getSegmentValue(segmentIndex);
+		if (textToMatch == null) {
+			textToMatch = "";
 		}
 		Matcher matcher = this.pattern.matcher(textToMatch);
 		boolean matches = matcher.matches();
 
 		if (matches) {
-			if (this.next == null) {
+			if (isNoMorePattern()) {
 				if (matchingContext.determineRemainingPath && 
-					((this.variableNames.size() == 0) ? true : pos > candidateIndex)) {
-					matchingContext.remainingPathIndex = pos;
+					((this.variableNames.size() == 0) ? true : textToMatch.length() > 0)) {
+					matchingContext.remainingPathIndex = segmentIndex + 1;
 					matches = true;
 				}
 				else {
 					// No more pattern, is there more data?
 					// If pattern is capturing variables there must be some actual data to bind to them
-					matches = (pos == matchingContext.candidateLength &&
-							   ((this.variableNames.size() == 0) ? true : pos > candidateIndex));
-					if (!matches && matchingContext.isAllowOptionalTrailingSlash()) {
-						matches = ((this.variableNames.size() == 0) ? true : pos > candidateIndex) &&
-							      (pos + 1) == matchingContext.candidateLength &&
-							      matchingContext.candidate[pos] == separator;
+					matches = ((this.variableNames.size() == 0) ? true : textToMatch.length() > 0);
+					if (matches && !verifyEndOfPath(segmentIndex + 1, matchingContext)) {
+						return false;
 					}
 				}
 			}
 			else {
-				if (matchingContext.isMatchStartMatching && pos == matchingContext.candidateLength) {
+				// There is more pattern
+				if (matchingContext.isMatchStartMatching && noMoreData(segmentIndex + 1, matchingContext)) {
 					return true; // no more data but matches up to this point
 				}
-				matches = this.next.matches(pos, matchingContext);
+				matches = this.next.matches(segmentIndex + 1, matchingContext);
 			}
 		}
 
@@ -188,7 +181,7 @@ class RegexPathElement extends PathElement {
 			for (int i = 1; i <= matcher.groupCount(); i++) {
 				String name = this.variableNames.get(i - 1);
 				String value = matcher.group(i);
-				matchingContext.set(name, value);
+				matchingContext.set(name, value, matchingContext.pathSegments.get(segmentIndex).parameters());
 			}
 		}
 		return matches;
@@ -217,9 +210,13 @@ class RegexPathElement extends PathElement {
 		return (getCaptureCount() * CAPTURE_VARIABLE_WEIGHT + getWildcardCount() * WILDCARD_WEIGHT);
 	}
 
-
 	public String toString() {
 		return "Regex(" + String.valueOf(this.regex) + ")";
+	}
+
+	@Override
+	public char[] getText() {
+		return this.regex;
 	}
 
 }

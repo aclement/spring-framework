@@ -16,13 +16,18 @@
 
 package org.springframework.web.util.pattern;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import org.springframework.http.server.reactive.PathSegmentContainer;
 import org.springframework.lang.Nullable;
 import org.springframework.util.PathMatcher;
+import org.springframework.web.util.pattern.PathPattern.PathMatchResult;
 
 /**
  * {@link PathMatcher} implementation for path patterns parsed
@@ -46,7 +51,6 @@ public class ParsingPathMatcher implements PathMatcher {
 
 	private final ConcurrentMap<String, PathPattern> cache = new ConcurrentHashMap<>(256);
 
-
 	@Override
 	public boolean isPattern(String path) {
 		// TODO crude, should be smarter, lookup pattern and ask it
@@ -56,13 +60,13 @@ public class ParsingPathMatcher implements PathMatcher {
 	@Override
 	public boolean match(String pattern, String path) {
 		PathPattern pathPattern = getPathPattern(pattern);
-		return pathPattern.matches(path);
+		return pathPattern.matches(PathSegmentContainer.parse(path,StandardCharsets.UTF_8));
 	}
 
 	@Override
 	public boolean matchStart(String pattern, String path) {
 		PathPattern pathPattern = getPathPattern(pattern);
-		return pathPattern.matchStart(path);
+		return pathPattern.matchStart(PathSegmentContainer.parse(path,StandardCharsets.UTF_8));
 	}
 
 	@Override
@@ -74,7 +78,19 @@ public class ParsingPathMatcher implements PathMatcher {
 	@Override
 	public Map<String, String> extractUriTemplateVariables(String pattern, String path) {
 		PathPattern pathPattern = getPathPattern(pattern);
-		return pathPattern.matchAndExtract(path);
+		Map<String, PathMatchResult> results = pathPattern.matchAndExtract(PathSegmentContainer.parse(path,StandardCharsets.UTF_8));
+		// Collapse PathMatchResults to simple value results (path parameters are lost in this translation)
+		Map<String, String> boundVariables = null;
+		if (results.size() == 0) {
+			boundVariables = Collections.emptyMap();
+		}
+		else {
+			boundVariables = new LinkedHashMap<>();
+			for (Map.Entry<String,PathMatchResult> entries: results.entrySet()) {
+				boundVariables.put(entries.getKey(), entries.getValue().value());
+			}
+		}
+		return boundVariables;
 	}
 
 	@Override
@@ -84,8 +100,7 @@ public class ParsingPathMatcher implements PathMatcher {
 
 	@Override
 	public String combine(String pattern1, String pattern2) {
-		PathPattern pathPattern = getPathPattern(pattern1);
-		return pathPattern.combine(pattern2);
+		return getPathPattern(pattern1).combine( getPathPattern(pattern2)).getPatternString();
 	}
 
 	private PathPattern getPathPattern(String pattern) {
