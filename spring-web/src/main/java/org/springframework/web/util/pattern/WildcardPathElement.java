@@ -43,7 +43,7 @@ class WildcardPathElement extends PathElement {
 		CharSequence segmentValue = matchingContext.getSegmentValue(segmentIndex);
 		boolean matched = false;
 		if (isNoMorePattern()) {
-			matched = matchingContext.pp.endsWithSep?matchingContext.candidate.hasTrailingSlash():true;
+			matched = pathPattern.endsWithSep?matchingContext.candidate.hasTrailingSlash():true;
 			if (matched) {
 				if (segmentValue == null) { // there is no more path data
 					// Matches if the there was a trailing slash or path is simply '/'
@@ -53,7 +53,7 @@ class WildcardPathElement extends PathElement {
 				else {
 					matched = (segmentValue.length() > 0); // this segment must have some data in it (more than zero chars)
 					if (matched && ((segmentIndex + 1) == matchingContext.pathSegmentCount)) {
-						matched = matched && (matchingContext.candidate.hasTrailingSlash()?(matchingContext.isAllowOptionalTrailingSlash()||matchingContext.pp.endsWithSep):true);
+						matched = matched && (matchingContext.candidate.hasTrailingSlash()?(matchingContext.isAllowOptionalTrailingSlash()||pathPattern.endsWithSep):true);
 					}
 					else if (matched && ((segmentIndex + 1) < matchingContext.pathSegmentCount )) {
 						if (matchingContext.determineRemainingPath) {

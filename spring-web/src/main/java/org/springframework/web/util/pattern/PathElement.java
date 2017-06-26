@@ -46,6 +46,8 @@ abstract class PathElement {
 
 	protected PathPattern pp;
 
+	protected PathPattern pathPattern;
+
 	/**
 	 * Create a new path element.
 	 * @param pos the position where this path element starts in the pattern data
@@ -96,22 +98,6 @@ abstract class PathElement {
 		return 0;
 	}
 
-	public boolean outOfData(int i, MatchingContext matchingContext) {
-		// Out of data if there is no more segments and if there is a trailing slash then
-		// allowTrailingSlash is set
-		boolean remainingSegments = (i + 1) < matchingContext.pathSegmentCount;
-		if (remainingSegments) {
-			return false;
-		}
-		if (matchingContext.candidate.hasTrailingSlash()) {
-			return matchingContext.pp.endsWithSep || matchingContext.isAllowOptionalTrailingSlash();
-		}
-		else {
-			return !matchingContext.pp.endsWithSep;
-		}
-	}
-
-
 	/**
 	 * When the pattern has 'run out' this checks the remainder of the path segment container.
 	 * <ul>
@@ -131,7 +117,7 @@ abstract class PathElement {
 			return false;
 		}
 		// What about separators?
-		if (matchingContext.pp.endsWithSep) {
+		if (pathPattern.endsWithSep) {
 			if (!matchingContext.candidate.hasTrailingSlash()) {
 				if (matchingContext.isMatchStartMatching) {
 					return true;

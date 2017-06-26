@@ -92,7 +92,6 @@ class InternalPathPatternParser {
 	PathElement currentPE;
 
 
-
 	/**
 	 * @param parser the PathPatternParser using this internal parser
 	 * @param separator the path separator to look for when parsing
@@ -339,20 +338,6 @@ class InternalPathPatternParser {
 
 		resetPathElementState();
 	}
-	
-	private char[] getPathElementText(boolean encodeElement) {
-		char[] pathElementText = new char[this.pos - this.pathElementStart];
-		if (encodeElement) {
-			String unencoded = new String(this.pathPatternData, this.pathElementStart, this.pos - this.pathElementStart);
-			String encoded = UriUtils.encodeFragment(unencoded, StandardCharsets.UTF_8);
-			pathElementText = encoded.toCharArray();
-		}
-		else {
-			System.arraycopy(this.pathPatternData, this.pathElementStart, pathElementText, 0,
-					this.pos - this.pathElementStart);
-		}
-		return pathElementText;
-	}
 
 	/**
 	 * Used the knowledge built up whilst processing since the last path element to determine what kind of path
@@ -363,7 +348,10 @@ class InternalPathPatternParser {
 		if (this.insideVariableCapture) {
 			throw new PatternParseException(this.pos, this.pathPatternData, PatternMessage.MISSING_CLOSE_CAPTURE);
 		}
-		
+
+		char[] pathElementText = new char[this.pos - this.pathElementStart];
+		System.arraycopy(this.pathPatternData, this.pathElementStart, pathElementText, 0,
+				this.pos - this.pathElementStart);
 		PathElement newPE = null;
 
 		if (this.variableCaptureCount > 0) {
@@ -371,12 +359,12 @@ class InternalPathPatternParser {
 					this.pathPatternData[this.pos - 1] == '}') {
 				if (this.isCaptureTheRestVariable) {
 					// It is {*....}
-					newPE = new CaptureTheRestPathElement(pathElementStart, getPathElementText(false), separator);
+					newPE = new CaptureTheRestPathElement(pathElementStart, pathElementText, separator);
 				}
 				else {
 					// It is a full capture of this element (possibly with constraint), for example: /foo/{abc}/
 					try {
-						newPE = new CaptureVariablePathElement(this.pathElementStart, getPathElementText(false),
+						newPE = new CaptureVariablePathElement(this.pathElementStart, pathElementText,
 								this.caseSensitive, this.separator);
 					}
 					catch (PatternSyntaxException pse) {
@@ -393,9 +381,8 @@ class InternalPathPatternParser {
 					throw new PatternParseException(this.pathElementStart, this.pathPatternData,
 							PatternMessage.CAPTURE_ALL_IS_STANDALONE_CONSTRUCT);
 				}
-				RegexPathElement newRegexSection = new RegexPathElement(this.pathElementStart, 
-						getPathElementText(false), this.caseSensitive,
-						this.pathPatternData, this.separator);
+				RegexPathElement newRegexSection = new RegexPathElement(this.pathElementStart, pathElementText,
+						this.caseSensitive, this.pathPatternData, this.separator);
 				for (String variableName : newRegexSection.getVariableNames()) {
 					recordCapturedVariable(this.pathElementStart, variableName);
 				}
@@ -408,16 +395,16 @@ class InternalPathPatternParser {
 					newPE = new WildcardPathElement(this.pathElementStart, this.separator);
 				}
 				else {
-					newPE = new RegexPathElement(this.pathElementStart, getPathElementText(false),
+					newPE = new RegexPathElement(this.pathElementStart, pathElementText,
 							this.caseSensitive, this.pathPatternData, this.separator);
 				}
 			}
 			else if (this.singleCharWildcardCount != 0) {
-				newPE = new SingleCharWildcardedPathElement(this.pathElementStart, getPathElementText(true),
+				newPE = new SingleCharWildcardedPathElement(this.pathElementStart, pathElementText,
 						this.singleCharWildcardCount, this.caseSensitive, this.separator);
 			}
 			else {
-				newPE = new LiteralPathElement(this.pathElementStart, getPathElementText(true),
+				newPE = new LiteralPathElement(this.pathElementStart, pathElementText,
 						this.caseSensitive, this.separator);
 			}
 		}

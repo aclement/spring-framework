@@ -314,13 +314,9 @@ public class PathPatternMatcherTests {
 
 	@Test
 	public void encodingAndBoundVariablesCapturePathElement() {
-		// TODO [ASC] what about /{var} and / - does that match with var="" ? (since /* matches)
 		checkCapture("{var}","f%20o","var","f o");
 		checkCapture("{var1}/{var2}","f%20o/f%7Co","var1","f o","var2","f|o");
 		checkCapture("{var1}/{var2}","f%20o/f%7co","var1","f o","var2","f|o"); // lower case encoding
-		// constraints 
-		// - constraint is expressed in non encoded form
-		// - returned values are decoded
 		checkCapture("{var:foo}","foo","var","foo");
 		checkCapture("{var:f o}","f%20o","var","f o"); // constraint is expressed in non encoded form
 		checkCapture("{var:f.o}","f%20o","var","f o");
@@ -331,9 +327,8 @@ public class PathPatternMatcherTests {
 	public void encodingAndBoundVariablesCaptureTheRestPathElement() {
 		checkCapture("/{*var}","/f%20o","var","/f o");
 		checkCapture("{var1}/{*var2}","f%20o/f%7Co","var1","f o","var2","/f|o");
-		// constraints - decoding happens for constraint checking but returned value is undecoded
 		checkCapture("/{*var}","/foo","var","/foo");
-		checkCapture("/{*var}","/f%20o","var","/f o"); // constraint is expressed in non encoded form
+		checkCapture("/{*var}","/f%20o","var","/f o");
 		checkCapture("/{*var}","/f%20o","var","/f o");
 		checkCapture("/{*var}","/f%7co","var","/f|o");
 	}

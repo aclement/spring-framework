@@ -136,6 +136,7 @@ public class PathPattern implements Comparable<PathPattern> {
 		PathElement elem = head;
 		int counter = 0;
 		while (elem != null) {
+			elem.pathPattern = this;
 			this.capturedVariableCount += elem.getCaptureCount();
 			this.normalizedLength += elem.getNormalizedLength();
 			this.score += elem.getScore();
@@ -180,7 +181,6 @@ public class PathPattern implements Comparable<PathPattern> {
 			return false;
 		}
 		MatchingContext matchingContext = new MatchingContext(pathSegmentContainer, false);
-		matchingContext.pp = this;
 		return this.head.matches(0, matchingContext);
 	}
 	
@@ -216,7 +216,6 @@ public class PathPattern implements Comparable<PathPattern> {
 
 		MatchingContext matchingContext = new MatchingContext(pathSegmentContainer, true);
 		matchingContext.setMatchAllowExtraPath();
-		matchingContext.pp = this;
 		boolean matches = this.head.matches(0, matchingContext);
 		if (!matches) {
 			return null;
@@ -291,7 +290,6 @@ public class PathPattern implements Comparable<PathPattern> {
 		}
 		MatchingContext matchingContext = new MatchingContext(pathSegmentContainer, false);
 		matchingContext.setMatchStartMatching(true);
-		matchingContext.pp = this;
 		return this.head.matches(0, matchingContext);
 	}
 	
@@ -306,7 +304,6 @@ public class PathPattern implements Comparable<PathPattern> {
 	 */
 	public Map<String, PathMatchResult> matchAndExtract(PathSegmentContainer path) {
 		MatchingContext matchingContext = new MatchingContext(path, true);
-		matchingContext.pp = this;
 		if (this.head != null && this.head.matches(0, matchingContext)) {
 			return matchingContext.getExtractedVariables();
 		}
@@ -731,8 +728,6 @@ public class PathPattern implements Comparable<PathPattern> {
 		// the candidate where the pattern finished matching - i.e. it
 		// points to the remaining path that wasn't consumed
 		int remainingPathIndex;
-
-		public PathPattern pp;
 
 		public MatchingContext(PathSegmentContainer candidate, boolean extractVariables) {
 			this.candidate = candidate;
