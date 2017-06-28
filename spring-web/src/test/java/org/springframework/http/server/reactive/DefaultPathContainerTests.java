@@ -30,7 +30,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 
 /**
- * Unit tests for {@link DefaultPathSegmentContainer}.
+ * Unit tests for {@link DefaultPathContainer}.
  * @author Rossen Stoyanchev
  */
 public class DefaultPathContainerTests {
@@ -107,11 +107,11 @@ public class DefaultPathContainerTests {
 
 		// trailing slash
 		testPath("/a/b/", "/a/b/", Arrays.asList("/", "a", "/", "b", "/"));
-		testPath("/a/b//", "/a/b//", Arrays.asList("/", "a", "/", "b", "/", "", "/"));
+		testPath("/a/b//", "/a/b//", Arrays.asList("/", "a", "/", "b", "/", "/"));
 
 		// extra slashes and spaces
 		testPath("/%20", "/%20", Arrays.asList("/", "%20"));
-		testPath("//%20/%20", "//%20/%20", Arrays.asList("/", "", "/", "%20", "/", "%20"));
+		testPath("//%20/%20", "//%20/%20", Arrays.asList("/", "/", "%20", "/", "%20"));
 	}
 
 	private void testPath(String input, String value, List<String> expectedElements) {

@@ -39,8 +39,6 @@ class DefaultPathContainer implements PathContainer {
 
 	private static final MultiValueMap<String, String> EMPTY_MAP = new LinkedMultiValueMap<>(0);
 
-	private static final PathContainer.Segment EMPTY_PATH_SEGMENT = new DefaultPathSegment("", "", "", EMPTY_MAP);
-
 	private static final PathContainer EMPTY_PATH = new DefaultPathContainer("", Collections.emptyList());
 
 	private static final PathContainer.Separator SEPARATOR = () -> "/";
@@ -106,7 +104,9 @@ class DefaultPathContainer implements PathContainer {
 		while (begin < path.length()) {
 			int end = path.indexOf('/', begin);
 			String segment = (end != -1 ? path.substring(begin, end) : path.substring(begin));
-			elements.add(parsePathSegment(segment, charset));
+			if (!segment.equals("")) {
+				elements.add(parsePathSegment(segment, charset));
+			}
 			if (end == -1) {
 				break;
 			}
@@ -117,9 +117,6 @@ class DefaultPathContainer implements PathContainer {
 	}
 
 	private static PathContainer.Segment parsePathSegment(String input, Charset charset) {
-		if ("".equals(input)) {
-			return EMPTY_PATH_SEGMENT;
-		}
 		int index = input.indexOf(';');
 		if (index == -1) {
 			String inputDecoded = StringUtils.uriDecode(input, charset);
