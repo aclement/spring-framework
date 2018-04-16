@@ -36,8 +36,10 @@ import org.springframework.expression.MethodExecutor;
 import org.springframework.expression.MethodFilter;
 import org.springframework.expression.MethodResolver;
 import org.springframework.expression.ParseException;
+import org.springframework.expression.spel.ast.OperatorMatches;
 import org.springframework.expression.spel.standard.SpelExpression;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
+import org.springframework.expression.spel.support.SimpleEvaluationContext;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.expression.spel.support.StandardTypeLocator;
 import org.springframework.expression.spel.testresources.TestPerson;
@@ -192,6 +194,51 @@ public class EvaluationTests extends AbstractExpressionTests {
 	@Test
 	public void testRelOperatorsMatches05() {
 		evaluate("27 matches '^.*2.*$'", true, Boolean.class);  // conversion int>string
+	}
+	
+	@Test
+	public void testExpensiveToMatch() {
+		String pattern = "^(?=[a-z0-9-]{1,47})([a-z0-9]+[-]{0,1}){1,47}[a-z0-9]{1}$";
+		String expression = "'abcde-fghijklmn-o42pasdfasdfasdf.qrstuvwxyz10x.xx.yyy.zasdfasfd' matches \'"+pattern+"\'";
+		Expression expr = parser.parseExpression(expression);
+		try {
+			StandardEvaluationContext ctx = new StandardEvaluationContext();
+			ctx.setMatchesOperatorTimeout(3000);
+			expr.getValue(ctx);
+			fail("Should have timed out");
+		} catch (EvaluationException ee) {
+			SpelEvaluationException see = (SpelEvaluationException)ee;
+			assertEquals(SpelMessage.REGEX_TIMEOUT, see.getMessageCode());
+			assertEquals(3000,see.getInserts()[0]);
+			ee.printStackTrace();
+		}
+		
+//		expectMatchesTimeout("'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!' matches '^(a+)+$'",EvaluationContext.DEFAULT_MATCHES_OPERATOR_TIMEOUT_MS);
+//		expectMatchesTimeout("'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!' matches '(a+)+'",5000);
+//		expectMatchesTimeout("'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!' matches '([a-zA-Z]+)*'",4000);
+//		expectMatchesTimeout("'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!' matches '(a|aa)+'",3000);
+//		expectMatchesTimeout("'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!' matches '(a|a?)+'",2000);
+		expectMatchesTimeout("'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!' matches '(.*a){12}'",1000);
+	}
+
+	private void expectMatchesTimeout(String expressionString, int timeout) {
+		Expression expr = parser.parseExpression(expressionString);
+		try {
+			if (timeout == EvaluationContext.DEFAULT_MATCHES_OPERATOR_TIMEOUT_MS) {
+				// Don't need a custom evaluation context
+				expr.getValue();
+			}
+			else {
+				EvaluationContext ec = 
+						new SimpleEvaluationContext.Builder().withMatchesOperatorTimeout(timeout).build();
+				expr.getValue(ec);
+			}
+			fail("Should have timed out");
+		} catch (EvaluationException ee) {
+			SpelEvaluationException see = (SpelEvaluationException)ee;
+			assertEquals(SpelMessage.REGEX_TIMEOUT, see.getMessageCode());
+			assertEquals(timeout, see.getInserts()[0]);
+		}
 	}
 
 	// mixing operators

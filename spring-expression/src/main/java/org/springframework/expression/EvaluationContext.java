@@ -34,6 +34,8 @@ import org.springframework.lang.Nullable;
  */
 public interface EvaluationContext {
 
+	public final static int DEFAULT_MATCHES_OPERATOR_TIMEOUT_MS = 30000; // 30s
+	
 	/**
 	 * Return the default root context object against which unqualified
 	 * properties/methods/etc should be resolved. This can be overridden
@@ -99,4 +101,13 @@ public interface EvaluationContext {
 	@Nullable
 	Object lookupVariable(String name);
 
+	/**
+	 * Enables a timeout to be specified for regexes being matched via the 'matches' operator.
+	 * If the matches expression component is taking longer to evaluate than the specified
+	 * timeout then an exception will be thrown.
+	 * @return the timeout in ms after which evaluation will terminate via an exception
+	 */
+	default int getMatchesOperatorTimeout() {
+		return DEFAULT_MATCHES_OPERATOR_TIMEOUT_MS;
+	}
 }

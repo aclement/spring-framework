@@ -249,7 +249,10 @@ public enum SpelMessage {
 			"A required selection expression has not been specified"),
 
 	EXCEPTION_RUNNING_COMPILED_EXPRESSION(Kind.ERROR,1072,
-			"An exception occurred whilst evaluating a compiled expression");
+			"An exception occurred whilst evaluating a compiled expression"),
+
+	REGEX_TIMEOUT(Kind.ERROR, 1073,
+			"Regex match timed out (took longer than {0}ms)");
 
 
 	private final Kind kind;

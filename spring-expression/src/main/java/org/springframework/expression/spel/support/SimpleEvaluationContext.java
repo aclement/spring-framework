@@ -106,15 +106,18 @@ public class SimpleEvaluationContext implements EvaluationContext {
 	private final OperatorOverloader operatorOverloader = new StandardOperatorOverloader();
 
 	private final Map<String, Object> variables = new HashMap<>();
+	
+	private final int matchesOperatorTimeout;
 
 
 	private SimpleEvaluationContext(List<PropertyAccessor> accessors, List<MethodResolver> resolvers,
-			@Nullable TypeConverter converter, @Nullable TypedValue rootObject) {
+			@Nullable TypeConverter converter, @Nullable TypedValue rootObject, int matchesOperatorTimeout) {
 
 		this.propertyAccessors = accessors;
 		this.methodResolvers = resolvers;
 		this.typeConverter = (converter != null ? converter : new StandardTypeConverter());
 		this.rootObject = (rootObject != null ? rootObject : TypedValue.NULL);
+		this.matchesOperatorTimeout = matchesOperatorTimeout;
 	}
 
 
@@ -211,6 +214,10 @@ public class SimpleEvaluationContext implements EvaluationContext {
 		return this.variables.get(name);
 	}
 
+	@Override
+	public int getMatchesOperatorTimeout() {
+		return this.matchesOperatorTimeout;
+	}
 
 	/**
 	 * Create a {@code SimpleEvaluationContext} for the specified {@link PropertyAccessor}
@@ -266,6 +273,8 @@ public class SimpleEvaluationContext implements EvaluationContext {
 
 		@Nullable
 		private TypedValue rootObject;
+
+		private int matchesOperatorTimeoutMs = EvaluationContext.DEFAULT_MATCHES_OPERATOR_TIMEOUT_MS;
 
 		public Builder(PropertyAccessor... accessors) {
 			this.accessors = Arrays.asList(accessors);
@@ -347,9 +356,21 @@ public class SimpleEvaluationContext implements EvaluationContext {
 			this.rootObject = new TypedValue(rootObject, typeDescriptor);
 			return this;
 		}
+		
+		/**
+		 * Specify a timeout for regex evaluation with the <tt>matches</tt> SpEL operator.
+		 * The default is 30000 (30seconds). If evaluation of the matches expression
+		 * component takes longer than the specified time, an exception is thrown.
+		 * @see org.springframework.expression.EvaluationContext#DEFAULT_MATCHES_OPERATOR_TIMEOUT_MS
+		 */
+		public Builder withMatchesOperatorTimeout(int timeoutMs) {
+			this.matchesOperatorTimeoutMs = timeoutMs;
+			return this;
+		}
 
 		public SimpleEvaluationContext build() {
-			return new SimpleEvaluationContext(this.accessors, this.resolvers, this.typeConverter, this.rootObject);
+			return new SimpleEvaluationContext(this.accessors, this.resolvers, this.typeConverter,
+					this.rootObject, this.matchesOperatorTimeoutMs);
 		}
 	}
 

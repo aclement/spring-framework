@@ -79,12 +79,52 @@ public class OperatorMatches extends Operator {
 				pattern = Pattern.compile(rightString);
 				this.patternCache.putIfAbsent(rightString, pattern);
 			}
-			Matcher matcher = pattern.matcher(left);
+			Matcher matcher = pattern.matcher(new TimeoutableCharSequence(left, state.getEvaluationContext().getMatchesOperatorTimeout()));
 			return BooleanTypedValue.forValue(matcher.matches());
 		}
 		catch (PatternSyntaxException ex) {
 			throw new SpelEvaluationException(rightOp.getStartPosition(), ex, SpelMessage.INVALID_PATTERN, right);
 		}
+	}
+	
+	private class TimeoutableCharSequence implements CharSequence {
+
+		private CharSequence text;
+		
+		private int timeout;
+
+		private int charAccessCounter = 0;
+
+		private long whenToTimeout;
+
+		public TimeoutableCharSequence(CharSequence text, int timeout) {
+			this.whenToTimeout = System.currentTimeMillis() + timeout;
+			this.timeout = timeout;
+			this.text = text;
+		} 
+
+		@Override
+		public int length() {
+			return text.length();
+		}
+
+		@Override
+		public char charAt(int index) {
+			charAccessCounter++;
+			if (charAccessCounter > 500000) { // Still gives frequency check of every few ms-ish
+				charAccessCounter = 0;
+				if (System.currentTimeMillis() > whenToTimeout) {
+					throw new SpelEvaluationException(getRightOperand().getStartPosition(), SpelMessage.REGEX_TIMEOUT, timeout);
+				}
+			}
+			return text.charAt(index);
+		}
+
+		@Override
+		public CharSequence subSequence(int start, int end) {
+			return text.subSequence(start, end);
+		}
+		
 	}
 
 }

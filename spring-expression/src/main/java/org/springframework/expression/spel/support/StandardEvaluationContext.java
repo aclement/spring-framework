@@ -90,6 +90,7 @@ public class StandardEvaluationContext implements EvaluationContext {
 
 	private final Map<String, Object> variables = new HashMap<>();
 
+	private int matchesOperatorTimeout = EvaluationContext.DEFAULT_MATCHES_OPERATOR_TIMEOUT_MS;
 
 	/**
 	 * Create a {@code StandardEvaluationContext} with a null root object.
@@ -245,6 +246,15 @@ public class StandardEvaluationContext implements EvaluationContext {
 	@Nullable
 	public Object lookupVariable(String name) {
 		return this.variables.get(name);
+	}
+	
+	public void setMatchesOperatorTimeout(int timeoutInMs) {
+		this.matchesOperatorTimeout = timeoutInMs;
+	}
+
+	@Override
+	public int getMatchesOperatorTimeout() {
+		return this.matchesOperatorTimeout;
 	}
 
 	/**
