@@ -16,6 +16,8 @@
 
 package org.springframework.format.support;
 
+import org.springframework.core.convert.TypeDescriptor;
+import org.springframework.core.convert.converter.GenericConverter;
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.format.FormatterRegistry;
 import org.springframework.format.datetime.DateFormatterRegistrar;
@@ -30,16 +32,20 @@ import org.springframework.util.ClassUtils;
 import org.springframework.util.StringValueResolver;
 
 /**
- * A specialization of {@link FormattingConversionService} configured by default with
- * converters and formatters appropriate for most applications.
+ * A specialization of {@link FormattingConversionService} configured by default
+ * with converters and formatters appropriate for most applications.
  *
- * <p>Designed for direct instantiation but also exposes the static {@link #addDefaultFormatters}
- * utility method for ad hoc use against any {@code FormatterRegistry} instance, just
- * as {@code DefaultConversionService} exposes its own
- * {@link DefaultConversionService#addDefaultConverters addDefaultConverters} method.
+ * <p>
+ * Designed for direct instantiation but also exposes the static
+ * {@link #addDefaultFormatters} utility method for ad hoc use against any
+ * {@code FormatterRegistry} instance, just as {@code DefaultConversionService}
+ * exposes its own {@link DefaultConversionService#addDefaultConverters
+ * addDefaultConverters} method.
  *
- * <p>Automatically registers formatters for JSR-354 Money & Currency, JSR-310 Date-Time
- * and/or Joda-Time, depending on the presence of the corresponding API on the classpath.
+ * <p>
+ * Automatically registers formatters for JSR-354 Money & Currency, JSR-310
+ * Date-Time and/or Joda-Time, depending on the presence of the corresponding
+ * API on the classpath.
  *
  * @author Chris Beams
  * @author Juergen Hoeller
@@ -47,17 +53,18 @@ import org.springframework.util.StringValueResolver;
  */
 public class DefaultFormattingConversionService extends FormattingConversionService {
 
-	private static final boolean jsr354Present = ClassUtils.isPresent(
-			"javax.money.MonetaryAmount", DefaultFormattingConversionService.class.getClassLoader());
+	private static final boolean jsr354Present = ClassUtils.isPresent("javax.money.MonetaryAmount",
+			DefaultFormattingConversionService.class.getClassLoader());
 
-	private static final boolean jodaTimePresent = ClassUtils.isPresent(
-			"org.joda.time.LocalDate", DefaultFormattingConversionService.class.getClassLoader());
+	private static final boolean jodaTimePresent = ClassUtils.isPresent("org.joda.time.LocalDate",
+			DefaultFormattingConversionService.class.getClassLoader());
 
+	private boolean registerDefaultFormattersOnInitialize;
 
 	/**
 	 * Create a new {@code DefaultFormattingConversionService} with the set of
-	 * {@linkplain DefaultConversionService#addDefaultConverters default converters} and
-	 * {@linkplain #addDefaultFormatters default formatters}.
+	 * {@linkplain DefaultConversionService#addDefaultConverters default converters}
+	 * and {@linkplain #addDefaultFormatters default formatters}.
 	 */
 	public DefaultFormattingConversionService() {
 		this(null, true);
@@ -65,9 +72,10 @@ public class DefaultFormattingConversionService extends FormattingConversionServ
 
 	/**
 	 * Create a new {@code DefaultFormattingConversionService} with the set of
-	 * {@linkplain DefaultConversionService#addDefaultConverters default converters} and,
-	 * based on the value of {@code registerDefaultFormatters}, the set of
+	 * {@linkplain DefaultConversionService#addDefaultConverters default converters}
+	 * and, based on the value of {@code registerDefaultFormatters}, the set of
 	 * {@linkplain #addDefaultFormatters default formatters}.
+	 * 
 	 * @param registerDefaultFormatters whether to register default formatters
 	 */
 	public DefaultFormattingConversionService(boolean registerDefaultFormatters) {
@@ -76,30 +84,30 @@ public class DefaultFormattingConversionService extends FormattingConversionServ
 
 	/**
 	 * Create a new {@code DefaultFormattingConversionService} with the set of
-	 * {@linkplain DefaultConversionService#addDefaultConverters default converters} and,
-	 * based on the value of {@code registerDefaultFormatters}, the set of
+	 * {@linkplain DefaultConversionService#addDefaultConverters default converters}
+	 * and, based on the value of {@code registerDefaultFormatters}, the set of
 	 * {@linkplain #addDefaultFormatters default formatters}.
-	 * @param embeddedValueResolver delegated to {@link #setEmbeddedValueResolver(StringValueResolver)}
-	 * prior to calling {@link #addDefaultFormatters}.
+	 * 
+	 * @param embeddedValueResolver     delegated to
+	 *                                  {@link #setEmbeddedValueResolver(StringValueResolver)}
+	 *                                  prior to calling
+	 *                                  {@link #addDefaultFormatters}.
 	 * @param registerDefaultFormatters whether to register default formatters
 	 */
-	public DefaultFormattingConversionService(
-			@Nullable StringValueResolver embeddedValueResolver, boolean registerDefaultFormatters) {
-
+	public DefaultFormattingConversionService(@Nullable StringValueResolver embeddedValueResolver,
+			boolean registerDefaultFormatters) {
 		if (embeddedValueResolver != null) {
 			setEmbeddedValueResolver(embeddedValueResolver);
 		}
-		DefaultConversionService.addDefaultConverters(this);
-		if (registerDefaultFormatters) {
-			addDefaultFormatters(this);
-		}
+		this.registerDefaultFormattersOnInitialize = registerDefaultFormatters;
 	}
 
-
 	/**
-	 * Add formatters appropriate for most environments: including number formatters,
-	 * JSR-354 Money & Currency formatters, JSR-310 Date-Time and/or Joda-Time formatters,
-	 * depending on the presence of the corresponding API on the classpath.
+	 * Add formatters appropriate for most environments: including number
+	 * formatters, JSR-354 Money & Currency formatters, JSR-310 Date-Time and/or
+	 * Joda-Time formatters, depending on the presence of the corresponding API on
+	 * the classpath.
+	 * 
 	 * @param formatterRegistry the service to register default formatters with
 	 */
 	public static void addDefaultFormatters(FormatterRegistry formatterRegistry) {
@@ -121,10 +129,64 @@ public class DefaultFormattingConversionService extends FormattingConversionServ
 		if (jodaTimePresent) {
 			// handles Joda-specific types as well as Date, Calendar, Long
 			new JodaTimeFormatterRegistrar().registerFormatters(formatterRegistry);
-		}
-		else {
+		} else {
 			// regular DateFormat-based Date, Calendar, Long converters
 			new DateFormatterRegistrar().registerFormatters(formatterRegistry);
+		}
+	}
+
+	@Override
+	public <T> T convert(Object source, Class<T> targetType) {
+		ensureInitialized();
+		return super.convert(source, targetType);
+	}
+
+	@Override
+	protected GenericConverter getConverter(TypeDescriptor sourceType, TypeDescriptor targetType) {
+		ensureInitialized();
+		return super.getConverter(sourceType, targetType);
+	}
+
+	@Override
+	public Object convert(Object source, TypeDescriptor sourceType, TypeDescriptor targetType) {
+		ensureInitialized();
+		return super.convert(source, sourceType, targetType);
+	}
+
+	@Override
+	public Object convert(Object source, TypeDescriptor targetType) {
+		ensureInitialized();
+		return super.convert(source, targetType);
+	}
+
+	@Override
+	public boolean canConvert(Class<?> sourceType, Class<?> targetType) {
+		ensureInitialized();
+		return super.canConvert(sourceType, targetType);
+	}
+
+	@Override
+	public boolean canConvert(TypeDescriptor sourceType, TypeDescriptor targetType) {
+		ensureInitialized();
+		return super.canConvert(sourceType, targetType);
+	}
+
+	@Override
+	public void removeConvertible(Class<?> sourceType, Class<?> targetType) {
+		ensureInitialized();
+		super.removeConvertible(sourceType, targetType);
+	}
+
+	@Override
+	public boolean canBypassConvert(TypeDescriptor sourceType, TypeDescriptor targetType) {
+		ensureInitialized();
+		return super.canBypassConvert(sourceType, targetType);
+	}
+
+	private void ensureInitialized() {
+		DefaultConversionService.addDefaultConverters(this);
+		if (registerDefaultFormattersOnInitialize) {
+			addDefaultFormatters(this);
 		}
 	}
 
