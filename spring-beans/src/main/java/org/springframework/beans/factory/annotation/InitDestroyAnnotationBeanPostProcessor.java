@@ -26,19 +26,20 @@ import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.config.DestructionAwareBeanPostProcessor;
 import org.springframework.beans.factory.support.MergedBeanDefinitionPostProcessor;
 import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.core.Ordered;
+import org.springframework.core.PrecomputedInfo;
 import org.springframework.core.PriorityOrdered;
 import org.springframework.lang.Nullable;
 import org.springframework.util.ClassUtils;
@@ -78,6 +79,7 @@ public class InitDestroyAnnotationBeanPostProcessor
 
 	protected transient Log logger = LogFactory.getLog(getClass());
 
+	// TODO if these get set to other than default then wipe any 'knownClassesWithAnnotations' info
 	@Nullable
 	private Class<? extends Annotation> initAnnotationType;
 
@@ -89,6 +91,15 @@ public class InitDestroyAnnotationBeanPostProcessor
 	@Nullable
 	private final transient Map<Class<?>, LifecycleMetadata> lifecycleMetadataCache = new ConcurrentHashMap<>(256);
 
+	private static List<String> knownClassesWithAnnotations;
+	
+	static {
+		Object precomputedObject = PrecomputedInfo.get(InitDestroyAnnotationBeanPostProcessor.class.getName());
+		if (precomputedObject != null) {
+			knownClassesWithAnnotations = (List<String>)precomputedObject;
+			System.out.println("InitDestroyAnnotationBeanPostProcessor: precomputed info "+knownClassesWithAnnotations);
+		}
+	}
 
 	/**
 	 * Specify the init annotation to check for, indicating initialization
@@ -201,27 +212,30 @@ public class InitDestroyAnnotationBeanPostProcessor
 		Class<?> targetClass = clazz;
 
 		do {
-			final LinkedList<LifecycleElement> currInitMethods = new LinkedList<>();
-			final LinkedList<LifecycleElement> currDestroyMethods = new LinkedList<>();
-
-			ReflectionUtils.doWithLocalMethods(targetClass, method -> {
-				if (this.initAnnotationType != null && method.isAnnotationPresent(this.initAnnotationType)) {
-					LifecycleElement element = new LifecycleElement(method);
-					currInitMethods.add(element);
-					if (debug) {
-						logger.debug("Found init method on class [" + clazz.getName() + "]: " + method);
+			String name = targetClass.getName();
+			if (knownClassesWithAnnotations == null || knownClassesWithAnnotations.contains(name)) {
+				final LinkedList<LifecycleElement> currInitMethods = new LinkedList<>();
+				final LinkedList<LifecycleElement> currDestroyMethods = new LinkedList<>();
+	
+				ReflectionUtils.doWithLocalMethods(targetClass, method -> {
+					if (this.initAnnotationType != null && method.isAnnotationPresent(this.initAnnotationType)) {
+						LifecycleElement element = new LifecycleElement(method);
+						currInitMethods.add(element);
+						if (debug) {
+							logger.debug("Found init method on class [" + clazz.getName() + "]: " + method);
+						}
 					}
-				}
-				if (this.destroyAnnotationType != null && method.isAnnotationPresent(this.destroyAnnotationType)) {
-					currDestroyMethods.add(new LifecycleElement(method));
-					if (debug) {
-						logger.debug("Found destroy method on class [" + clazz.getName() + "]: " + method);
+					if (this.destroyAnnotationType != null && method.isAnnotationPresent(this.destroyAnnotationType)) {
+						currDestroyMethods.add(new LifecycleElement(method));
+						if (debug) {
+							logger.debug("Found destroy method on class [" + clazz.getName() + "]: " + method);
+						}
 					}
-				}
-			});
-
-			initMethods.addAll(0, currInitMethods);
-			destroyMethods.addAll(currDestroyMethods);
+				});
+	
+				initMethods.addAll(0, currInitMethods);
+				destroyMethods.addAll(currDestroyMethods);
+			}
 			targetClass = targetClass.getSuperclass();
 		}
 		while (targetClass != null && targetClass != Object.class);

@@ -71,7 +71,7 @@ import org.springframework.util.ReflectionUtils;
  * @see #enhance
  * @see ConfigurationClassPostProcessor
  */
-class ConfigurationClassEnhancer {
+public class ConfigurationClassEnhancer {
 
 	// The callbacks to use. Note that these callbacks must be stateless.
 	private static final Callback[] CALLBACKS = new Callback[] {
@@ -96,6 +96,30 @@ class ConfigurationClassEnhancer {
 	 * @return the enhanced subclass
 	 */
 	public Class<?> enhance(Class<?> configClass, @Nullable ClassLoader classLoader) {
+		if (NoxEnhancedConfiguration.class.isAssignableFrom(configClass)) {
+			Class<?> clazz = configClass;
+			// TODO Could be smarter in code gen and avoid this recursive walk calling set
+			int depth = 0;
+			while (clazz!=null && NoxEnhancedConfiguration.class.isAssignableFrom(clazz)) {
+				depth++;
+				Method setInterceptorMethod = null;
+				if (setInterceptorMethod == null) {
+					try {
+						setInterceptorMethod = clazz.getDeclaredMethod("fixInterceptor",BeanMethodInterceptor.class);
+					} catch (Exception e) {
+						throw new RuntimeException("Unable to find setInterceptor method", e);
+					}
+				}
+				try {
+					setInterceptorMethod.setAccessible(true);
+					setInterceptorMethod.invoke(null,(BeanMethodInterceptor)CALLBACKS[0]);
+				} catch (Exception e) {
+					throw new RuntimeException("Can't set interceptor on "+configClass.getName(), e);
+				}
+				clazz = clazz.getSuperclass();
+			}
+			return configClass;
+		}
 		if (EnhancedConfiguration.class.isAssignableFrom(configClass)) {
 			if (logger.isDebugEnabled()) {
 				logger.debug(String.format("Ignoring request to enhance %s as it has " +
@@ -155,6 +179,10 @@ class ConfigurationClassEnhancer {
 	 * packages (i.e. user code).
 	 */
 	public interface EnhancedConfiguration extends BeanFactoryAware {
+	}
+
+	public interface NoxEnhancedConfiguration extends EnhancedConfiguration {
+		void fixInterceptor(BeanFactoryAwareMethodInterceptor interceptor);
 	}
 
 
@@ -300,8 +328,89 @@ class ConfigurationClassEnhancer {
 	 * @see Bean
 	 * @see ConfigurationClassEnhancer
 	 */
-	private static class BeanMethodInterceptor implements MethodInterceptor, ConditionalCallback {
+	public static class BeanMethodInterceptor implements MethodInterceptor, ConditionalCallback {
 
+		/**
+		 * Foo getFoo(String s) {
+		 *   return new Foo(s);
+		 * }
+		 * 
+		 * becomes:
+		 * 
+		 * Foo getFoo(String s) {
+		 *   String beanName = interceptor.getBeanName(beanFactory, beanMethod);
+		 *   Foo bean = interceptor.checkFactory(beanFactory, beanMethod, beanName)
+		 *   if (bean != null) {
+		 *   	return bean;
+		 *   }
+		 *   if (interceptor.isCurrentlyInvokedFactoryMethod(beanMethod)) {
+		 *   	return new Foo(s);
+		 *   }
+		 *   return interceptor.resolveBeanReference(beanMethod, beanMethodArgs, beanFactory, beanName);
+		 * }
+		 */
+
+		public String getBeanName(ConfigurableBeanFactory beanFactory, Method beanMethod) {
+//			System.out.println("getBeanName from "+summarizeStack());
+			String beanName = BeanAnnotationHelper.determineBeanNameFor(beanMethod);
+
+			// Determine whether this bean is a scoped-proxy
+			Scope scope = AnnotatedElementUtils.findMergedAnnotation(beanMethod, Scope.class);
+			if (scope != null && scope.proxyMode() != ScopedProxyMode.NO) {
+				String scopedBeanName = ScopedProxyCreator.getTargetBeanName(beanName);
+				if (beanFactory.isCurrentlyInCreation(scopedBeanName)) {
+					beanName = scopedBeanName;
+				}
+			}
+			return beanName;
+		}
+
+		public Object checkFactory(String beanName, ConfigurableBeanFactory beanFactory, Method beanMethod) {
+			// To handle the case of an inter-bean method reference, we must explicitly check the
+			// container for already cached instances.
+
+			// First, check to see if the requested bean is a FactoryBean. If so, create a subclass
+			// proxy that intercepts calls to getObject() and returns any cached bean instance.
+			// This ensures that the semantics of calling a FactoryBean from within @Bean methods
+			// is the same as that of referring to a FactoryBean within XML. See SPR-6602.
+			if (factoryContainsBean(beanFactory, BeanFactory.FACTORY_BEAN_PREFIX + beanName) &&
+					factoryContainsBean(beanFactory, beanName)) {
+				Object factoryBean = beanFactory.getBean(BeanFactory.FACTORY_BEAN_PREFIX + beanName);
+				if (factoryBean instanceof ScopedProxyFactoryBean) {
+					// Scoped proxy factory beans are a special case and should not be further proxied
+				}
+				else {
+					// It is a candidate FactoryBean - go ahead with enhancement
+					return enhanceFactoryBean(factoryBean, beanMethod.getReturnType(), beanFactory, beanName);
+				}
+			}
+			return null;
+		}
+
+		public boolean isCurrentlyInvokedFactoryMethodCheck(Method beanMethod) {
+			if (isCurrentlyInvokedFactoryMethod(beanMethod)) {
+				// The factory is calling the bean method in order to instantiate and register the bean
+				// (i.e. via a getBean() call) -> invoke the super implementation of the method to actually
+				// create the bean instance.
+				if (logger.isWarnEnabled() &&
+						BeanFactoryPostProcessor.class.isAssignableFrom(beanMethod.getReturnType())) {
+					logger.warn(String.format("@Bean method %s.%s is non-static and returns an object " +
+									"assignable to Spring's BeanFactoryPostProcessor interface. This will " +
+									"result in a failure to process annotations such as @Autowired, " +
+									"@Resource and @PostConstruct within the method's declaring " +
+									"@Configuration class. Add the 'static' modifier to this method to avoid " +
+									"these container lifecycle issues; see @Bean javadoc for complete details.",
+							beanMethod.getDeclaringClass().getSimpleName(), beanMethod.getName()));
+				}
+				return true;//cglibMethodProxy.invokeSuper(enhancedConfigInstance, beanMethodArgs);
+			}
+			return false;
+		}
+
+		public Object resolveBeanRef(String beanName, Method beanMethod, Object[] beanMethodArgs, ConfigurableBeanFactory beanFactory) {
+			return resolveBeanReference(beanMethod, beanMethodArgs, beanFactory, beanName);
+		}
+		
 		/**
 		 * Enhance a {@link Bean @Bean} method to check the supplied BeanFactory for the
 		 * existence of this bean object.

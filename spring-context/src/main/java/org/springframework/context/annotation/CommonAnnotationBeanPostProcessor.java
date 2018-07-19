@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -63,6 +64,7 @@ import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.core.BridgeMethodResolver;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.Ordered;
+import org.springframework.core.PrecomputedInfo;
 import org.springframework.jndi.support.SimpleJndiBeanFactory;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
@@ -148,6 +150,17 @@ public class CommonAnnotationBeanPostProcessor extends InitDestroyAnnotationBean
 	@Nullable
 	private static Class<? extends Annotation> ejbRefClass;
 
+	private static boolean annotationsInUse = true;
+
+	static {
+		Object precomputedObject = PrecomputedInfo.get(CommonAnnotationBeanPostProcessor.class.getName());
+		if (precomputedObject != null) {
+			annotationsInUse = (Boolean)precomputedObject;
+			System.out.println("CommonAnnotationBeanPostProcessor: precomputed info "+annotationsInUse);
+		}
+	}
+
+	
 	static {
 		try {
 			@SuppressWarnings("unchecked")
@@ -352,7 +365,10 @@ public class CommonAnnotationBeanPostProcessor extends InitDestroyAnnotationBean
 	private InjectionMetadata buildResourceMetadata(final Class<?> clazz) {
 		LinkedList<InjectionMetadata.InjectedElement> elements = new LinkedList<>();
 		Class<?> targetClass = clazz;
-
+		
+		if (!annotationsInUse) {
+			return new InjectionMetadata(clazz, elements);
+		}
 		do {
 			final LinkedList<InjectionMetadata.InjectedElement> currElements =
 					new LinkedList<>();
