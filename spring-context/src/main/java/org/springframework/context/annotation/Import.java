@@ -22,6 +22,9 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import org.springframework.core.annotation.CompilationHint;
+
+
 /**
  * Indicates one or more {@link Configuration @Configuration} classes to import.
  *
@@ -50,6 +53,7 @@ import java.lang.annotation.Target;
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
+@CompilationHint(member={"value"})
 @Documented
 public @interface Import {
 

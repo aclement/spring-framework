@@ -22,6 +22,7 @@ import org.springframework.beans.factory.config.BeanDefinitionCustomizer;
 import org.springframework.beans.factory.support.BeanNameGenerator;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.context.support.GenericApplicationContext;
+import org.springframework.core.annotation.CompilationHint;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
@@ -50,6 +51,14 @@ import org.springframework.util.Assert;
  * @see ClassPathBeanDefinitionScanner
  * @see org.springframework.context.support.GenericXmlApplicationContext
  */
+// Addressing:
+// org.springframework.beans.BeanInstantiationException: Failed to instantiate [org.springframework.context.annotation.AnnotationConfigApplicationContext]: No default constructor found; nested exception is java.lang.NoSuchMethodException: org.springframework.context.annotation.AnnotationConfigApplicationContext.<init>
+// 	at org.springframework.beans.BeanUtils.instantiateClass(BeanUtils.java:141)
+// 	at org.springframework.boot.SpringApplication.createApplicationContext(SpringApplication.java:614)
+// 	at org.springframework.boot.SpringApplication.run(SpringApplication.java:313)
+// 	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1275)
+// 	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1263)
+@CompilationHint(access={"reflection:constructors"})
 public class AnnotationConfigApplicationContext extends GenericApplicationContext implements AnnotationConfigRegistry {
 
 	private final AnnotatedBeanDefinitionReader reader;

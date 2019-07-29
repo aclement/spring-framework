@@ -20,6 +20,7 @@ import java.lang.reflect.Method;
 
 import org.springframework.context.ApplicationListener;
 import org.springframework.core.Ordered;
+import org.springframework.core.annotation.CompilationHint;
 
 /**
  * Default {@link EventListenerFactory} implementation that supports the
@@ -30,6 +31,7 @@ import org.springframework.core.Ordered;
  * @author Stephane Nicoll
  * @since 4.2
  */
+@CompilationHint(access={"reflection:constructors"})
 public class DefaultEventListenerFactory implements EventListenerFactory, Ordered {
 
 	private int order = LOWEST_PRECEDENCE;

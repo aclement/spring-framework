@@ -22,6 +22,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import org.springframework.core.annotation.CompilationHint;
+
 /**
  * Indicates that an annotated class is a "component".
  * Such classes are considered as candidates for auto-detection
@@ -42,6 +44,8 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
+//@CompilationHint(access={"reflection:constructors","proxy","resource"})
+@CompilationHint(access={"proxy","resource"})
 @Indexed
 public @interface Component {
 

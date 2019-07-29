@@ -96,7 +96,8 @@ configure(allprojects) { project ->
 
 	compileJava.options*.compilerArgs = commonCompilerArgs +
 			["-Xlint:varargs", "-Xlint:fallthrough", "-Xlint:rawtypes",
-			 "-Xlint:deprecation", "-Xlint:unchecked", "-Werror"]
+			 "-Xlint:deprecation", "-Xlint:unchecked"]
+// , "-Werror"]
 
 	compileTestJava.options*.compilerArgs = commonCompilerArgs +
 			["-Xlint:-varargs", "-Xlint:-fallthrough", "-Xlint:-rawtypes",
@@ -192,6 +193,22 @@ configure(allprojects) { project ->
 		"https://junit.org/junit4/javadoc/4.12/",
 		"https://junit.org/junit5/docs/${junit5Version}/api/"
 	] as String[]
+}
+
+configure(subprojects.findAll { (it.name != "spring-test") && (it.name != "spring-test") } ) { subproject ->
+
+if (!subproject.name.equals("spring-beans")) {
+compileJava {
+options.compilerArgs+="-Aorg.springframework.graal.processor.groupid=org.springframework"
+options.compilerArgs+="-Aorg.springframework.graal.processor.artifactId="+subproject.name;
+}
+}
+
+
+
+	dependencies {
+		annotationProcessor "org.springframework:graal-processor:0.0.1.BUILD-SNAPSHOT"
+	}
 }
 
 configure(subprojects.findAll { (it.name != "spring-build-src") && (it.name != "spring-core-coroutines") } ) { subproject ->

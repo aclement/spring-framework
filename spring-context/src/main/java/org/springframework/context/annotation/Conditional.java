@@ -22,6 +22,9 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import org.springframework.core.annotation.CompilationHint;
+
+
 /**
  * Indicates that a component is only eligible for registration when all
  * {@linkplain #value specified conditions} match.
@@ -58,6 +61,7 @@ import java.lang.annotation.Target;
  */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
+@CompilationHint(member={"value"})
 @Documented
 public @interface Conditional {
 

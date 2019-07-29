@@ -36,6 +36,7 @@ import org.springframework.util.Assert;
  * @since 2.5
  * @see org.springframework.context.annotation.Scope
  */
+@org.springframework.core.annotation.CompilationHint(access="reflection:constructors")
 public class AnnotationScopeMetadataResolver implements ScopeMetadataResolver {
 
 	private final ScopedProxyMode defaultProxyMode;

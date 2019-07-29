@@ -57,14 +57,24 @@ public class AutoProxyRegistrar implements ImportBeanDefinitionRegistrar {
 	@Override
 	public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry registry) {
 		boolean candidateFound = false;
+		System.out.println(">registerBDs importingClassMetaData="+importingClassMetadata.getClassName());
 		Set<String> annTypes = importingClassMetadata.getAnnotationTypes();
 		for (String annType : annTypes) {
+			System.out.println("Looking at "+annType);
 			AnnotationAttributes candidate = AnnotationConfigUtils.attributesFor(importingClassMetadata, annType);
+			System.out.println("Candidate is "+candidate);
 			if (candidate == null) {
 				continue;
 			}
 			Object mode = candidate.get("mode");
+			System.out.println("mode is "+mode);
 			Object proxyTargetClass = candidate.get("proxyTargetClass");
+			System.out.println("proxyTargetClass is "+proxyTargetClass);
+			if (mode != null && proxyTargetClass != null) {
+
+			System.out.println("AdviceMode.class == mode.getClass()? "+(AdviceMode.class==mode.getClass())+"  "+AdviceMode.class+" "+mode.getClass());
+			System.out.println("Boolean.class==proxyTargetClass.getClass()? "+(Boolean.class==proxyTargetClass.getClass())+" "+proxyTargetClass.getClass());
+			}
 			if (mode != null && proxyTargetClass != null && AdviceMode.class == mode.getClass() &&
 					Boolean.class == proxyTargetClass.getClass()) {
 				candidateFound = true;
