@@ -46,6 +46,7 @@ import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.core.io.support.ResourcePatternUtils;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.classreading.CachingMetadataReaderFactory;
+import org.springframework.core.type.classreading.IndexBasedCachingMetadataReaderFactory;
 import org.springframework.core.type.classreading.MetadataReader;
 import org.springframework.core.type.classreading.MetadataReaderFactory;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
@@ -262,8 +263,16 @@ public class ClassPathScanningCandidateComponentProvider implements EnvironmentC
 	@Override
 	public void setResourceLoader(@Nullable ResourceLoader resourceLoader) {
 		this.resourcePatternResolver = ResourcePatternUtils.getResourcePatternResolver(resourceLoader);
-		this.metadataReaderFactory = new CachingMetadataReaderFactory(resourceLoader);
+		this.metadataReaderFactory = determineMetadataReaderFactory(resourceLoader);
 		this.componentsIndex = CandidateComponentsIndexLoader.loadIndex(this.resourcePatternResolver.getClassLoader());
+	}
+	
+	private static MetadataReaderFactory determineMetadataReaderFactory(@Nullable ResourceLoader resourceLoader) {
+		if (IndexBasedCachingMetadataReaderFactory.indexExists(resourceLoader)) {
+			return new IndexBasedCachingMetadataReaderFactory(resourceLoader);
+		} else {
+			return new CachingMetadataReaderFactory(resourceLoader);
+		}
 	}
 
 	/**

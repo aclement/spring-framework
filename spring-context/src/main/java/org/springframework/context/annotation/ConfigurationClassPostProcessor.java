@@ -16,8 +16,12 @@
 
 package org.springframework.context.annotation;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -27,6 +31,8 @@ import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.jboss.jandex.Index;
+import org.jboss.jandex.IndexReader;
 
 import org.springframework.aop.framework.autoproxy.AutoProxyUtils;
 import org.springframework.beans.PropertyValues;
@@ -60,6 +66,8 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.MethodMetadata;
 import org.springframework.core.type.classreading.CachingMetadataReaderFactory;
+import org.springframework.core.type.classreading.IndexBasedCachingMetadataReaderFactory;
+import org.springframework.core.type.classreading.IndexBasedMetadataReaderFactory;
 import org.springframework.core.type.classreading.MetadataReaderFactory;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
@@ -111,18 +119,34 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 	@Nullable
 	private Environment environment;
 
-	private ResourceLoader resourceLoader = new DefaultResourceLoader();
+	private ResourceLoader resourceLoader;// = new DefaultResourceLoader();
 
 	@Nullable
-	private ClassLoader beanClassLoader = ClassUtils.getDefaultClassLoader();
+	private ClassLoader beanClassLoader;// = ClassUtils.getDefaultClassLoader();
 
-	private MetadataReaderFactory metadataReaderFactory = new CachingMetadataReaderFactory();
+	private MetadataReaderFactory metadataReaderFactory;// = new CachingMetadataReaderFactory();
 
 	private boolean setMetadataReaderFactoryCalled = false;
 
 	private final Set<Integer> registriesPostProcessed = new HashSet<>();
 
 	private final Set<Integer> factoriesPostProcessed = new HashSet<>();
+	
+	public ConfigurationClassPostProcessor() {
+		resourceLoader = new DefaultResourceLoader();
+		beanClassLoader = ClassUtils.getDefaultClassLoader();
+		metadataReaderFactory = determineMetadataReaderFactory(resourceLoader,beanClassLoader);
+	}
+	
+
+	private static MetadataReaderFactory determineMetadataReaderFactory(@Nullable ResourceLoader resourceLoader,ClassLoader classLoaderToUse) {
+		if (IndexBasedCachingMetadataReaderFactory.indexExists(resourceLoader)) {
+			return new IndexBasedCachingMetadataReaderFactory(resourceLoader);
+		} else {
+			return new CachingMetadataReaderFactory(resourceLoader);	
+		}
+	}
+
 
 	@Nullable
 	private ConfigurationClassBeanDefinitionReader reader;
@@ -166,7 +190,9 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 	 */
 	public void setMetadataReaderFactory(MetadataReaderFactory metadataReaderFactory) {
 		Assert.notNull(metadataReaderFactory, "MetadataReaderFactory must not be null");
-		this.metadataReaderFactory = metadataReaderFactory;
+		// it was boot with a concurrentreferencecaching thingybob
+		// Temporarily out because boot stomps on the one we are working on (we need a boot subclass of the indexed one)
+	//	this.metadataReaderFactory = metadataReaderFactory;
 		this.setMetadataReaderFactoryCalled = true;
 	}
 
