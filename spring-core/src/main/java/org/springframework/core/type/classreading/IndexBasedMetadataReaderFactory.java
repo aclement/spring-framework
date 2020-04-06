@@ -38,13 +38,13 @@ import org.springframework.util.ClassUtils;
  */
 public class IndexBasedMetadataReaderFactory implements MetadataReaderFactory {
 
-	public final static boolean VERIFY_BEHAVIOUR = true;
+	public final static boolean VERIFY_BEHAVIOUR = false;
 
 	private final static String ANNOTATION_INDEX_RESOURCE_LOCATION = "META-INF/spring.annotation.index";	
 
 	private final ResourceLoader resourceLoader;
 	private static Index index;
-	private final MetadataReaderFactory verifier;
+	private MetadataReaderFactory verifier;
 
 	/**
 	 * Create a new IndexBasedMetadataReaderFactory for the default class loader.
@@ -159,3 +159,4 @@ public class IndexBasedMetadataReaderFactory implements MetadataReaderFactory {
 	}
 
 }
+
